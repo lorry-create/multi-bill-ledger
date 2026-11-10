@@ -165,7 +165,7 @@ python -m uvicorn app.main:app --reload --port 8000
 | 金额 | 一律 **CNY 整数分**，字段名统一带 `_fen`。不存在浮点元。`amount_fen ≥ 1`（交易）；预算 `amount_fen ≥ 0` |
 | 时间 | ISO 8601 **必须带时区**（如 `2026-11-08T12:00:00+08:00`）；无时区的时间在确认/纠错时返回 422 `TIME_WITHOUT_TIMEZONE` |
 | 归月 | 按 `Asia/Shanghai` 自然日归一，落库为 `month_index = YYYY-MM` |
-| 月份参数 | `YYYY-MM`，正则 `^\d{4}-(0[1-9]|1[0-2])$`；接口**不静默默认当月**，缺了就 422 |
+| 月份参数 | 字符串 `YYYY-MM`，服务端正则限定月份为 01–12；接口**不静默默认当月**，缺了就 422 |
 | 日期筛选 | `date_from`/`date_to` 是**上海自然日**且两端包含；`date_from > date_to` → 422 `DATE_RANGE_REVERSED`（`fields[].field = "date_from"`） |
 | 报表口径 | `net_expense_fen = gross_expense_fen - refund_fen`；`balance_fen = income_fen - net_expense_fen`（**是收支差额，不是账户余额**） |
 
