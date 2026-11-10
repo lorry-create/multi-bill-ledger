@@ -51,3 +51,18 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 使用捆绑Python 3.12.14、项目临时目录中的Schema校验库和TypeScript编译器，未替换系统Python。T00仍需落实三人解释器、应用依赖锁和启动命令。生成SDK和检查工具是交接辅助，不是账单业务实现。
 
 注：上述 3.12.14 是 0.2.0 文档校验当时的解释器，属历史记录不追溯。自 T00 起团队统一 Python 3.13 系列（CHG-001，见 docs/10_change_delivery.md）：共用模型生成器已在 3.13.14 实测通过，含 463 行/39 符号生成、7 项负向用例与 --check 幂等。
+
+## 2026 年 11 月 10 日补充：T02 导入中心实测（CHG-004）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **100 项通过**（`test_imports_api` 26 + `test_intelligence` 43 + `test_reporting` 18 + `test_t00_smoke` 13） |
+| `python tools/check_implemented_contract.py` | 已实现 **9** 个接口，字段与契约一致；待实现 8；1 条 `[注意]`：`retryImport` 的 422 为契约漏写（见 docs/10 CHG-004「契约待补」） |
+| 真实 uvicorn（127.0.0.1:8011，临时 SQLite） | 上传微信样例 1577 字节 → `202` + `Location` + `Retry-After: 1`；第 3 次轮询 `pending_review`，6 条草稿，首行为「星巴克咖啡 3500 分 dining / general_rule」；`original` 回读 1577 字节、字节完全一致、`text/csv`；`confirm` 建 6 笔并返回 6 个 ID；同 `request_id` 重放响应逐字段相同；批次 `completed`、version 4 |
+| 真实进程重启恢复 | 人为置 `processing` → `taskkill /F` → 重启 → 同一批次返回 `failed`（version 3）+ `BATCH_INTERRUPTED`，重试通道可用；不存在永久 processing |
+| 上传边界（用例内） | 513KiB → 413 `UPLOAD_TOO_LARGE`；`.pdf` → 415；PDF 改名 `.csv` → 415；0 字节 → 422 `EMPTY_FILE`；`.png` 以 file 方式上传 → 415；`source=paypal` → 422 `VALIDATION_FAILED` |
+| 批次边界（用例内） | 他人批次 → 404 `RESOURCE_NOT_FOUND`；`pending_review` 批次 retry → 409 `BATCH_STATE_CONFLICT`；旧 `expected_version` → 409 `VERSION_CONFLICT` 并回带 `current_version`；未知 `row_id` → 422 `UNKNOWN_ROW`；无时区时间 → 422 `TIME_WITHOUT_TIMEZONE`；过期草稿 → 409 |
+| 幂等与去重（用例内） | 同 ID 同体重放 → 返回原结果且库内交易数不变；同 ID 改金额 → 409 `IDEMPOTENCY_CONFLICT`；已完成批次 + 新 ID → 409 `BATCH_STATE_CONFLICT`；同一文件重传 → 6 行全 `duplicate`，确认 `created_count=0` |
+
+本轮未验证：真实平台账单（仍为零）、OCR、Docker/PostgreSQL 实跑、备份恢复、浏览器端页面交互。
+`tests` 全部在临时 SQLite 上跑，不触碰 `backend/local-data/app.db`。

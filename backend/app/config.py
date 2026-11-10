@@ -52,6 +52,16 @@ def _env_int(name: str, default: int) -> int:
         raise ConfigError(f"{name} 必须是整数，实际为 {raw!r}") from exc
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = _env(name)
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} 必须是数字，实际为 {raw!r}") from exc
+
+
 def _dev_secrets() -> dict[str, str]:
     """读取或生成开发期密钥，落盘到 local-data/dev_secrets.json。"""
     LOCAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -95,6 +105,14 @@ class Settings:
     allow_test_doubles: bool
     cors_origins: tuple[str, ...]
     intelligence_provider: str
+    # 导入中心（T02）：限额与批次时限都来自 docs/02、docs/11、docs/13 的明文规定，
+    # 不写成散布在路由里的魔法数字，测试要靠环境变量调小才跑得动
+    upload_max_file_bytes: int
+    upload_max_image_bytes: int
+    batch_deadline_seconds: int
+    batch_draft_ttl_hours: int
+    import_worker_enabled: bool
+    import_worker_poll_seconds: float
 
     @property
     def is_production(self) -> bool:
@@ -150,4 +168,12 @@ def load_settings() -> Settings:
         # 默认纯规则实现；D 的实现按 包.模块:类名 填入。故意不支持"自动降级"，
         # 否则分类来源会撒谎（见 app/intelligence/factory.py 顶部说明）
         intelligence_provider=_env("INTELLIGENCE_PROVIDER", "fallback-rules"),
+        # 契约 docs/11 createImport：文件 10MiB、图片 5MiB
+        upload_max_file_bytes=_env_int("UPLOAD_MAX_FILE_BYTES", 10 * 1024 * 1024),
+        upload_max_image_bytes=_env_int("UPLOAD_MAX_IMAGE_BYTES", 5 * 1024 * 1024),
+        # docs/13：整体批次期限 300 秒，超时转 failed，不允许永久 processing
+        batch_deadline_seconds=_env_int("BATCH_DEADLINE_SECONDS", 300),
+        batch_draft_ttl_hours=_env_int("BATCH_DRAFT_TTL_HOURS", 24),
+        import_worker_enabled=_env_bool("IMPORT_WORKER_ENABLED", True),
+        import_worker_poll_seconds=_env_float("IMPORT_WORKER_POLL_SECONDS", 0.5),
     )

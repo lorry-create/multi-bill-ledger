@@ -105,6 +105,27 @@ F 端不要按中文文案判断（docs/11 明确）。
 `ROWS_SKIPPED` 这个码存在的意义：让"文件里 30 条、界面 28 条"有明确解释，
 而不是让用户以为丢账。
 
+### 4.1 由后端（导入服务）产生的码（CHG-004 新增）
+
+以下三个不是 D 的解析器产出，而是 `app/services/imports.py` 在处理/读取批次时加的。
+D 不要重复造；F 同样按 code 判断。
+
+| code | 含义 | 前端该做什么 |
+| --- | --- | --- |
+| `DUPLICATE_EXISTING` | 该行与库里已入账交易撞去重摘要，`duplicate_status` 已置 `duplicate` | 默认不勾选，提示"已入账，确认时会跳过" |
+| `NO_ROWS_PARSED` | 文件能打开但没有任何可入账交易 | 显示空状态 + 建议检查导出范围 |
+| `DRAFT_UNREADABLE` | 批次草稿/失败原因解密失败（密钥更换或密文损坏） | 引导重新上传，不要说"文件格式错误" |
+
+批次**整体失败**时没有草稿，只有一条 `row_id` 为 null 的 Issue，code 取自下表：
+
+| code | 含义 | 能否重试 |
+| --- | --- | --- |
+| `UNSUPPORTED_TEMPLATE` / `INVALID_FILE` / `OCR_UNAVAILABLE` / `OCR_FIELD_MISSING` / `MODEL_TIMEOUT` / `MODEL_OUTPUT_INVALID` | 智能模块抛出的失败（docs/13 的六个最小集合） | 能（`POST /api/imports/{id}/retry`） |
+| `BATCH_TIMEOUT` | 超过 `BATCH_DEADLINE_SECONDS`（默认 300 秒）仍未结束 | 能 |
+| `BATCH_INTERRUPTED` | 服务重启中断了处理 | 能 |
+| `BATCH_EXPIRED` | 批次草稿超过 `BATCH_DRAFT_TTL_HOURS`（默认 24 小时） | 不能，重新上传 |
+| `CRYPTO_FAILED` | 服务端解不开原文件（密钥变更/密文损坏） | 不能，重新上传 |
+
 ---
 
 ## 五、fallback 能做什么、不能做什么
@@ -165,9 +186,11 @@ python -m app.tools.parse_probe ../data/private/alipay_2026-10.csv --source alip
 | 已实现 | 数量 |
 | --- | --- |
 | `/health`、`/api/auth/login`、`/api/auth/me`、`/api/auth/logout` | 4 |
-| 待实现（T02/T05/T08） | 13 |
+| 导入中心 5 个：`createImport`、`getImport`、`getImportOriginal`、`retryImport`、`confirmImport`（CHG-004） | 5 |
+| 待实现（T02 剩余 + T05/T08） | 8 |
 
 `python tools/check_implemented_contract.py` 可随时核对已实现部分与契约是否漂移。
+截至 CHG-004：已实现 9 个、字段与契约一致，待实现 8 个。
 
-**本次没有新增接口**：这轮补的是接口依赖的地基（响应头约定、智能模块边界、报表口径）。
-T02 的五个接口现在可以直接在这层上写，不需要再等 D。
+剩下 8 个：`listTransactions`、`patchTransaction`、`listRules`、`patchRule`、
+`getMonthlyReport`、`putBudget`、`exportTransactions`、`exportMonthlyPdf`。

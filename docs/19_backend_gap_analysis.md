@@ -10,8 +10,17 @@
 > `X-Contract-Version` 中间件（`app/middleware.py`，四种状态码实测带）、
 > 智能模块接口层（`app/intelligence/`，含纯规则 fallback）、
 > 报表唯一口径（`app/services/reporting.py`，与 `seed_demo` 共用）。
-> 第二节的 13 个接口**仍未实现**，仍是 T02/T05/T08 范围。
 > 补齐细节与实测数据见 `docs/20_intelligence_contract.md` 与 `docs/10` 的 CHG-003。
+>
+> **进展更新（2026-11-10 深夜，CHG-004）**：第二节的 13 个接口里 **5 个已实现**——
+> `createImport` / `getImport` / `getImportOriginal` / `retryImport` / `confirmImport`
+> （T02 导入中心整条闭环，含状态机、幂等、去重、单事务确认）。后端已实现 4 → **9**，
+> 待实现 **8**：`listTransactions`、`patchTransaction`、`listRules`、`patchRule`、
+> `getMonthlyReport`、`putBudget`、`exportTransactions`、`exportMonthlyPdf`。
+> 实测：`unittest discover -s tests` 100 项通过；真实 uvicorn 走通「上传 202 → 轮询
+> pending_review → 回读原件字节一致 → 确认 6 笔 → 同 request_id 重放结果一致」；
+> 强杀进程重启后批次转 `failed(BATCH_INTERRUPTED)` 而非永久 processing。
+> 详见 `docs/10` CHG-004。
 
 
 ---
