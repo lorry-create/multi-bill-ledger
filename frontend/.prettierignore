@@ -1,0 +1,3 @@
+node_modules/
+dist/
+src/api/client.generated.ts
