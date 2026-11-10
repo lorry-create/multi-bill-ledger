@@ -7,5 +7,7 @@ pydantic>=2.9,<3
 python-multipart>=0.0.9,<0.1
 # 敏感字段加密（AES-GCM）与去重摘要（HMAC-SHA256）
 cryptography>=42,<50
+# 账单 .xlsx 解析（契约允许 CSV/XLSX）。旧版 .xls 明确不支持，会返回 UNSUPPORTED_TEMPLATE
+openpyxl>=3.1,<4
 # 仅 PostgreSQL 部署需要；本地 SQLite 开发不加载该驱动
 psycopg[binary]>=3.2,<4

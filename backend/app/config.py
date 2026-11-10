@@ -94,6 +94,7 @@ class Settings:
     login_lock_seconds: int
     allow_test_doubles: bool
     cors_origins: tuple[str, ...]
+    intelligence_provider: str
 
     @property
     def is_production(self) -> bool:
@@ -146,4 +147,7 @@ def load_settings() -> Settings:
         login_lock_seconds=_env_int("LOGIN_LOCK_SECONDS", 60),
         allow_test_doubles=_env_bool("ALLOW_TEST_DOUBLES", False),
         cors_origins=cors_origins,
+        # 默认纯规则实现；D 的实现按 包.模块:类名 填入。故意不支持"自动降级"，
+        # 否则分类来源会撒谎（见 app/intelligence/factory.py 顶部说明）
+        intelligence_provider=_env("INTELLIGENCE_PROVIDER", "fallback-rules"),
     )
