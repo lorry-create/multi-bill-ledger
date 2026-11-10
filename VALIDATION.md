@@ -26,11 +26,25 @@
 
 仍需开发后验证：生成的模型与 FastAPI 实际路由的 `response_model` 是否一致、序列化后的 JSON 是否与 `examples.json` 快照逐字段相等。本次只证明"模型可导入、约束生效、与契约文本一致"，不表示后端接口已实现。
 
+## 2026 年 11 月 10 日补充：T00 骨架实测
+
+| 命令 | 实测结果 |
+| --- | --- |
+| `python -m app.migrate` | 8 张表建成，`schema_migrations` 记录 001，checksum `c64a885bf3a0` |
+| `python -m app.migrate --check` | 表齐全、checksum 一致，重复执行幂等 |
+| `python -m app.migrate --sql` | 导出 152 行 PostgreSQL DDL 到 `backend/migrations/001_init.sql` |
+| `python -m app.seed_demo` | 6 笔合成账 + 2 条预算；重复执行 6 笔全跳过（幂等）；解密回读合计与 `fixtures.expected` 完全一致（收入 100.00／支出 42.00／退款 5.00／净支出 37.00／收支差额 63.00） |
+| `python -m unittest discover -s tests -v` | 9 项通过：health、未登录 401、错误密码、账号不存在同码、422→`error.details.fields`、登录成功与 Cookie 属性、CSRF 403、登出 204 且会话立即失效、429 锁定 |
+| `tools/check_implemented_contract.py` | 已实现 4 个接口字段与契约一致；待实现 13 个 |
+| 手动 HTTP 复核 | 22 项断言全过（含 `Retry-After` 头、未知路径 404 也走统一 Error） |
+
+过程中发现并修正的两个真实缺陷：`/health` 的 `status` 因带默认值被 OpenAPI 标为可选（与契约 required 不符）；`/api/auth/login` 的 422 文档默认写成 FastAPI 的 `detail` 结构，而运行时返回契约的 `error` 结构。两处均已修，并由 `check_implemented_contract.py` 持续看守。
+
 ## 仍需开发后验证
 
-真实HTTP返回、Pydantic模型与契约匹配、数据库事务和权限、实际平台格式、OCR和DeepSeek效果、浏览器完整交互、Linux部署与恢复。Postman集合是请求模板，独立快照不能当作一键连续业务回放。
+真实平台导出格式（支付宝/微信真实账单仍为空）、OCR 效果、DeepSeek 分类效果、浏览器完整交互、Linux 部署与备份恢复演练。已实现 4 个接口的真实 HTTP 行为已在本机验证；其余 13 个接口尚未实现，不能声称已验证。
 
-本次读取的远端仍是原README；修订没有上传、创建Issue或PR、邀请或启用远端CI。远端是否通过必须看实际运行及被测SHA。
+T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远端 Actions 尚未实跑，是否通过必须看实际运行及被测 SHA。
 
 ## 本地环境
 

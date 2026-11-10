@@ -8,7 +8,8 @@
 
 | 表 | 关键列和约束 | 明文与加密范围 |
 | --- | --- | --- |
-| users | id PK；username唯一；password_hash；created_at；is_active | 密码成熟慢哈希，不可逆明文存储 |
+| users | id PK；username唯一；password_hash；created_at；is_active；failed_login_count；locked_until | 密码成熟慢哈希，不可逆明文存储；锁定只对外暴露"能否重试"和等待秒数，不暴露失败原因 |
+| user_sessions | id PK；user_id FK；token_hash唯一；csrf_token；created_at；expires_at；last_seen_at；user_agent；client_ip | 只存令牌摘要与CSRF值，不存令牌明文；登出立即删行，会话失效不依赖前端清Cookie |
 | import_batches | id；user_id FK；source；ingestion_method；status；version；progress_current/total；created_at/updated_at；started_at；expires_at | filename、原文件、草稿、issues和幂等响应内容加密；仅必要状态/索引明文 |
 | transactions | id；user_id；import_batch_id；version；month_index；source；flow_type；category；status；created_at/updated_at | 精确时间、金额、交易号、商户、说明、分类依据进入encrypted_payload；必要类别月份流向索引保留并说明泄露范围 |
 | classification_rules | id；user_id；source；version；enabled；created_at/updated_at | merchant_normalized和规则内容加密；仅在本人少量规则中解密匹配，禁止建明文商户库 |

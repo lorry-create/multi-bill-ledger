@@ -84,3 +84,43 @@
 ```
 
 补充口径：`VALIDATION.md` 中"捆绑 Python 3.12.14"记录的是 0.2.0 文档校验当时实际使用的解释器，属历史证据，不修改、不追溯；自 T00 起新增的代码与 CI 一律以 Python 3.13 系列为准。若后续有人在新机器上装出 3.13 之外的版本，按本变更"不得单方降级"处理，而不是默默继续。
+
+## 2026年11月10日 CHG-002：T00 骨架落地，新增会话表与登录锁定字段
+
+```text
+变更编号和日期：CHG-002 / 2026-11-10
+提出人及任务：罗镓裕（队长），T00 基础工程骨架
+现契约版本和建议版本：契约 0.2.0 不变。本变更不改变任何接口路径、请求/响应字段或状态码，
+  只把"文档里已经约定的东西"变成可运行的服务，并补齐会话与限流的持久化位置。
+问题及实际证据：契约声明了 cookieAuth（bill_session）与 csrfAuth（X-CSRF-Token），docs/13 的表清单
+  却没有会话表，登录限流也没有落点。若不落库，登出无法立即失效、加副本后限流失效
+  （评分项的"高可用"正好要求多副本）。
+  实测证据（本机 Python 3.13.14 + SQLite）：
+    python -m app.migrate            -> [OK] 建表完成（8 张），迁移 001 已记录，checksum c64a885bf3a0
+    python -m app.migrate --check    -> [OK] 8 张表齐全，迁移 001 校验通过
+    python -m app.seed_demo ...      -> 入库 6 笔 + 预算 2 条；解密回读后
+                                       收入 100.00 / 支出 42.00 / 退款 5.00 / 净支出 37.00 /
+                                       收支差额 63.00，与 fixtures.expected 逐项一致
+    python -m unittest discover -s tests -> 9 项全部通过（含 429 锁定、CSRF 403、422 转 error.details.fields）
+    python tools/check_implemented_contract.py -> 已实现 4 个接口字段一致，待实现 13 个
+建议的最小改动：
+  1) docs/13 表清单新增 user_sessions（只存 token 摘要与 csrf 值，登出即删行）；
+  2) users 增加 failed_login_count、locked_until，使登录锁定在多副本下依然生效；
+  3) 后端只实现 /health 与 /api/auth/{login,me,logout} 共 4 个 operation，其余 13 个留给 T01/T02；
+  4) 表结构以 ORM 模型为唯一来源，DDL 由 python -m app.migrate --sql 导出到
+     backend/migrations/001_init.sql，避免手写 SQL 与模型漂移；
+  5) 新增 tools/check_implemented_contract.py，在 CI 里只比对"已声明的 operation"，
+     未实现的不算失败，因此可以随开发进度一直跑。
+影响的接口、调用方、数据迁移和测试：
+  - 接口：已实现的 4 个与契约字段完全一致；未实现的 13 个仍是 T01/T02 范围，前端不得先行对接。
+  - 调用方：F 可用 /api/auth/* 打通登录态与 CSRF；D 不受影响（intelligence 层接口未变）。
+  - 数据迁移：新增表与列，属首次建表，无历史数据需要搬迁；--drop 在生产环境被拒绝。
+  - 测试：backend/tests/test_t00_smoke.py 为新增回归，CI 增加"契约漂移"与"冒烟测试"两步。
+需要同步的人员与实施顺序：1) 队长推送 backend/ 与 docs 变更；
+  2) F 按 docs/17 的窄卡先做 mock，再切真接口，注意写请求必须回传 csrf_token；
+  3) D 不需要等本变更，按 docs/18 直接做解析与分类；4) 三人各自拉取后跑一次
+     python -m unittest discover -s tests，确认本地环境一致。
+队长决定和对应提交：已决定按上述最小改动落地（用户 2026-11-10 "b 和 a 同时做"）。提交 SHA 由队长推送后回填本行。
+```
+
+已知边界（不要误读为已完成）：T00 只做骨架，**没有**实现上传、预览确认、交易列表、规则、报表、导出这 13 个接口；也没有接入 DeepSeek 与 OCR。真实账单样本仍为零，这是 T01 的前置条件。

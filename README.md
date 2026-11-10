@@ -1,6 +1,8 @@
 # multi-bill-ledger
 
-多源账单导入与个人财务管理。当前开发交接包版本为0.2.0，日期2026年11月7日。目标在11月19日前完成初赛核心闭环，20日提交。业务服务和页面尚未实现。
+多源账单导入与个人财务管理。契约版本 0.2.0，日期 2026 年 11 月 10 日。
+
+**当前状态：T00 骨架已完成并实测通过。** 后端能启动、能登录（`GET /health`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` 共 4 个接口，字段与契约一致）；其余 13 个接口与全部前端页面尚未实现。目标 11 月 19 日前完成初赛核心闭环，20 日提交。
 
 ## 先看接口设计
 
@@ -55,13 +57,26 @@ python tools/validate_examples.py --self-test
 python tools/generate_contract_artifacts.py --check
 ```
 
-本地已执行OpenAPI标准、29例Schema、生成一致性、TypeScript严格检查和9项fetch替身调用测试，结果见[检查记录](VALIDATION.md)。完整TypeScript与Node测试命令在.github/workflows/contract-check.yml；远端Actions尚未运行。静态例子和替身不是实际业务服务，真实权限、金额事务、OCR模型和部署仍需后续验证。
+后端（T00 起可跑）：
 
-## GitHub协作
+```bash
+python -m pip install -r backend/requirements-dev.txt
+python tools/check_implemented_contract.py        # 已实现接口 vs 契约，未实现的不算失败
+cd backend
+python -m app.migrate                              # 建表；--check 校验，--sql 导出 PG DDL
+python -m app.seed_demo --username demo_a --password 你的密码
+python -m unittest discover -s tests -v            # 9 项冒烟测试，不占端口
+```
 
-仓库：https://github.com/lorry-create/multi-bill-ledger 。已确认private且当前连接可读；本次读取仍只有原项目README。本次本地修订未上传远端、创建PR或邀请队友。
+本地已执行 OpenAPI 标准、29 例 Schema、生成一致性、TypeScript 严格检查、9 项 fetch 替身调用测试，以及 T00 的建表/导入/9 项后端测试，结果见[检查记录](VALIDATION.md)。完整命令在 `.github/workflows/contract-check.yml`（已含契约漂移与后端冒烟两步），远端 Actions 尚未实跑。静态例子和替身不是实际业务服务，真实权限、金额事务、OCR 模型和部署仍需后续验证。
 
-你邀请队友接受Collaborator访问，上传新版文档基线，队友克隆同一仓库。任务分支开发、PR提交、Actions检查、你拉取具体SHA测试、验收合并main。步骤和套餐限制见[GitHub指南](docs/07_github_review.md)。真实账单、密钥不入Git；[合成账本](fixtures/synthetic_ledger.json)只用于口径测试。
+## GitHub 协作
+
+仓库：https://github.com/lorry-create/multi-bill-ledger ，**已设为 public**，评委可直接按链接查看代码与提交历史。
+
+T00 基线已推到 `task/T00-baseline` 分支（3 个 commit：导入契约与文档、生成共用模型并接入漂移检查、补 T00 清单与两张首日卡），**`main` 未改动**，等队友验证后再合并。
+
+注意初赛要求是「提供仓库链接与提交历史」：public 只解决"能打开"，**提交历史必须体现三人分工**——三个人的 commit 都要真的出现在 `main` 上。按任务分支开发、PR 提交、Actions 检查、队长拉取具体 SHA 验收后合并。步骤与套餐限制见[GitHub 指南](docs/07_github_review.md)。真实账单、密钥不入 Git；[合成账本](fixtures/synthetic_ledger.json)只用于口径测试。
 
 ## 修订依据和历史
 
