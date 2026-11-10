@@ -40,6 +40,7 @@ from ..contracts import (
     Batch,
     BatchStatus,
     ClassificationRule,
+    ClassificationSource,
     ConfirmResult,
     ErrorDetails,
     FieldError,
@@ -683,6 +684,22 @@ def confirm_batch(
             duplicates += 1
             continue
 
+        # 分类来源必须跟着交易一起进加密区。契约里 Transaction 的
+        # classification_source/classification_reason 是必填字段，事后再推断
+        # 等于伪造来源（docs/20 第一节明确禁止）。只有用户确实改了类别才标 manual。
+        draft = by_row.get(item.row_id)
+        stored = txn.model_dump(mode="json")
+        stored["ingestion_method"] = batch.ingestion_method
+        if draft is None:
+            stored["classification_source"] = ClassificationSource.pending.value
+            stored["classification_reason"] = ""
+        elif txn.category != draft.category:
+            stored["classification_source"] = ClassificationSource.manual.value
+            stored["classification_reason"] = "用户确认时修正分类"
+        else:
+            stored["classification_source"] = draft.classification_source.value
+            stored["classification_reason"] = draft.classification_reason
+
         record = models.Transaction(
             id=str(uuid.uuid4()),
             user_id=batch.user_id,
@@ -694,9 +711,7 @@ def confirm_batch(
             category=txn.category.value,  # type: ignore[union-attr]
             status="confirmed",
             dedupe_digest=row_token,
-            encrypted_payload=encrypt_json(
-                key, txn.model_dump(mode="json")
-            ),
+            encrypted_payload=encrypt_json(key, stored),
         )
         # savepoint：同一次请求里两行内容相同会撞唯一约束，只回滚这一行，
         # 不能把整个确认事务连坐（外层事务要继续写批次状态）

@@ -187,10 +187,14 @@ python -m app.tools.parse_probe ../data/private/alipay_2026-10.csv --source alip
 | --- | --- |
 | `/health`、`/api/auth/login`、`/api/auth/me`、`/api/auth/logout` | 4 |
 | 导入中心 5 个：`createImport`、`getImport`、`getImportOriginal`、`retryImport`、`confirmImport`（CHG-004） | 5 |
-| 待实现（T02 剩余 + T05/T08） | 8 |
+| 账单与报表 4 个：`listTransactions`、`patchTransaction`、`getMonthlyReport`、`putBudget`（CHG-005） | 4 |
+| 待实现（规则 2 + 导出 2） | 4 |
 
 `python tools/check_implemented_contract.py` 可随时核对已实现部分与契约是否漂移。
-截至 CHG-004：已实现 9 个、字段与契约一致，待实现 8 个。
+截至 CHG-005：已实现 13 个、字段与契约一致，待实现 4 个。
 
-剩下 8 个：`listTransactions`、`patchTransaction`、`listRules`、`patchRule`、
-`getMonthlyReport`、`putBudget`、`exportTransactions`、`exportMonthlyPdf`。
+剩下 4 个：`listRules`、`patchRule`、`exportTransactions`、`exportMonthlyPdf`。
+
+分类来源的落库约定（CHG-005）：确认入账时把草稿的 `classification_source` /
+`classification_reason` 一并写入加密区，用户改了类别则标 `manual`。存量记录缺这两项
+时接口如实返回 `pending` 加说明，**不会**用当前规则补记一个当时并不存在的来源。

@@ -45,7 +45,7 @@ def require_session(request: Request, db: Session = Depends(get_db)) -> AuthCont
     """校验会话 Cookie。GET 接口用它，写接口用 require_csrf。"""
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
-        raise _unauthenticated("UNAUTHENTICATED", "未登录或会话已失效")
+        raise _unauthenticated("AUTH_REQUIRED", "未登录或会话已失效")
 
     row = db.scalar(
         select(models.UserSession).where(
@@ -53,20 +53,20 @@ def require_session(request: Request, db: Session = Depends(get_db)) -> AuthCont
         )
     )
     if row is None:
-        raise _unauthenticated("UNAUTHENTICATED", "未登录或会话已失效")
+        raise _unauthenticated("AUTH_REQUIRED", "未登录或会话已失效")
 
     now = utcnow()
     expires_at = as_utc(row.expires_at)
     if expires_at is None or expires_at <= now:
         db.delete(row)
         db.commit()
-        raise _unauthenticated("SESSION_EXPIRED", "会话已过期，请重新登录")
+        raise _unauthenticated("AUTH_REQUIRED", "会话已过期，请重新登录")
 
     user = db.get(models.User, row.user_id)
     if user is None or not user.is_active:
         db.delete(row)
         db.commit()
-        raise _unauthenticated("UNAUTHENTICATED", "账号不可用")
+        raise _unauthenticated("AUTH_REQUIRED", "账号不可用")
 
     last_seen = as_utc(row.last_seen_at)
     if last_seen is None or (now - last_seen).total_seconds() >= _TOUCH_INTERVAL_SECONDS:
@@ -83,7 +83,7 @@ def require_csrf(
     provided = request.headers.get(CSRF_HEADER) or ""
     if not provided or not constant_time_equals(provided, auth.session.csrf_token):
         raise ApiError(
-            "CSRF_TOKEN_INVALID",
+            "CSRF_INVALID",
             403,
             "缺少或无效的 CSRF 令牌",
             ErrorDetails(),

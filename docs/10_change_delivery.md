@@ -280,3 +280,100 @@ uploaded → processing → pending_review → completed
   D 的 OCR 一到位即可用。
 - **原件存在库里**（`encrypted_original`，AES-GCM）。10MiB 上限下可接受，PostgreSQL 靠 TOAST 消化；
   若以后放宽限额，要改成对象存储 + 独立密钥，别继续往行里塞。
+
+---
+
+## CHG-005（2026-11-10 晚）：账单列表/纠错、月报、预算 4 个接口 + 5 处契约偏差修正
+
+契约版本不变（0.2.0），**没有改任何字段名或状态码语义**。已实现接口从 9 个升到
+**13 个**，待实现 4 个（分类规则 2 个、导出 2 个）。
+
+### 一、新增的 4 个接口
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/transactions` | 按日期/类别/平台/流向筛选 + 分页，只返回本人已确认交易 |
+| `PATCH /api/transactions/{id}` | 改字段；显式改类别标 manual；`remember_rule` 同时沉淀个人规则 |
+| `GET /api/reports/monthly` | 月报，直接调 `services/reporting`，不重复计算 |
+| `PUT /api/budgets` | 按（用户, 月份, 类别）覆盖写入，始终 200 |
+
+新增文件：`services/transactions.py`、`services/budgets.py`、`routers/transactions.py`、
+`routers/reports.py`、`routers/budgets.py`、`tests/test_ledger_api.py`（38 项）。
+
+### 二、核对字段时发现的 5 个真实偏差（这才是本轮最该记的部分）
+
+**1. 错误码名字和契约不一致 —— 前端所有错误分支都会失效。**
+
+| 位置 | 原来写 | 契约要求 | 后果 |
+| --- | --- | --- | --- |
+| 所有 401 | `UNAUTHENTICATED` / `SESSION_EXPIRED` | `AUTH_REQUIRED` | 前端 `if (code === 'AUTH_REQUIRED') 跳登录` 永远不命中，401 时页面卡住 |
+| 所有 403 | `CSRF_TOKEN_INVALID` | `CSRF_INVALID` | CSRF 失效时的重取令牌逻辑不触发 |
+| 所有 422 | `VALIDATION_FAILED` | `VALIDATION_ERROR` | 表单标红逻辑不触发，用户只看到"提交失败" |
+| 登录失败 | `INVALID_CREDENTIALS` | `AUTH_INVALID` | 登录页无法区分"密码错"与其他错误 |
+
+已全部改为契约值（`app/deps.py`、`app/errors.py`、`app/routers/auth.py`），并同步
+7 处测试断言。`docs/16` 第 53 行原文写的 `CSRF_TOKEN_INVALID` 是笔误，一并修正。
+**这是 T00 遗留问题，不影响已有数据的正确性，但会让 F 的页面调试多绕好几天。**
+
+**2. 422 的 OpenAPI 文档结构与实际返回不一致。**
+实现层早就把 `RequestValidationError` 转成了 `{"error": {...}}`，但 FastAPI 生成的
+OpenAPI 仍在按默认的 `{"detail": [...]}` 描述 422。F 如果按文档生成类型，422 分支
+拿到的字段全是 `undefined`。已在 `main.py` 加 `normalize_error_schema()` 统一指向
+`Error`，检查工具不再报 `缺字段 ['error']，多字段 ['detail']`。
+
+**3. 新路由必须显式声明非 2xx 响应，否则生成的 SDK 里没有错误分支。**
+`responses={401: _ERR, 403: _ERR, ...}` 逐个补上。契约声明了但实现没声明时，检查
+工具会报 `[注意] 契约声明但暂未实现的响应码`——那不是"没实现"，而是"文档没写"，
+两者都要改。
+
+**4. 入账时没保存分类来源，列表接口无法如实返回。**
+契约里 `Transaction.classification_source` 和 `classification_reason` 都是必填，但 T02
+入账时只存了 `TransactionInput`（8 个字段），这两项根本没落库。补齐方式：
+- 确认入账时把草稿的分类来源一并写入加密区；
+- 用户确认时改了类别的，标 `manual` + "用户确认时修正分类"；
+- 同时存入 `ingestion_method`，避免列表为了一个字段去 join 批次表。
+
+存量记录（CHG-004 之前入账的）没有这两项，接口**如实返回 `pending` + "该记录入账时
+未保存分类来源"**，不拿当前规则补记一个当时并不存在的来源。目前真实数据为零，
+这条影响范围就是 `seed_demo` 的历史副本。
+
+**5. 合并 patch 时枚举没转字符串，会把 `"Category.dining"` 写进加密区。**
+`_merge_changes()` 原来只处理 `datetime`，`Category`/`FlowType` 枚举原样塞回载荷。
+结果：分类统计整块归到"未知类别"，而且因为脏值在加密区里，SQL 也查不出来——
+属于"不报错但数据悄悄坏掉"的那类 bug。已统一取 `.value`（`tests` 里
+`test_patch_remember_rule_creates_personal_rule` 抓到了它）。
+
+### 三、三个有意为之的设计决定（别当成漏了）
+
+1. **编辑后不重算 `dedupe_digest`。** 它标识的是"这次导入的哪一行"，不是内容哈希。
+   用户改完金额就重算，等于把原记录的去重身份换掉，同一份账单再导入一次会重新
+   进账——比"改错了改回来"危险得多。
+2. **`spent_fen` 用净支出，可以为负。** 某类别只发生退款时 `spent_fen = -5`，
+   符合契约"退款跨月时可以为负"和"这个月还能花多少"的直觉（A10）。
+3. **提交内容与原值完全相同时 `version` 不递增。** 改了又改回原值不该让前端手里的
+   `expected_version` 失效。但 `remember_rule=true` 时即使交易字段没变，规则照建
+   ——用户点的就是"记住商户"，不能因为类别本来就对而静默吞掉。
+
+### 四、实测证据（本机 Python 3.13.14）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **138 项全部通过**（100 + 新增 38） |
+| `python tools/check_implemented_contract.py` | 已实现 **13** 个，字段与契约一致；待实现 4 个；1 条 `[注意]`（retryImport 的 422，仍待 0.2.x 补） |
+| 真实 uvicorn（127.0.0.1:8021，seed_demo 6 笔） | 列表 6 条倒序正确（16:00→09:00）；`category=dining`→2、`source=alipay`→3、单日 11-08→6；`page=2&page_size=2`→total 仍 6；反向区间→422 `DATE_RANGE_REVERSED` |
+| 月报口径 | 收入 100.00 / 毛支出 42.00 / 退款 5.00 / 净支出 37.00 / 差额 63.00，与 `seed_demo` 独立核对结果逐项一致；日趋势 30 天全给出，仅 11-08 有值 |
+| 纠错联动 | 把 `dining 30.00` 改为 `transport` 并记住商户 → 200、`manual`、v1→v2；月报分类构成立刻变 `[transport 30, other 12]`，毛支出仍 42.00（改类别不改金额）；`?category=transport` 立即查得到 |
+| 乐观锁 | 用旧 `expected_version=1` 再改 → 409 `VERSION_CONFLICT`，`details.current_version=2` |
+| 预算 | `PUT` 覆盖同一 ID 不新建；`pending` 类别 → 422；`amount_fen=0` 允许；`dining` 预算 50 元、当月只剩 5 元退款 → `spent_fen=-5.00`、`remaining=55.00` |
+
+### 五、已知限制（写清楚，不当成已完成）
+
+- **列表和月报是全量解密后在内存里过滤、排序、分页。** 因为日期、金额、商户都在
+  加密区，SQL 层只能过滤月份/类别/流向/平台这些明文索引列。个人规模（万级以内）
+  没问题；数据量再涨要改成独立存储或加明文日期索引，**不能**假装能在加密列上
+  SQL 排序。这是任务书第四节「接口字段和数据库的加密存储表示不同」里明确的取舍。
+- **个人规则匹配是 O(规则数) 次解密。** 规则表没有明文商户列（匹配条件本身是敏感
+  信息，docs/13 要求保护）。规则通常几十条，可接受；上千条要另想办法。
+- **`import_batch_id` 在批次被删除后返回空串。** 契约该字段不可空，又没有"未知"的
+  表示法，只能给空串。F 不要拿它做"是否来自导入"的判断。
+- **金额精度只到分，不接受更多小数位**，这是契约 0.2.0 的既定口径，本轮没动。

@@ -200,7 +200,7 @@ class ImportApiTest(unittest.TestCase):
             f"/api/imports/{batch['id']}/confirm", json=payload
         )
         self.assertEqual(403, response.status_code)
-        self.assertEqual("CSRF_TOKEN_INVALID", response.json()["error"]["code"])
+        self.assertEqual("CSRF_INVALID", response.json()["error"]["code"])
 
     # ---------------------------------------------------------------- 上传校验
 
@@ -249,7 +249,7 @@ class ImportApiTest(unittest.TestCase):
     def test_upload_rejects_invalid_source(self) -> None:
         response = self._upload(source="paypal")
         self.assertEqual(422, response.status_code, response.text)
-        self.assertEqual("VALIDATION_FAILED", response.json()["error"]["code"])
+        self.assertEqual("VALIDATION_ERROR", response.json()["error"]["code"])
 
     # ---------------------------------------------------------------- 处理与读取
 

@@ -113,16 +113,18 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=422,
             content=build_error(
-                "VALIDATION_FAILED", "请求内容不合法", ErrorDetails(fields=fields)
+                # 码必须与 contracts/openapi.json 的 x-error-codes 一致：
+                # 前端是按 code 分支的，名字对不上等于所有 422 都走进了未知分支
+                "VALIDATION_ERROR", "请求内容不合法", ErrorDetails(fields=fields)
             ),
         )
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = {
-            401: "UNAUTHENTICATED",
+            401: "AUTH_REQUIRED",
             403: "FORBIDDEN",
-            404: "NOT_FOUND",
+            404: "RESOURCE_NOT_FOUND",
             405: "METHOD_NOT_ALLOWED",
             413: "PAYLOAD_TOO_LARGE",
             415: "UNSUPPORTED_MEDIA_TYPE",

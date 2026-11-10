@@ -66,3 +66,19 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 
 本轮未验证：真实平台账单（仍为零）、OCR、Docker/PostgreSQL 实跑、备份恢复、浏览器端页面交互。
 `tests` 全部在临时 SQLite 上跑，不触碰 `backend/local-data/app.db`。
+
+## 2026 年 11 月 10 日补充：账单列表/纠错、月报、预算（CHG-005）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **138 项通过**（`test_ledger_api` 38 + `test_imports_api` 26 + `test_intelligence` 43 + `test_reporting` 18 + `test_t00_smoke` 13） |
+| `python tools/check_implemented_contract.py` | 已实现 **13** 个接口，字段与契约一致；待实现 4（`listRules`/`patchRule`/`exportTransactions`/`exportMonthlyPdf`）；1 条 `[注意]`：`retryImport` 的 422 仍是契约漏写 |
+| 真实 uvicorn（127.0.0.1:8021，临时 SQLite + `seed_demo` 6 笔） | 列表 6 条按 `occurred_at` 倒序（16:00→09:00）；`category=dining`→2、`source=alipay`→3、单日 11-08→6、`page=2&page_size=2`→total 仍 6；`date_from>date_to`→422 `DATE_RANGE_REVERSED` |
+| 月报口径（真实进程） | 收入 100.00 / 毛支出 42.00 / 退款 5.00 / 净支出 37.00 / 差额 63.00，与 `seed_demo` 独立核对逐项一致；`daily_trend` 30 天完整，仅 11-08 非零；`expense_by_category` 只含毛支出 >0 的类别 |
+| 纠错联动（真实进程） | `dining 30.00` → 改 `transport` + `remember_rule` → 200、`manual`、v1→v2；月报分类构成立即变 `[transport 30, other 12]`，毛支出仍 42.00；`?category=transport` 立即命中；旧 `expected_version` 再改 → 409 `VERSION_CONFLICT` + `current_version=2` |
+| 预算（真实进程） | 同一（用户/月/类别）覆盖不新建（ID 不变）；`category=pending`→422；`amount_fen=0` 允许、负数→422；无 CSRF→403 `CSRF_INVALID`；当月只剩退款 5 元时 `spent_fen=-5.00`、`remaining=55.00` |
+| 错误码契约一致性（用例内） | 401→`AUTH_REQUIRED`、403→`CSRF_INVALID`、422→`VALIDATION_ERROR`、登录失败→`AUTH_INVALID`，全部与 `contracts/openapi.json` 的 `x-error-codes` 一致 |
+| 租户隔离（用例内） | 他人交易 PATCH→404 `RESOURCE_NOT_FOUND`；他人交易不出现在列表；他人预算不出现在月报 |
+
+本轮未验证：真实平台账单（仍为零）、OCR、CSV/PDF 导出、分类规则读写接口、Docker/PostgreSQL 实跑、前端页面。
+`tests` 全部在临时 SQLite 上跑，不触碰 `backend/local-data/app.db`。

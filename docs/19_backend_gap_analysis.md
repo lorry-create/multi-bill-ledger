@@ -21,6 +21,18 @@
 > pending_review → 回读原件字节一致 → 确认 6 笔 → 同 request_id 重放结果一致」；
 > 强杀进程重启后批次转 `failed(BATCH_INTERRUPTED)` 而非永久 processing。
 > 详见 `docs/10` CHG-004。
+>
+> **进展更新（2026-11-10 晚，CHG-005）**：又补 4 个——`listTransactions` /
+> `patchTransaction` / `getMonthlyReport` / `putBudget`（账单列表筛选分页、
+> 纠错与记住商户、月报、预算写入）。已实现 9 → **13**，待实现 **4**：
+> `listRules`、`patchRule`、`exportTransactions`、`exportMonthlyPdf`。
+>
+> 这一轮核对字段时修掉 5 个**真实偏差**，其中两个会直接阻塞前端：
+> ① 所有错误码与契约不一致（`UNAUTHENTICATED` vs `AUTH_REQUIRED` 等 4 组），
+> 前端按契约写的 `code` 分支永远不命中；② 422 的 OpenAPI 文档结构是 FastAPI 默认的
+> `{"detail": ...}`，与实现返回的 `{"error": ...}` 不符。另外补上了入账时漏存的
+> `classification_source`（契约必填但此前没落库），以及一处会把 `"Category.dining"`
+> 写进加密区的枚举序列化 bug。测试 100 → **138 项全过**，详见 `docs/10` CHG-005。
 
 
 ---

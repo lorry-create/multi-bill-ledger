@@ -50,7 +50,7 @@ curl -s -c c.txt -X POST http://127.0.0.1:8000/api/auth/login \
 curl -s -b c.txt http://127.0.0.1:8000/api/auth/me        # 同一会话可读回
 ```
 
-写请求（登出、后续所有 POST/PATCH/PUT）必须带 `X-CSRF-Token: <csrf_token>`，否则返回 `403 CSRF_TOKEN_INVALID`。
+写请求（登出、后续所有 POST/PATCH/PUT）必须带 `X-CSRF-Token: <csrf_token>`，否则返回 `403 CSRF_INVALID`。
 
 ## 三、实际目录树
 

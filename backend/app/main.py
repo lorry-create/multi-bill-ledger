@@ -25,7 +25,7 @@ from .db import build_engine, build_session_factory
 from .errors import register_error_handlers
 from .intelligence.factory import build_intelligence
 from .middleware import ContractVersionMiddleware
-from .routers import auth, health
+from .routers import auth, budgets, health, reports, transactions
 from .routers import imports as imports_api
 from .services.worker import ImportWorker
 
@@ -65,6 +65,27 @@ def strip_unreachable_422(schema: dict) -> dict:
             )
             if plain_strings:
                 operation.get("responses", {}).pop("422", None)
+    return schema
+
+
+def normalize_error_schema(schema: dict) -> dict:
+    """把 422 的文档结构改成统一 Error。
+
+    `register_error_handlers` 已经把 `RequestValidationError` 转成
+    `{"error": {"code": "VALIDATION_ERROR", ...}}`，但 FastAPI 生成的 OpenAPI
+    仍在按默认的 `{"detail": [...]}` 描述 422。文档和实现不一致时，前端照文档
+    解析只会拿到 `undefined`——而 422 恰恰是表单页最高频的分支。
+    """
+    for methods in schema.get("paths", {}).values():
+        for method, operation in methods.items():
+            if method not in _METHODS:
+                continue
+            response = operation.get("responses", {}).get("422")
+            if not response:
+                continue
+            response["content"] = {
+                "application/json": {"schema": {"$ref": "#/components/schemas/Error"}}
+            }
     return schema
 
 
@@ -121,12 +142,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(imports_api.router)
+    app.include_router(transactions.router)
+    app.include_router(reports.router)
+    app.include_router(budgets.router)
 
     # 后端的 /openapi.json 是"已实现部分"的自描述，得和权威契约对得上
     _original_openapi = app.openapi
 
     def _openapi() -> dict:
-        return strip_unreachable_422(_original_openapi())
+        return strip_unreachable_422(normalize_error_schema(_original_openapi()))
 
     app.openapi = _openapi
 
