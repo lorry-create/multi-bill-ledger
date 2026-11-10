@@ -32,3 +32,10 @@ jobs:
         run: |
           node "$RUNNER_TEMP/ledger-contract-tools/node_modules/typescript/bin/tsc" --strict --target ES2022 --module commonjs --lib ES2022,DOM --outDir .contract-sdk-build contracts/client.generated.ts
           node --test tools/test_browser_client.cjs
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+      - name: Reject contract drift in implemented endpoints
+        run: python tools/check_implemented_contract.py
+      - name: Run backend smoke tests
+        working-directory: backend
+        run: python -m unittest discover -s tests -v
