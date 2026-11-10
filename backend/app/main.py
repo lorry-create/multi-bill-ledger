@@ -23,6 +23,7 @@ from .config import Settings, load_settings
 from .contracts import CONTRACT_VERSION
 from .db import build_engine, build_session_factory
 from .errors import register_error_handlers
+from .middleware import ContractVersionMiddleware
 from .routers import auth, health
 
 logging.basicConfig(
@@ -60,12 +61,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = session_factory
 
     register_error_handlers(app)
+    app.add_middleware(ContractVersionMiddleware, version=CONTRACT_VERSION)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "X-CSRF-Token"],
+        # 不给 expose，浏览器里的 JS 读不到这个响应头
+        expose_headers=["X-Contract-Version", "Location", "Retry-After"],
     )
 
     app.include_router(health.router)

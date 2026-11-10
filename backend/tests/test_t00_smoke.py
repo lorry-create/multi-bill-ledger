@@ -30,6 +30,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 from app import models  # noqa: E402
+from app.contracts import CONTRACT_VERSION  # noqa: E402
 from app.db import Base  # noqa: E402
 from app.main import app  # noqa: E402
 from app.security import hash_password  # noqa: E402
@@ -75,6 +76,27 @@ class T00SmokeTest(unittest.TestCase):
         response = self.client.get("/health")
         self.assertEqual(200, response.status_code)
         self.assertEqual({"status": "ok"}, response.json())
+
+    # ---------- 契约响应头（docs/11 第 12 行：所有成功和失败响应都带） ----------
+    def test_contract_version_header_on_success(self) -> None:
+        response = self.client.get("/health")
+        self.assertEqual(CONTRACT_VERSION, response.headers.get("X-Contract-Version"))
+
+    def test_contract_version_header_on_auth_error(self) -> None:
+        """401 也得带。前端靠它判断"是契约不匹配还是真的没登录"。"""
+        response = self.client.get("/api/auth/me")
+        self.assertEqual(401, response.status_code)
+        self.assertEqual(CONTRACT_VERSION, response.headers.get("X-Contract-Version"))
+
+    def test_contract_version_header_on_validation_error(self) -> None:
+        response = self.client.post("/api/auth/login", json={"username": "demo_a"})
+        self.assertEqual(422, response.status_code)
+        self.assertEqual(CONTRACT_VERSION, response.headers.get("X-Contract-Version"))
+
+    def test_contract_version_header_on_not_found(self) -> None:
+        response = self.client.get("/api/no-such-endpoint")
+        self.assertEqual(404, response.status_code)
+        self.assertEqual(CONTRACT_VERSION, response.headers.get("X-Contract-Version"))
 
     # ---------- 认证前 ----------
     def test_me_requires_session(self) -> None:
