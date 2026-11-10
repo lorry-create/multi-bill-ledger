@@ -82,3 +82,25 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 
 本轮未验证：真实平台账单（仍为零）、OCR、CSV/PDF 导出、分类规则读写接口、Docker/PostgreSQL 实跑、前端页面。
 `tests` 全部在临时 SQLite 上跑，不触碰 `backend/local-data/app.db`。
+
+## 2026 年 11 月 10 日夜补充：个人规则与导出（CHG-006，契约 17/17）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **162 项通过**（`test_rules_and_exports` 24 + 此前 138） |
+| `python tools/check_implemented_contract.py` | 已实现 **17** 个接口，字段与契约一致；**待实现 0**；1 条 `[注意]`：`retryImport` 的 422 仍是契约漏写 |
+| 规则列表（用例内） | 空库 `{"items": []}`；含停用项时按 `(source, merchant_normalized)` 升序；他人规则不出现 |
+| 规则修改（用例内 + 真实进程） | 停用 200、`version` 1→2；重新启用 →3；改类别 200；空 patch → 422 `RULE_PATCH_EMPTY`；`category=pending` → 422；旧版本 → 409 + `current_version`；他人规则 → 404；无 CSRF → 403 `CSRF_INVALID` |
+| **A07 四步闭环（真实 HTTP 全链路）** | 导入「瑞幸咖啡」→ `dining`/`general_rule` → 改 `transport` + 记住商户（`manual`，规则落库）→ 再导入同商户新交易 → `transport`/`user_rule` → 停用规则 → 第三笔回落 `dining`/`general_rule`；已入账前两笔类别不变 |
+| CSV 导出（真实 uvicorn） | 200、`text/csv; charset=utf-8`、`Content-Disposition` 含 `filename*=UTF-8''`；819 字节；**UTF-8 BOM**；表头 10 列含 `amount_fen`；6 行数据 |
+| CSV 范围一致性 | `category=dining`：列表 `total=1`、CSV 数据行 1，逐数一致；`page=1&page_size=1` 仍导出 3 行（不被分页截断） |
+| CSV 防公式注入 | `=1+1`/`+SUM(A1)`/`-2+3`/`@SUM(1)` 四种商户名均被前置单引号；`永辉超市` 未被误加 |
+| PDF 导出（真实 uvicorn） | 200、`application/pdf`、19,681 字节、`%PDF-`；含 `FontFile2` + `ToUnicode`，字体 `AAAAAA+SimHei` 子集 |
+| PDF 内容（pymupdf 提取 + 渲染成图核对） | 中文完整：「收支合计」「支出分类构成」「每日支出趋势」「预算执行」；数字 100.00/42.00/5.00/37.00/63.00 与 `GET /api/reports/monthly` 逐项相同；分类显示「交通/购物/餐饮」；渲染图无重叠无方块 |
+| PDF 降级 | 清空字体候选 → 503 `EXPORT_UNAVAILABLE`，日志说明原因，不输出方块 PDF |
+| 未登录导出 | CSV / PDF 均 401 `AUTH_REQUIRED` |
+
+部署侧同步：`backend/Dockerfile` 增装 `fonts-wqy-zenhei` 并设 `PDF_FONT_PATH`
+（reportlab 只能嵌 TrueType 轮廓，Noto CJK 是 CFF/OTF 会加载失败）；
+`requirements.txt` 增 `reportlab>=4.0,<5`；`.env.example` 增 `EXPORT_MAX_ROWS` 与 `PDF_FONT_PATH`。
+**Docker 本身仍未实跑验证**（A14）。

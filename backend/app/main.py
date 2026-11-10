@@ -6,7 +6,8 @@
     python -m app.seed_demo ...    # 可选：导入合成演示数据
     python -m uvicorn app.main:app --reload --port 8000
 
-已实现接口：/health、/api/auth/*、/api/imports/*（T02 导入中心 5 个）。
+已实现接口：契约 17 个操作全部落地（auth 4、imports 5、transactions 2、rules 2、
+reports 1、budgets 1、exports 2）。
 其余接口由 T05/T08 按契约补齐。后端自己导出的 /openapi.json 反映"已实现部分"，
 不是权威契约；权威仍是 contracts/openapi.json，两边不一致时必须先改文档再改代码。
 """
@@ -25,7 +26,7 @@ from .db import build_engine, build_session_factory
 from .errors import register_error_handlers
 from .intelligence.factory import build_intelligence
 from .middleware import ContractVersionMiddleware
-from .routers import auth, budgets, health, reports, transactions
+from .routers import auth, budgets, exports, health, reports, rules, transactions
 from .routers import imports as imports_api
 from .services.worker import ImportWorker
 
@@ -145,6 +146,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(transactions.router)
     app.include_router(reports.router)
     app.include_router(budgets.router)
+    app.include_router(rules.router)
+    app.include_router(exports.router)
 
     # 后端的 /openapi.json 是"已实现部分"的自描述，得和权威契约对得上
     _original_openapi = app.openapi

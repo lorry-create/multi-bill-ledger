@@ -113,6 +113,10 @@ class Settings:
     batch_draft_ttl_hours: int
     import_worker_enabled: bool
     import_worker_poll_seconds: float
+    # 导出（T08/T09）：CSV 行数上限防止一次解密几十万条把内存打满；
+    # PDF 字体路径留空表示按内置候选列表自动搜索（见 app/services/exporting.py）
+    export_max_rows: int
+    pdf_font_path: str
 
     @property
     def is_production(self) -> bool:
@@ -176,4 +180,9 @@ def load_settings() -> Settings:
         batch_draft_ttl_hours=_env_int("BATCH_DRAFT_TTL_HOURS", 24),
         import_worker_enabled=_env_bool("IMPORT_WORKER_ENABLED", True),
         import_worker_poll_seconds=_env_float("IMPORT_WORKER_POLL_SECONDS", 0.5),
+        # 单次导出 5 万行封顶：个人账单一月几千行量级，这个上限只用来防异常调用
+        export_max_rows=_env_int("EXPORT_MAX_ROWS", 50000),
+        # 留空则由 exporting._find_cjk_font() 按候选列表找；容器里显式指到
+        # /usr/share/fonts/truetype/wqy/wqy-zenhei.ttc（TrueType 轮廓，reportlab 能嵌入）
+        pdf_font_path=_env("PDF_FONT_PATH", ""),
     )

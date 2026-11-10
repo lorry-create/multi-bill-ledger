@@ -1,0 +1,3 @@
+# 月报 PDF（app/services/exporting.py）。缺失时 PDF 导出返回 503，
+# 账单 CSV 导出不受影响——所以是可选降级而不是硬依赖。
+reportlab>=4.0,<5

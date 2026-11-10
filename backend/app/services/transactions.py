@@ -167,7 +167,7 @@ def _decoded_rows(
     return decoded
 
 
-def list_transactions(
+def filtered_rows(
     db: Session,
     user_id: str,
     key: str,
@@ -177,10 +177,13 @@ def list_transactions(
     category: object = None,
     source: object = None,
     flow_type: object = None,
-    page: int = 1,
-    page_size: int = 50,
-) -> TransactionPage:
-    """按上海自然日筛选 + 分页。两端都含边界，与契约描述一致。"""
+) -> list[tuple[models.Transaction, dict, datetime]]:
+    """筛选 + 解密 + 倒序。**列表页与 CSV 导出共用这一份实现。**
+
+    导出如果自己再写一套筛选，迟早出现"页面 12 条、CSV 15 条"这种谁也说不清的
+    问题（docs/08 A11 明确要求导出范围与页面数字一致）。所以这里只做"筛选"，
+    分页交给调用方——列表取窗口，导出取全量。
+    """
     if date_from and date_to and date_from > date_to:
         raise _unprocessable("date_from", "DATE_RANGE_REVERSED", "date_from 不能晚于 date_to")
 
@@ -203,6 +206,33 @@ def list_transactions(
 
     # 契约：occurred_at 倒序，再 id 倒序。id 兜底是为了同一秒的多笔记录顺序稳定
     kept.sort(key=lambda item: (item[2].astimezone(), item[0].id), reverse=True)
+    return kept
+
+
+def list_transactions(
+    db: Session,
+    user_id: str,
+    key: str,
+    *,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    category: object = None,
+    source: object = None,
+    flow_type: object = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> TransactionPage:
+    """按上海自然日筛选 + 分页。两端都含边界，与契约描述一致。"""
+    kept = filtered_rows(
+        db,
+        user_id,
+        key,
+        date_from=date_from,
+        date_to=date_to,
+        category=category,
+        source=source,
+        flow_type=flow_type,
+    )
 
     total = len(kept)
     start = (page - 1) * page_size
@@ -428,6 +458,7 @@ def patch_transaction(
 
 __all__ = [
     "STATUS_CONFIRMED",
+    "filtered_rows",
     "list_transactions",
     "load_owned",
     "patch_transaction",

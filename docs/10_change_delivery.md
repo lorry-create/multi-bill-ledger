@@ -377,3 +377,114 @@ OpenAPI 仍在按默认的 `{"detail": [...]}` 描述 422。F 如果按文档生
 - **`import_batch_id` 在批次被删除后返回空串。** 契约该字段不可空，又没有"未知"的
   表示法，只能给空串。F 不要拿它做"是否来自导入"的判断。
 - **金额精度只到分，不接受更多小数位**，这是契约 0.2.0 的既定口径，本轮没动。
+
+---
+
+## CHG-006（2026-11-10 夜）：规则读写 + 两个导出，契约 17/17 全部落地
+
+**契约版本不变（0.2.0），没有改任何字段名、状态码或错误码语义。**
+后端已实现接口从 13 个升到 **17 个，待实现 0 个**。这是后端功能面的收口提交。
+
+### 一、新增的 4 个接口
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/classification-rules` | 本人全部规则（**含已停用**），按 `source` 再 `merchant_normalized` 升序 |
+| `PATCH /api/classification-rules/{id}` | 改类别或停用/启用；停用**不重写**历史交易 |
+| `GET /api/exports/transactions.csv` | 与筛选范围一致的账单 CSV，不限分页，防公式注入 |
+| `GET /api/exports/monthly.pdf` | 与月报同口径的中文 PDF，字体真嵌入 |
+
+新增文件：`app/services/rules.py`、`app/services/exporting.py`、`app/routers/rules.py`、
+`app/routers/exports.py`、`app/http_utils.py`、`backend/tests/test_rules_and_exports.py`（24 项）。
+
+### 二、闭环第五环终于闭合（这是本轮真正的目的）
+
+之前的状态：用户能"记住商户"，新交易也能命中规则，但**规则停不掉**——
+`patchRule` 不存在，docs/08 A07 四步只能走三步，等于反馈闭环是假闭合。
+
+现在 A07 四步在真实 HTTP 全链路下逐条验证通过（`test_a07_full_loop`）：
+
+```
+导入「瑞幸咖啡」→ 通用规则判 dining (general_rule)
+  → 用户改成 transport + 记住商户 → manual，规则落库 (wechat / 瑞幸咖啡 / transport)
+  → 再导入同商户新交易 → transport (user_rule)   ← 个人规则优先
+  → 停用规则 → 第三笔回落 dining (general_rule)   ← 停用真的生效
+  → 已入账的前两笔类别不变                        ← 停用不重写历史
+```
+
+### 三、五个值得记下的实现决定
+
+**1. `enabled` 以明文列为唯一真相，加密区只做同步。**
+`classification_rules.enabled` 是明文布尔列——导入时要在 SQL 层筛 `enabled IS TRUE`，
+不可能为它解密整张表。加密区里也存了一份 `enabled`（历史遗留），写入时同步，
+但**读取一律以明文列为准**，避免两处水位漂移时不知道该信谁。
+
+**2. 空 patch 必须由服务层拦。**
+契约用 `anyOf` 要求"至少提供 enabled 或 category"，但 Pydantic 模型两个字段都是
+`Optional`，空请求能过模型校验。不补这条检查，`{"expected_version": 1}` 会被当成
+"什么都没改"悄悄返回 200。现在返回 422 `VALIDATION_ERROR` + 字段码 `RULE_PATCH_EMPTY`。
+
+**3. CSV 导出的筛选与列表**共用同一份实现**。**
+`filtered_rows()` 从 `list_transactions` 里抽出来，导出调它、列表也调它。
+导出若自己再写一套筛选，迟早出现"页面 12 条、CSV 15 条"这种谁也说不清的问题
+（docs/08 A11 明确要求两者一致）。导出只是"不分页地取全量"，筛选逻辑零复制。
+
+**4. CSV 防公式注入不是可选项。**
+以 `=` `+` `-` `@` `\t` `\r` 开头的文本单元格，Excel 打开时当公式执行——
+商户名里塞一句 `=cmd|'/c calc'!A1` 就能在别人机器上跑命令。导出时统一前置单引号，
+`=1+1` 变成 `'=1+1`。金额列是整数分，不是文本，不加引号也不受影响。
+已用四个恶意商户名逐条验证，同时验证正常商户（"永辉超市"）不会被误加引号。
+
+**5. PDF 找不到中文字体就 503，不输出方块。**
+契约本来就声明了 503 `EXPORT_UNAVAILABLE` 这个分支，这不是"没做完"的借口，
+而是"渲染依赖缺失时的正确行为"。所以：
+- `pdf_font_path` 留空时按内置候选列表搜索（Windows 找 simhei/msyh，Linux 找文泉驿）；
+- 全部找不到 → 503，日志说明原因；
+- 找到就**真嵌入**（PDF 里能查到 `FontFile2` 与 `ToUnicode`，不是只设了个字体名）。
+
+容器里特意装 `fonts-wqy-zenhei` 而不是 `fonts-noto-cjk`：**reportlab 只能嵌
+TrueType 轮廓，Noto CJK 是 CFF/OTF，加载会直接失败**。这个坑不写下来下一个人一定踩。
+
+### 四、实测证据（本机 Python 3.13.14，真实 uvicorn，非只有 TestClient）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **162 项全部通过**（138 + 新增 24） |
+| `python tools/check_implemented_contract.py` | 已实现 **17** 个，字段与契约一致；**待实现 0**；1 条 `[注意]`（retryImport 的 422，仍待 0.2.x 补） |
+| 规则列表 | 空库返回 `{"items": []}`；含停用项时按 `(source, merchant_normalized)` 升序；他人规则不出现 |
+| 规则修改 | 停用 200 且 `version` 1→2；重新启用 200 且 →3；改类别 200；空 patch 422 `RULE_PATCH_EMPTY`；`category=pending` 422；旧版本 409 `VERSION_CONFLICT` + `current_version: 2`；他人规则 404；无 CSRF 403 `CSRF_INVALID` |
+| CSV 导出（真实进程） | 200、`text/csv; charset=utf-8`、`Content-Disposition` 含 RFC5987 中文名；819 字节；**首 3 字节为 UTF-8 BOM**；表头 10 列含 `amount_fen`；6 条数据行 |
+| CSV 范围一致性 | `category=dining` 时列表 `total=1`、CSV 数据行 1，**逐数一致**；`page=1&page_size=1` 仍导出 3 行（不被分页截断） |
+| CSV 防注入 | `=1+1`/`+SUM(A1)`/`-2+3`/`@SUM(1)` 四种商户名全部被前置单引号；`永辉超市` 未被误加 |
+| PDF 导出（真实进程） | 200、`application/pdf`、19,681 字节；`%PDF-` 开头；含 `FontFile2` 与 `ToUnicode`；字体为 `AAAAAA+SimHei` 子集 |
+| PDF 内容（pymupdf 提取 + 渲染核对） | 中文完整可读：「2026 年 11 月收支月报」「收支合计」「支出分类构成」「每日支出趋势」「预算执行」；数字 100.00 / 42.00 / 5.00 / 37.00 / 63.00 与 `GET /api/reports/monthly` 逐项相同；分类名显示「交通/购物/餐饮」而不是 `transport/shopping/dining` |
+| PDF 字体缺失 | 清空候选列表 → 503 `EXPORT_UNAVAILABLE`，日志写明"找不到可嵌入的中文字体" |
+| 未登录 | CSV 与 PDF 都是 401 `AUTH_REQUIRED` |
+
+### 五、CSV 列定义（给 F 与后续导出）
+
+```
+occurred_at, source, flow_type, category, amount_fen, currency,
+merchant, description, classification_source, source_transaction_id
+```
+
+- `amount_fen` 是**整数分**，不是元；列名带 `_fen` 就是为了让下游不用猜。
+- 文件编码是 **UTF-8 带 BOM**：不加 BOM 时 Excel 双击打开中文商户名会乱码。
+  **程序化解析请用 `utf-8-sig` 解码**，否则第一列名会带一个不可见字符。
+- 时间列是 ISO 8601 带偏移（`2026-11-08T16:00:00+08:00`），不是本地化字符串。
+- 导出不按 `page/page_size` 截断，传了也忽略。
+
+### 六、已知限制（写清楚，别当成已完成）
+
+- **CSV 导出是全量解密后在内存里筛**。个人规模（万级以内）没问题；`EXPORT_MAX_ROWS`
+  默认 5 万行，超限返回 422 并提示缩小日期范围，**不悄悄截断**。数据量再涨要改成
+  流式解密或独立存储，不能在加密列上假装能 SQL 排序。
+- **PDF 只有单页、不分页**。分类/预算/趋势条目多时会挤在一页里；真实数据若类别很多
+  要加分页逻辑。目前 `reportlab` 没有做 platypus 流式排版，是刻意选简单方案。
+- **PDF 的"可视化"只有分类横向条形图**，没有饼图。任务书要求饼图/柱状图主要在
+  **页面端**（`expense_by_category` / `daily_trend` 都已提供数据，F 用 ECharts 画即可）；
+  PDF 作为纸质附件，条形图已够表达构成。
+- **规则排序需要解密全部规则**（商户名在加密区）。几十条无感，上千条要另想办法。
+- **`_upsert_rule` 重新"记住"会把已停用规则重新启用并 `version+1`**。这是用户主动
+  操作，语义上正确（"记住商户"就是要求它生效），但 F 的规则页如果正开着同一规则，
+  会拿到 409，应刷新而不是重试。
