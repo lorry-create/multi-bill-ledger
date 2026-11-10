@@ -488,3 +488,38 @@ merchant, description, classification_source, source_transaction_id
 - **`_upsert_rule` 重新"记住"会把已停用规则重新启用并 `version+1`**。这是用户主动
   操作，语义上正确（"记住商户"就是要求它生效），但 F 的规则页如果正开着同一规则，
   会拿到 409，应刷新而不是重试。
+
+---
+
+## CHG-007（2026-11-10 夜）：补 `reportlab` 依赖声明 + 交付文档 22/23
+
+**契约版本不变（0.2.0），不改任何接口、字段、状态码。** 这是"后端收尾文档化"时
+发现的依赖缺口修复，加上给评审与 F 的两份交付文档。
+
+### 一、修了什么
+
+`services/exporting.py` 依赖 `reportlab` 生成月报 PDF，但 `backend/requirements.txt`
+**漏了这一行**。后果很具体：干净环境（尤其 `Dockerfile` 只 `pip install -r requirements.txt`）
+里 `GET /api/exports/monthly.pdf` 会永久返回 503 `EXPORT_UNAVAILABLE`——
+本该是"字体/渲染依赖临时缺失"的诚实失败，变成"部署包少一个依赖"的常态故障。
+
+- 已在 `backend/requirements.txt` 补 `reportlab>=4.0,<5`（放在 `openpyxl` 之后，带注释说明用途）。
+- 本机安装 `reportlab 4.5.1` 后重跑全量测试：**162 项 OK**（此前 159 通过 3 失败，失败项正是 PDF 三例）。
+- `Dockerfile` 无需改动：它本来就 `COPY requirements.txt` 后整体安装，补了声明即生效。
+
+### 二、新增文档
+
+| 文件 | 用途 |
+| --- | --- |
+| `docs/22_backend_delivery_summary.md` | 后端交付总结：17 个接口的请求/返回字段、枚举字典、错误码总表、业务不变量、测试证据、已知边界 |
+| `docs/23_frontend_development_guide.md` | 前端开发文档 + 任务单：工程搭建、接口层封装、六个页面规格、A07 演示链路、F-01~F-12 任务与验收 |
+
+两份文档的字段与错误码均按 `contracts/openapi.json` 0.2.0 与 `backend/app` 实现逐条核对，
+"契约声明但实现未触发"的分支（如 `login` 的 403）已在文中标注，不做修饰。
+
+### 三、给 F 的三条硬约束（写进 23，这里再强调一次）
+
+1. **必须走 Vite 代理**。会话 Cookie 是 `HttpOnly + SameSite=Lax`，直连 8000 端口会出现
+   "登录成功、下一请求 401"。
+2. **错误只能按 `error.code` 分支**，不许匹配中文 `message`。
+3. **金额全程整数分**：`Number(x) * 100` 会差 1 分，必须用字符串解析转换。

@@ -9,5 +9,8 @@ python-multipart>=0.0.9,<0.1
 cryptography>=42,<50
 # 账单 .xlsx 解析（契约允许 CSV/XLSX）。旧版 .xls 明确不支持，会返回 UNSUPPORTED_TEMPLATE
 openpyxl>=3.1,<4
+# 月报 PDF 导出（services/exporting.py）。缺了它 exportMonthlyPdf 会如实返回 503
+# EXPORT_UNAVAILABLE——这是"字体/渲染依赖缺失"的诚实失败，不是可以让它常态发生的事。
+reportlab>=4.0,<5
 # 仅 PostgreSQL 部署需要；本地 SQLite 开发不加载该驱动
 psycopg[binary]>=3.2,<4

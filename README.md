@@ -26,6 +26,8 @@ Docker/干净 Linux 实跑验证。目标 11 月 19 日前完成初赛核心闭�
 | **D 今天做什么** | [D 首日开工卡](docs/18_D_first_day_card.md) |
 | **后端还缺什么（13 接口 + 隐蔽缺口）** | [后端差距分析](docs/19_backend_gap_analysis.md) |
 | **智能模块怎么接（D 必读）/ Issue 码表（F 必读）** | [智能模块对接说明](docs/20_intelligence_contract.md) |
+| **后端做完了什么（评审/交接看这份）** | [后端交付总结](docs/22_backend_delivery_summary.md) |
+| **F 从这里开始写页面（含任务单 F-01~F-12）** | [前端开发文档](docs/23_frontend_development_guide.md) |
 
 共用 Pydantic 模型由契约生成，不要手写：`python tools/gen_pydantic_models.py` 产出 `backend/app/contracts.py`，`--check` 已接入 CI 防漂移。
 
