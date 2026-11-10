@@ -30,6 +30,7 @@ from .contracts import Transaction as TransactionContract
 from .crypto import dedupe_digest, decrypt_json, encrypt_json
 from .db import build_engine, build_session_factory, session_scope, utcnow
 from .security import hash_password
+from .services.reporting import compute_totals
 
 DEFAULT_FIXTURES = BACKEND_DIR.parent / "fixtures" / "synthetic_ledger.json"
 
@@ -89,20 +90,6 @@ def _reset_user_data(db, user_id: str) -> None:
     db.execute(delete(models.Budget).where(models.Budget.user_id == user_id))
     db.execute(delete(models.ImportBatch).where(models.ImportBatch.user_id == user_id))
     print("[重置] 已删除该用户的交易、批次、规则、预算与修正日志")
-
-
-def _totals(rows: list[dict]) -> dict[str, int]:
-    income = sum(r["amount_fen"] for r in rows if r["flow_type"] == "income")
-    gross = sum(r["amount_fen"] for r in rows if r["flow_type"] == "expense")
-    refund = sum(r["amount_fen"] for r in rows if r["flow_type"] == "refund")
-    net = gross - refund
-    return {
-        "income_fen": income,
-        "gross_expense_fen": gross,
-        "refund_fen": refund,
-        "net_expense_fen": net,
-        "balance_fen": income - net,
-    }
 
 
 def _month_rows_from_db(db, user_id: str, month: str, key: str) -> list[dict]:
@@ -261,7 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     # 事务已提交，另开 session 回读：核对的是真正落库并已解密的数据
     with session_scope(factory) as db:
         rows = _month_rows_from_db(db, user_id, month, key)
-        actual = _totals(rows)
+        # 与 GET /api/reports/monthly 共用同一套口径，避免"核对过的数"和"接口返回的数"分叉
+        actual = compute_totals(rows).model_dump()
         expected = (data.get("expected") or {}).get("totals") or {}
 
         print(f"\n本次入库 {inserted} 笔，跳过 {skipped} 笔；库内该月已确认 {len(rows)} 笔。")

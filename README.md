@@ -19,6 +19,8 @@
 | **今天从哪开工（T00 骨架半天落地）** | [T00 骨架落地清单](docs/16_T00_scaffold_checklist.md) |
 | **F 今天做什么** | [F 首日开工卡](docs/17_F_first_day_card.md) |
 | **D 今天做什么** | [D 首日开工卡](docs/18_D_first_day_card.md) |
+| **后端还缺什么（13 接口 + 隐蔽缺口）** | [后端差距分析](docs/19_backend_gap_analysis.md) |
+| **智能模块怎么接（D 必读）/ Issue 码表（F 必读）** | [智能模块对接说明](docs/20_intelligence_contract.md) |
 
 共用 Pydantic 模型由契约生成，不要手写：`python tools/gen_pydantic_models.py` 产出 `backend/app/contracts.py`，`--check` 已接入 CI 防漂移。
 

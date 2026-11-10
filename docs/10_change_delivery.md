@@ -124,3 +124,69 @@
 ```
 
 已知边界（不要误读为已完成）：T00 只做骨架，**没有**实现上传、预览确认、交易列表、规则、报表、导出这 13 个接口；也没有接入 DeepSeek 与 OCR。真实账单样本仍为零，这是 T01 的前置条件。
+
+## 2026年11月10日 CHG-003：补契约响应头、智能模块接口层与报表唯一口径
+
+```text
+变更编号和日期：CHG-003 / 2026-11-10
+提出人及任务：罗镓裕（队长），T00 收口 → T02 前置
+现契约版本和建议版本：契约 0.2.0 不变。本变更不新增/修改任何路径、字段或状态码，
+  补的是"契约要求但代码没有"的三处地基，以及一批前端要用到的 Issue 机器码（仅新增取值，
+  不破坏既有结构）。
+问题及实际证据（对照原文逐条核查，不是凭印象）：
+  1) docs/11 第 12 行写明「所有成功和失败响应带 X-Contract-Version」，全文 18 处响应示例均带
+     该头；实际在 backend/ 全文搜索零命中。属契约违规，且是 T00 就该有的。
+  2) docs/13「智能模块接口」规定 D 提供 parse_bill_file / recognize_bill_image /
+     normalize_merchant / classify_transactions 及 IntelligenceFailure（6 个错误码），
+     但 backend/app/intelligence/ 目录不存在。后果具体：D 写完后端不知道 import 哪里、
+     catch 什么异常；后端写 T02 只能先硬编码假解析，等 D 交付再推翻重写。
+  3) seed_demo.py 自带一套 _totals；将来 GET /api/reports/monthly 必然再写一套。
+     docs/13 明确"报告不维护另一套容易过期的累计总数"，两套实现迟早分叉且无人第一时间发现。
+建议的最小改动：
+  1) 新增 app/middleware.py：纯 ASGI 中间件写 X-Contract-Version。用纯 ASGI 而非
+     BaseHTTPMiddleware，后者会额外包 task，影响 CSV/PDF 流式响应与后台任务时机。
+     CORS 增补 expose_headers，否则浏览器 JS 读不到该头。
+  2) 新增 app/intelligence/：base.py（协议 + IntelligenceFailure + assert_one_result_per_row）
+     / normalize.py / rules.py / tables.py / fallback.py / factory.py。
+     fallback 是**纯规则确定性实现**，不叫 mock——解析与金额是真的，只是分类用关键词，
+     classification_source 如实写 general_rule。目的是 D 未到位时后端能先打通闭环，
+     且模型超时时业务仍可运行（docs/08 A06 禁止伪成功）。
+  3) 新增 app/services/reporting.py：compute_totals + build_monthly_report 为唯一口径，
+     seed_demo 改为调用它。
+  4) 新增 app/tools/parse_probe.py：真实账单人工核对工具（A02 要求逐笔核对条数金额）。
+  5) 新增 fixtures/real_format_samples/：两份**格式仿真、数据全合成**的支付宝/微信导出件，
+     用于验证编码（GBK / UTF-8 BOM）、表头不在首行、全角括号列名、尾部说明行等真实坑。
+  6) backend/requirements.txt 增加 openpyxl（契约允许 XLSX 上传）。
+  7) 智能模块实现通过 INTELLIGENCE_PROVIDER 选择，配置错则启动失败——故意不支持
+     "自动降级"，否则分类来源会撒谎。
+实测证据（本机 Python 3.13.14）：
+  python -m unittest discover -s tests -v   -> 74 项全部通过
+      其中 test_intelligence 43 项、test_reporting 18 项、test_t00_smoke 13 项
+  curl -i /health                            -> 200 + x-contract-version: 0.2.0
+  curl -i /api/auth/me                       -> 401 + x-contract-version: 0.2.0
+  curl -i /api/nope                          -> 404 + x-contract-version: 0.2.0
+  curl -i -X POST /api/auth/login（缺字段）  -> 422 + x-contract-version: 0.2.0
+  python -m app.tools.parse_probe 支付宝样本 -> 6 条草稿，跳过 2 行（关闭/0 元），合计 支出 2665.00
+  python -m app.tools.parse_probe 微信样本   -> 6 条草稿，0 条问题，合计 支出 398.50
+  python -m app.seed_demo --username demo_a  -> 与 fixtures.expected 逐项一致（改用共用口径后未回归）
+  python tools/check_implemented_contract.py -> 已实现 4 个，待实现 13 个
+影响的接口、调用方、数据迁移和测试：
+  - 接口：17 个操作的数量与字段均未变；已实现的 4 个新增响应头。
+  - F：需要知道 401/422 等错误响应也带 X-Contract-Version；写请求仍必须带 X-CSRF-Token。
+    Issue 机器码清单见 docs/20 第四节，前端按 code 判断，不要按中文文案判断。
+  - D：按 docs/20 第三节实现四个方法即可被后端调用，禁止另定义字段、禁止写库。
+  - 数据迁移：无。本变更不新增表、不改列。
+  - 测试：新增 tests/test_intelligence.py、tests/test_reporting.py；
+    test_t00_smoke.py 增加 4 项响应头断言。CI 的 unittest discover 自动覆盖，无需改 workflow。
+需要同步的人员与实施顺序：1) 队长推送本变更；2) D 读 docs/20 第三节后开工，实现类名报给队长
+  以更新 INTELLIGENCE_PROVIDER；3) F 读 docs/20 第四节确认 Issue 码；4) 三人拉取后跑
+  python -m unittest discover -s tests，期望 74 项通过。
+队长决定和对应提交：已决定按上述改动落地（用户 2026-11-10 "请你按照思路进行对应的代码的编写"）。
+  提交 SHA 由队长推送后回填本行。
+```
+
+已知边界（不要误读）：本次**没有**新增任何业务接口，13 个仍是 T02/T05/T08 范围。
+fallback **不做 OCR**（抛 `OCR_UNAVAILABLE`，不返回空结果假装成功），也**不会**把分类来源
+标成 `deepseek`。真实账单样本仍为零，`fixtures/real_format_samples` 是格式仿真件，不能代替
+A02 的真实文件核对。
+
