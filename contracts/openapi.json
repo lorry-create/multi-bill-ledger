@@ -1,0 +1,4050 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "multi-bill-ledger",
+    "version": "0.2.0",
+    "description": "初赛前后端协作契约。接口实现待开发；本文档、共享类型和请求示例由同一份契约生成。"
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "cookieAuth": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "必要依赖健康检查",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "ok"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "description": "GET /health 检查应用和数据库，200表示必要依赖就绪；不返回密钥或账单。",
+        "tags": [
+          "公共"
+        ],
+        "x-page": "公共",
+        "x-task": "T00",
+        "x-action": "启动检查",
+        "x-frontend-function": "health",
+        "x-business-rules": [
+          "GET /health 检查应用和数据库，200表示必要依赖就绪；不返回密钥或账单。"
+        ],
+        "x-error-codes": {
+          "503": [
+            "SERVICE_UNAVAILABLE"
+          ]
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "登录并设置HttpOnly会话Cookie",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                },
+                "example": {
+                  "user": {
+                    "id": "user_demo_a",
+                    "username": "demo_a"
+                  },
+                  "csrf_token": "synthetic-csrf-token"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Set-Cookie": {
+                "description": "bill_session=...; HttpOnly; SameSite=Lax；HTTPS加Secure",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "AUTH_INVALID": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_INVALID",
+                        "message": "账号或密码错误",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "登录请求过于频繁",
+                        "details": {
+                          "retry_after_seconds": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              },
+              "example": {
+                "username": "demo_a",
+                "password": "<本机演示账号密码>"
+              }
+            }
+          }
+        },
+        "security": [],
+        "description": "校验账号密码与同源Origin，成功设置HttpOnly会话Cookie并返回CSRF token。401表示账号或密码错误。",
+        "tags": [
+          "登录页"
+        ],
+        "x-page": "登录页",
+        "x-task": "T00",
+        "x-action": "点击登录",
+        "x-frontend-function": "login",
+        "x-business-rules": [
+          "校验账号密码与同源Origin，成功设置HttpOnly会话Cookie并返回CSRF token。401表示账号或密码错误。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_INVALID"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ]
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "获取当前用户及CSRF token",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                },
+                "example": {
+                  "user": {
+                    "id": "user_demo_a",
+                    "username": "demo_a"
+                  },
+                  "csrf_token": "synthetic-csrf-token"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "AUTH_REQUIRED": {
+                    "value": {
+                      "error": {
+                        "code": "AUTH_REQUIRED",
+                        "message": "请先登录",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "description": "读取当前用户及CSRF token。浏览器保存Cookie，JavaScript不读取Set-Cookie。",
+        "tags": [
+          "所有受保护页面"
+        ],
+        "x-page": "所有受保护页面",
+        "x-task": "T00",
+        "x-action": "首次加载或刷新",
+        "x-frontend-function": "getSession",
+        "x-business-rules": [
+          "读取当前用户及CSRF token。浏览器保存Cookie，JavaScript不读取Set-Cookie。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ]
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "退出并清除会话",
+        "responses": {
+          "204": {
+            "description": "成功",
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Set-Cookie": {
+                "description": "使bill_session立即失效",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "校验CSRF后清除会话Cookie；204没有JSON正文，前端清空用户和CSRF状态。",
+        "tags": [
+          "导航栏"
+        ],
+        "x-page": "导航栏",
+        "x-task": "T00",
+        "x-action": "点击退出",
+        "x-frontend-function": "logout",
+        "x-business-rules": [
+          "校验CSRF后清除会话Cookie；204没有JSON正文，前端清空用户和CSRF状态。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ]
+        }
+      }
+    },
+    "/api/imports": {
+      "post": {
+        "operationId": "createImport",
+        "summary": "上传文件或截图，异步解析分类为待确认草稿",
+        "responses": {
+          "202": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                },
+                "example": {
+                  "id": "batch_demo_01",
+                  "version": 1,
+                  "source": "wechat",
+                  "ingestion_method": "file",
+                  "status": "processing",
+                  "rows": [],
+                  "issues": [],
+                  "progress": {
+                    "current": 0,
+                    "total": null
+                  },
+                  "file_name": "synthetic_bill.csv",
+                  "created_at": "2026-11-08T12:00:00+08:00",
+                  "updated_at": "2026-11-08T12:00:00+08:00"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Location": {
+                "description": "批次查询相对URL",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "推荐等待秒数",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "UPLOAD_TOO_LARGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UPLOAD_TOO_LARGE": {
+                    "value": {
+                      "error": {
+                        "code": "UPLOAD_TOO_LARGE",
+                        "message": "文件超过10MiB",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNSUPPORTED_MEDIA_TYPE": {
+                    "value": {
+                      "error": {
+                        "code": "UNSUPPORTED_MEDIA_TYPE",
+                        "message": "不支持该文件类型",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "$ref": "#/components/schemas/Source"
+                  },
+                  "ingestion_method": {
+                    "$ref": "#/components/schemas/IngestionMethod"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "source",
+                  "ingestion_method",
+                  "file"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "source": "wechat",
+                "ingestion_method": "file",
+                "file": "<用户选择的本机CSV文件>"
+              }
+            }
+          }
+        },
+        "description": "multipart上传source、ingestion_method、file，返回202和批次。请求仅创建批次，不自动确认入账。文件10MiB、图片5MiB，PNG/JPEG/CSV/XLSX。",
+        "tags": [
+          "导入中心"
+        ],
+        "x-page": "导入中心",
+        "x-task": "T02/T03/T06",
+        "x-action": "上传文件或截图",
+        "x-frontend-function": "createImport",
+        "x-business-rules": [
+          "multipart上传source、ingestion_method、file，返回202和批次。请求仅创建批次，不自动确认入账。文件10MiB、图片5MiB，PNG/JPEG/CSV/XLSX。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "413": [
+            "UPLOAD_TOO_LARGE"
+          ],
+          "415": [
+            "UNSUPPORTED_MEDIA_TYPE"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/imports/{id}": {
+      "get": {
+        "operationId": "getImport",
+        "summary": "读取本人批次状态、草稿和问题",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                },
+                "example": {
+                  "id": "batch_demo_01",
+                  "version": 2,
+                  "source": "wechat",
+                  "ingestion_method": "file",
+                  "status": "pending_review",
+                  "rows": [
+                    {
+                      "source_transaction_id": "SYN-HTTP-001",
+                      "occurred_at": "2026-11-08T12:00:00+08:00",
+                      "amount_fen": 2300,
+                      "currency": "CNY",
+                      "flow_type": "expense",
+                      "merchant": "示例餐馆",
+                      "description": "合成午餐账单",
+                      "category": "dining",
+                      "row_id": "row_demo_01",
+                      "classification_source": "general_rule",
+                      "classification_reason": "商户命中餐饮规则",
+                      "duplicate_status": "unique",
+                      "issues": []
+                    }
+                  ],
+                  "issues": [],
+                  "progress": {
+                    "current": 1,
+                    "total": 1
+                  },
+                  "file_name": "synthetic_bill.csv",
+                  "created_at": "2026-11-08T12:00:00+08:00",
+                  "updated_at": "2026-11-08T12:00:00+08:00"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "RESOURCE_NOT_FOUND": {
+                    "value": {
+                      "error": {
+                        "code": "RESOURCE_NOT_FOUND",
+                        "message": "资源不存在",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "description": "读取本人批次。首次1秒后轮询，之后每2秒；pending_review、completed或failed停止。120秒仍处理中暂停自动轮询并允许手动刷新；不能由前端自行判失败。",
+        "tags": [
+          "导入确认页"
+        ],
+        "x-page": "导入确认页",
+        "x-task": "T02/T03/T07",
+        "x-action": "读取批次或轮询",
+        "x-frontend-function": "getImport",
+        "x-business-rules": [
+          "读取本人批次。首次1秒后轮询，之后每2秒；pending_review、completed或failed停止。120秒仍处理中暂停自动轮询并允许手动刷新；不能由前端自行判失败。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ]
+        }
+      }
+    },
+    "/api/imports/{id}/original": {
+      "get": {
+        "operationId": "getImportOriginal",
+        "summary": "鉴权读取原文件或原图供对照",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "<原图或文件的二进制内容>"
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Content-Disposition": {
+                "description": "文件名，原图可inline，导出用attachment",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "description": "鉴权流式返回原文件。前端以Blob预览图片，不能将其当JSON或可公开访问的静态URL。",
+        "tags": [
+          "导入确认页"
+        ],
+        "x-page": "导入确认页",
+        "x-task": "T02/T07",
+        "x-action": "查看原图或原文件",
+        "x-frontend-function": "getImportOriginal",
+        "x-business-rules": [
+          "鉴权流式返回原文件。前端以Blob预览图片，不能将其当JSON或可公开访问的静态URL。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "503": [
+            "SERVICE_UNAVAILABLE"
+          ]
+        }
+      }
+    },
+    "/api/imports/{id}/retry": {
+      "post": {
+        "operationId": "retryImport",
+        "summary": "仅对失败批次进行可追踪重试",
+        "responses": {
+          "202": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                },
+                "example": {
+                  "id": "batch_demo_01",
+                  "version": 4,
+                  "source": "wechat",
+                  "ingestion_method": "file",
+                  "status": "processing",
+                  "rows": [],
+                  "issues": [],
+                  "progress": {
+                    "current": 0,
+                    "total": null
+                  },
+                  "file_name": "synthetic_bill.csv",
+                  "created_at": "2026-11-08T12:00:00+08:00",
+                  "updated_at": "2026-11-08T12:00:00+08:00"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Location": {
+                "description": "批次查询相对URL",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "推荐等待秒数",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BATCH_STATE_CONFLICT": {
+                    "value": {
+                      "error": {
+                        "code": "BATCH_STATE_CONFLICT",
+                        "message": "只有失败批次能够重试",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryInput"
+              },
+              "example": {
+                "expected_version": 3
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "仅failed且版本相符才能重试；返回202、新版本与processing。该接口不重新确认已完成批次，旧版本或其他状态返回409。",
+        "tags": [
+          "导入失败页"
+        ],
+        "x-page": "导入失败页",
+        "x-task": "T02/T07",
+        "x-action": "点击重试",
+        "x-frontend-function": "retryImport",
+        "x-business-rules": [
+          "仅failed且版本相符才能重试；返回202、新版本与processing。该接口不重新确认已完成批次，旧版本或其他状态返回409。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT",
+            "BATCH_STATE_CONFLICT"
+          ]
+        }
+      }
+    },
+    "/api/imports/{id}/confirm": {
+      "post": {
+        "operationId": "confirmImport",
+        "summary": "重新校验后在事务中幂等确认入账",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmResult"
+                },
+                "example": {
+                  "batch_id": "batch_demo_01",
+                  "created_count": 1,
+                  "duplicate_count": 0,
+                  "ignored_count": 0,
+                  "transaction_ids": [
+                    "txn_demo_01"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "CSRF_INVALID": {
+                    "value": {
+                      "error": {
+                        "code": "CSRF_INVALID",
+                        "message": "会话校验失败，请刷新后重试",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "IDEMPOTENCY_CONFLICT": {
+                    "value": {
+                      "error": {
+                        "code": "IDEMPOTENCY_CONFLICT",
+                        "message": "同一request_id不能提交不同内容",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "请修正金额字段",
+                        "details": {
+                          "fields": [
+                            {
+                              "field": "rows[0].transaction.amount_fen",
+                              "row_id": "row_demo_01",
+                              "code": "INVALID_AMOUNT",
+                              "message": "金额必须为正整数分"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmInput"
+              },
+              "example": {
+                "request_id": "30fd9d73-08f4-4947-911c-64d32ce24d00",
+                "expected_version": 2,
+                "rows": [
+                  {
+                    "row_id": "row_demo_01",
+                    "transaction": {
+                      "source_transaction_id": "SYN-HTTP-001",
+                      "occurred_at": "2026-11-08T12:00:00+08:00",
+                      "amount_fen": 2300,
+                      "currency": "CNY",
+                      "flow_type": "expense",
+                      "merchant": "示例餐馆",
+                      "description": "合成午餐账单",
+                      "category": "dining"
+                    },
+                    "allow_suspected_duplicate": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "pending_review批次才能确认。同request_id同请求体返回原200结果，先检查幂等记录再检查旧版本；同ID异体或已完成批次新ID返回409。全部选中行同事务，不部分入账。",
+        "tags": [
+          "导入确认页"
+        ],
+        "x-page": "导入确认页",
+        "x-task": "T02/T03/T07",
+        "x-action": "点击确认入账",
+        "x-frontend-function": "confirmImport",
+        "x-business-rules": [
+          "pending_review批次才能确认。同request_id同请求体返回原200结果，先检查幂等记录再检查旧版本；同ID异体或已完成批次新ID返回409。全部选中行同事务，不部分入账。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT",
+            "IDEMPOTENCY_CONFLICT",
+            "BATCH_STATE_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/transactions": {
+      "get": {
+        "operationId": "listTransactions",
+        "summary": "筛选并分页读取本人已确认交易",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionPage"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "source_transaction_id": "SYN-HTTP-001",
+                      "occurred_at": "2026-11-08T12:00:00+08:00",
+                      "amount_fen": 2300,
+                      "currency": "CNY",
+                      "flow_type": "expense",
+                      "merchant": "示例餐馆",
+                      "description": "合成午餐账单",
+                      "category": "dining",
+                      "id": "txn_demo_01",
+                      "version": 1,
+                      "source": "wechat",
+                      "ingestion_method": "file",
+                      "import_batch_id": "batch_demo_01",
+                      "classification_source": "general_rule",
+                      "classification_reason": "商户命中餐饮规则",
+                      "status": "confirmed"
+                    }
+                  ],
+                  "total": 1,
+                  "page": 1,
+                  "page_size": 50
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "包含该上海自然日，需与date_to保持先后顺序。"
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "包含该上海自然日，服务端按下一日零点开区间计算。"
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "description": "可选类别代码。"
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "description": "可选平台代码。"
+          },
+          {
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FlowType"
+            },
+            "description": "可选资金事件性质。"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "description": "默认1。"
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "description": "默认50，最大100。"
+          }
+        ],
+        "description": "只返回本人已确认交易。默认page=1、page_size=50；按occurred_at倒序再id倒序。日期两端均为上海自然日包含边界；不传日期则查本人全部记录。",
+        "tags": [
+          "账单页"
+        ],
+        "x-page": "账单页",
+        "x-task": "T02/T03",
+        "x-action": "列表初始化和筛选翻页",
+        "x-frontend-function": "listTransactions",
+        "x-business-rules": [
+          "只返回本人已确认交易。默认page=1、page_size=50；按occurred_at倒序再id倒序。日期两端均为上海自然日包含边界；不传日期则查本人全部记录。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/transactions/{id}": {
+      "patch": {
+        "operationId": "patchTransaction",
+        "summary": "修改交易并可选择建立个人商户规则",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                },
+                "example": {
+                  "source_transaction_id": "SYN-HTTP-001",
+                  "occurred_at": "2026-11-08T12:00:00+08:00",
+                  "amount_fen": 2300,
+                  "currency": "CNY",
+                  "flow_type": "expense",
+                  "merchant": "示例餐馆",
+                  "description": "合成午餐账单",
+                  "category": "shopping",
+                  "id": "txn_demo_01",
+                  "version": 2,
+                  "source": "wechat",
+                  "ingestion_method": "file",
+                  "import_batch_id": "batch_demo_01",
+                  "classification_source": "manual",
+                  "classification_reason": "用户手动修正分类",
+                  "status": "confirmed"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "VERSION_CONFLICT": {
+                    "value": {
+                      "error": {
+                        "code": "VERSION_CONFLICT",
+                        "message": "记录已被其他操作修改",
+                        "details": {
+                          "current_version": 2
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionPatch"
+              },
+              "example": {
+                "expected_version": 1,
+                "changes": {
+                  "category": "shopping"
+                },
+                "remember_rule": true
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "expected_version必填；未提交字段不变。显式更改类别标manual，未提交category则保留原类别及来源。remember_rule只在非空商户和非pending类别时生效。账单、规则、日志及索引原子更新。",
+        "tags": [
+          "账单编辑弹窗"
+        ],
+        "x-page": "账单编辑弹窗",
+        "x-task": "T05/T07",
+        "x-action": "保存修改或记住分类",
+        "x-frontend-function": "patchTransaction",
+        "x-business-rules": [
+          "expected_version必填；未提交字段不变。显式更改类别标manual，未提交category则保留原类别及来源。remember_rule只在非空商户和非pending类别时生效。账单、规则、日志及索引原子更新。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/classification-rules": {
+      "get": {
+        "operationId": "listRules",
+        "summary": "读取本人规则",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": "rule_demo_01",
+                      "version": 1,
+                      "source": "wechat",
+                      "merchant_normalized": "示例餐馆",
+                      "category": "shopping",
+                      "enabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "description": "返回本人全部规则，包括已停用项，按source再merchant_normalized升序。",
+        "tags": [
+          "个人规则页"
+        ],
+        "x-page": "个人规则页",
+        "x-task": "T05/T07",
+        "x-action": "读取本人规则",
+        "x-frontend-function": "listRules",
+        "x-business-rules": [
+          "返回本人全部规则，包括已停用项，按source再merchant_normalized升序。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ]
+        }
+      }
+    },
+    "/api/classification-rules/{id}": {
+      "patch": {
+        "operationId": "patchRule",
+        "summary": "修改或停用规则，不改写历史账单",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationRule"
+                },
+                "example": {
+                  "id": "rule_demo_01",
+                  "version": 2,
+                  "source": "wechat",
+                  "merchant_normalized": "示例餐馆",
+                  "category": "shopping",
+                  "enabled": false
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RulePatch"
+              },
+              "example": {
+                "expected_version": 1,
+                "enabled": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "至少提供enabled或category，携带expected_version；已停用规则可重新启用。停用不重写历史交易。",
+        "tags": [
+          "个人规则页"
+        ],
+        "x-page": "个人规则页",
+        "x-task": "T05/T07",
+        "x-action": "修改类别或停用",
+        "x-frontend-function": "patchRule",
+        "x-business-rules": [
+          "至少提供enabled或category，携带expected_version；已停用规则可重新启用。停用不重写历史交易。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/reports/monthly": {
+      "get": {
+        "operationId": "getMonthlyReport",
+        "summary": "按上海时区汇总月份并返回预算情况",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyReport"
+                },
+                "example": {
+                  "month": "2026-11",
+                  "totals": {
+                    "income_fen": 10000,
+                    "gross_expense_fen": 4200,
+                    "refund_fen": 500,
+                    "net_expense_fen": 3700,
+                    "balance_fen": 6300
+                  },
+                  "expense_by_category": [
+                    {
+                      "category": "dining",
+                      "amount_fen": 3000
+                    },
+                    {
+                      "category": "shopping",
+                      "amount_fen": 1200
+                    }
+                  ],
+                  "daily_trend": [
+                    {
+                      "date": "2026-11-01",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-02",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-03",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-04",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-05",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-06",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-07",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-08",
+                      "income_fen": 10000,
+                      "gross_expense_fen": 4200,
+                      "refund_fen": 500,
+                      "net_expense_fen": 3700
+                    },
+                    {
+                      "date": "2026-11-09",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-10",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-11",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-12",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-13",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-14",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-15",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-16",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-17",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-18",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-19",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-20",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-21",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-22",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-23",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-24",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-25",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-26",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-27",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-28",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-29",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    },
+                    {
+                      "date": "2026-11-30",
+                      "income_fen": 0,
+                      "gross_expense_fen": 0,
+                      "refund_fen": 0,
+                      "net_expense_fen": 0
+                    }
+                  ],
+                  "budgets": [
+                    {
+                      "category": "dining",
+                      "budget_fen": 2000,
+                      "spent_fen": 2500,
+                      "remaining_fen": -500,
+                      "over_fen": 500
+                    },
+                    {
+                      "category": "shopping",
+                      "budget_fen": 1500,
+                      "spent_fen": 1200,
+                      "remaining_fen": 300,
+                      "over_fen": 0
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+            },
+            "description": "指定月份YYYY-MM；必填。"
+          }
+        ],
+        "description": "month必填。返回统一汇总、分类毛支出、全月日趋势和预算。列表/图表/导出共用相同口径，空月返回0与完整日期序列。",
+        "tags": [
+          "月报页"
+        ],
+        "x-page": "月报页",
+        "x-task": "T08/T09",
+        "x-action": "选月份、修改后刷新",
+        "x-frontend-function": "getMonthlyReport",
+        "x-business-rules": [
+          "month必填。返回统一汇总、分类毛支出、全月日趋势和预算。列表/图表/导出共用相同口径，空月返回0与完整日期序列。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/budgets": {
+      "put": {
+        "operationId": "putBudget",
+        "summary": "按本人月份类别设置或更新预算",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                },
+                "example": {
+                  "id": "budget_demo_01",
+                  "month": "2026-11",
+                  "category": "dining",
+                  "amount_fen": 2000
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetInput"
+              },
+              "example": {
+                "month": "2026-11",
+                "category": "dining",
+                "amount_fen": 2000
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "按当前用户、month、category唯一键创建或覆盖预算，始终200。category不接受pending；金额为0时前端不计算百分比除法。",
+        "tags": [
+          "预算弹窗"
+        ],
+        "x-page": "预算弹窗",
+        "x-task": "T08/T09",
+        "x-action": "保存分类月预算",
+        "x-frontend-function": "putBudget",
+        "x-business-rules": [
+          "按当前用户、month、category唯一键创建或覆盖预算，始终200。category不接受pending；金额为0时前端不计算百分比除法。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
+    "/api/exports/transactions.csv": {
+      "get": {
+        "operationId": "exportTransactions",
+        "summary": "导出与筛选范围一致的本人账单CSV",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "source,amount_fen,flow_type,category\nwechat,2300,expense,dining\n"
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Content-Disposition": {
+                "description": "文件名，原图可inline，导出用attachment",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "包含该上海自然日，需与date_to保持先后顺序。"
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "包含该上海自然日，服务端按下一日零点开区间计算。"
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "description": "可选类别代码。"
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "description": "可选平台代码。"
+          },
+          {
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FlowType"
+            },
+            "description": "可选资金事件性质。"
+          }
+        ],
+        "description": "导出所有筛选结果，不限当前分页，不接受page/page_size。UTF-8 CSV，文本单元格防公式注入，金额字段明确amount_fen。",
+        "tags": [
+          "账单页"
+        ],
+        "x-page": "账单页",
+        "x-task": "T08/T09",
+        "x-action": "导出当前筛选结果",
+        "x-frontend-function": "exportTransactions",
+        "x-business-rules": [
+          "导出所有筛选结果，不限当前分页，不接受page/page_size。UTF-8 CSV，文本单元格防公式注入，金额字段明确amount_fen。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ],
+          "503": [
+            "SERVICE_UNAVAILABLE"
+          ]
+        }
+      }
+    },
+    "/api/exports/monthly.pdf": {
+      "get": {
+        "operationId": "exportMonthlyPdf",
+        "summary": "导出与月报同口径的中文PDF",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "<PDF二进制内容，不是JSON>"
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              },
+              "Content-Disposition": {
+                "description": "文件名，原图可inline，导出用attachment",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "EXPORT_UNAVAILABLE": {
+                    "value": {
+                      "error": {
+                        "code": "EXPORT_UNAVAILABLE",
+                        "message": "报表导出暂不可用，请稍后重试",
+                        "details": {}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+            },
+            "description": "指定月份YYYY-MM；必填。"
+          }
+        ],
+        "description": "month必填，返回中文PDF二进制，与同月份月报数字相同。字体和渲染依赖随部署包提供。",
+        "tags": [
+          "月报页"
+        ],
+        "x-page": "月报页",
+        "x-task": "T08/T09",
+        "x-action": "导出当前月报",
+        "x-frontend-function": "exportMonthlyPdf",
+        "x-business-rules": [
+          "month必填，返回中文PDF二进制，与同月份月报数字相同。字体和渲染依赖随部署包提供。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ],
+          "503": [
+            "EXPORT_UNAVAILABLE"
+          ]
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "bill_session"
+      },
+      "csrfAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token"
+      }
+    },
+    "schemas": {
+      "Source": {
+        "type": "string",
+        "enum": [
+          "alipay",
+          "wechat"
+        ],
+        "description": "共享模型 Source；HTTP请求与响应均遵守本定义。"
+      },
+      "IngestionMethod": {
+        "type": "string",
+        "enum": [
+          "file",
+          "screenshot"
+        ],
+        "description": "共享模型 IngestionMethod；HTTP请求与响应均遵守本定义。"
+      },
+      "Category": {
+        "type": "string",
+        "enum": [
+          "dining",
+          "transport",
+          "shopping",
+          "salary",
+          "housing",
+          "entertainment",
+          "health",
+          "education",
+          "other",
+          "pending"
+        ],
+        "description": "共享模型 Category；HTTP请求与响应均遵守本定义。"
+      },
+      "FlowType": {
+        "type": "string",
+        "enum": [
+          "income",
+          "expense",
+          "refund",
+          "transfer",
+          "repayment"
+        ],
+        "description": "共享模型 FlowType；HTTP请求与响应均遵守本定义。"
+      },
+      "ClassificationSource": {
+        "type": "string",
+        "enum": [
+          "user_rule",
+          "general_rule",
+          "deepseek",
+          "manual",
+          "pending"
+        ],
+        "description": "共享模型 ClassificationSource；HTTP请求与响应均遵守本定义。"
+      },
+      "BatchStatus": {
+        "type": "string",
+        "enum": [
+          "uploaded",
+          "processing",
+          "pending_review",
+          "completed",
+          "failed"
+        ],
+        "description": "共享模型 BatchStatus；HTTP请求与响应均遵守本定义。"
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "$ref": "#/components/schemas/ErrorDetails"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
+            "additionalProperties": false,
+            "description": "error字段，类型和必填性如下。"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Error；HTTP请求与响应均遵守本定义。"
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "服务端资源标识，前端原样使用，不自行拼接。"
+          },
+          "username": {
+            "type": "string",
+            "description": "登录账号名称；不是GitHub协作者身份。"
+          }
+        },
+        "required": [
+          "id",
+          "username"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 User；HTTP请求与响应均遵守本定义。"
+      },
+      "LoginInput": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "description": "登录账号名称；不是GitHub协作者身份。"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "description": "账号密码，只用于登录请求，不回显、不记录。"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 LoginInput；HTTP请求与响应均遵守本定义。"
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User",
+            "description": "当前登录用户，不包含密码或服务端密钥。"
+          },
+          "csrf_token": {
+            "type": "string",
+            "description": "前端保存在会话状态，写请求放入X-CSRF-Token，退出后清除。"
+          }
+        },
+        "required": [
+          "user",
+          "csrf_token"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Session；HTTP请求与响应均遵守本定义。"
+      },
+      "Issue": {
+        "type": "object",
+        "properties": {
+          "row_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "本批次内稳定的草稿行标识，确认和分类按它关联，不能依赖数组顺序。"
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "字段路径，例如rows[0].amount_fen或amount_fen。"
+          },
+          "code": {
+            "type": "string",
+            "description": "稳定的机器错误代码，前端不能按中文message判断逻辑。"
+          },
+          "message": {
+            "type": "string",
+            "description": "面向用户的说明文本。"
+          }
+        },
+        "required": [
+          "row_id",
+          "field",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Issue；HTTP请求与响应均遵守本定义。"
+      },
+      "TransactionInput": {
+        "type": "object",
+        "properties": {
+          "source_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "可靠的源交易或退款事件标识；只有共用订单号且无法区分事件时为null并标疑似，不冒充唯一事件号。"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "带时区的交易时间，按Asia/Shanghai归属日期月份；草稿未知可为null。"
+          },
+          "amount_fen": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "CNY整数分，不是浮点元；草稿可未知，确认必须为正整数。"
+          },
+          "currency": {
+            "type": "string",
+            "const": "CNY",
+            "description": "初赛只接受CNY，不自动换汇。"
+          },
+          "flow_type": {
+            "$ref": "#/components/schemas/FlowType",
+            "description": "收入、支出、退款、内部转账、还款；草稿可未知，确认前必须明确。"
+          },
+          "merchant": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "商户原始展示名称；建立个人规则要求非空。"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "交易说明，空说明用空字符串。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "description": "固定类别代码；pending可作为未分类桶，但建立个人规则不接受pending。"
+          }
+        },
+        "required": [
+          "source_transaction_id",
+          "occurred_at",
+          "amount_fen",
+          "currency",
+          "flow_type",
+          "merchant",
+          "description",
+          "category"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 TransactionInput；HTTP请求与响应均遵守本定义。"
+      },
+      "TransactionDraft": {
+        "type": "object",
+        "properties": {
+          "source_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "可靠的源交易或退款事件标识；只有共用订单号且无法区分事件时为null并标疑似，不冒充唯一事件号。"
+          },
+          "occurred_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "带时区的交易时间，按Asia/Shanghai归属日期月份；草稿未知可为null。"
+          },
+          "amount_fen": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "CNY整数分，不是浮点元；草稿可未知，确认必须为正整数。"
+          },
+          "currency": {
+            "type": "string",
+            "const": "CNY",
+            "description": "初赛只接受CNY，不自动换汇。"
+          },
+          "flow_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "income",
+              "expense",
+              "refund",
+              "transfer",
+              "repayment",
+              null
+            ],
+            "description": "收入、支出、退款、内部转账、还款；草稿可未知，确认前必须明确。"
+          },
+          "merchant": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "商户原始展示名称；建立个人规则要求非空。"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "交易说明，空说明用空字符串。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "description": "固定类别代码；pending可作为未分类桶，但建立个人规则不接受pending。"
+          },
+          "row_id": {
+            "type": "string",
+            "description": "本批次内稳定的草稿行标识，确认和分类按它关联，不能依赖数组顺序。"
+          },
+          "classification_source": {
+            "$ref": "#/components/schemas/ClassificationSource",
+            "description": "实际分类来源，不得将规则或测试替身标成deepseek。"
+          },
+          "classification_reason": {
+            "type": "string",
+            "description": "供用户查看的简短分类依据，不是准确率或概率。"
+          },
+          "duplicate_status": {
+            "type": "string",
+            "enum": [
+              "unique",
+              "duplicate",
+              "suspected"
+            ],
+            "description": "unique可正常选中，duplicate明确重复会跳过，suspected需要人工判断。"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "description": "解析、识别或分类的字段问题；空数组表示暂无问题。"
+          }
+        },
+        "required": [
+          "source_transaction_id",
+          "occurred_at",
+          "amount_fen",
+          "currency",
+          "flow_type",
+          "merchant",
+          "description",
+          "category",
+          "row_id",
+          "classification_source",
+          "classification_reason",
+          "duplicate_status",
+          "issues"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 TransactionDraft；HTTP请求与响应均遵守本定义。"
+      },
+      "ParseResult": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionDraft"
+            },
+            "description": "草稿或本次选中的确认行；处理中的批次可为空数组。"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "description": "解析、识别或分类的字段问题；空数组表示暂无问题。"
+          }
+        },
+        "required": [
+          "rows",
+          "issues"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ParseResult；HTTP请求与响应均遵守本定义。"
+      },
+      "ClassificationResult": {
+        "type": "object",
+        "properties": {
+          "row_id": {
+            "type": "string",
+            "description": "本批次内稳定的草稿行标识，确认和分类按它关联，不能依赖数组顺序。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "description": "固定类别代码；pending可作为未分类桶，但建立个人规则不接受pending。"
+          },
+          "classification_source": {
+            "$ref": "#/components/schemas/ClassificationSource",
+            "description": "实际分类来源，不得将规则或测试替身标成deepseek。"
+          },
+          "classification_reason": {
+            "type": "string",
+            "description": "供用户查看的简短分类依据，不是准确率或概率。"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "description": "解析、识别或分类的字段问题；空数组表示暂无问题。"
+          }
+        },
+        "required": [
+          "row_id",
+          "category",
+          "classification_source",
+          "classification_reason",
+          "issues"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ClassificationResult；HTTP请求与响应均遵守本定义。"
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "source_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "可靠的源交易或退款事件标识；只有共用订单号且无法区分事件时为null并标疑似，不冒充唯一事件号。"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "带时区的交易时间，按Asia/Shanghai归属日期月份；草稿未知可为null。"
+          },
+          "amount_fen": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "CNY整数分，不是浮点元；草稿可未知，确认必须为正整数。"
+          },
+          "currency": {
+            "type": "string",
+            "const": "CNY",
+            "description": "初赛只接受CNY，不自动换汇。"
+          },
+          "flow_type": {
+            "$ref": "#/components/schemas/FlowType",
+            "description": "收入、支出、退款、内部转账、还款；草稿可未知，确认前必须明确。"
+          },
+          "merchant": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "商户原始展示名称；建立个人规则要求非空。"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "交易说明，空说明用空字符串。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "description": "固定类别代码；pending可作为未分类桶，但建立个人规则不接受pending。"
+          },
+          "id": {
+            "type": "string",
+            "description": "服务端资源标识，前端原样使用，不自行拼接。"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "资源当前版本。写操作通过 expected_version 防止覆盖新修改。"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "description": "账单所属支付平台，与采集方式分开。"
+          },
+          "ingestion_method": {
+            "$ref": "#/components/schemas/IngestionMethod",
+            "description": "file为导出文件，screenshot为账单截图。"
+          },
+          "import_batch_id": {
+            "type": "string",
+            "description": "交易来源批次ID。"
+          },
+          "classification_source": {
+            "$ref": "#/components/schemas/ClassificationSource",
+            "description": "实际分类来源，不得将规则或测试替身标成deepseek。"
+          },
+          "classification_reason": {
+            "type": "string",
+            "description": "供用户查看的简短分类依据，不是准确率或概率。"
+          },
+          "status": {
+            "type": "string",
+            "const": "confirmed",
+            "description": "BatchStatus为批次状态；交易status为confirmed，草稿不进入报表。"
+          }
+        },
+        "required": [
+          "source_transaction_id",
+          "occurred_at",
+          "amount_fen",
+          "currency",
+          "flow_type",
+          "merchant",
+          "description",
+          "category",
+          "id",
+          "version",
+          "source",
+          "ingestion_method",
+          "import_batch_id",
+          "classification_source",
+          "classification_reason",
+          "status"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Transaction；HTTP请求与响应均遵守本定义。"
+      },
+      "Batch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "服务端资源标识，前端原样使用，不自行拼接。"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "资源当前版本。写操作通过 expected_version 防止覆盖新修改。"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "description": "账单所属支付平台，与采集方式分开。"
+          },
+          "ingestion_method": {
+            "$ref": "#/components/schemas/IngestionMethod",
+            "description": "file为导出文件，screenshot为账单截图。"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BatchStatus",
+            "description": "BatchStatus为批次状态；交易status为confirmed，草稿不进入报表。"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionDraft"
+            },
+            "description": "草稿或本次选中的确认行；处理中的批次可为空数组。"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "description": "解析、识别或分类的字段问题；空数组表示暂无问题。"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress",
+            "description": "处理进度，仅供展示，不决定是否可确认。"
+          },
+          "file_name": {
+            "type": "string",
+            "description": "经过鉴权后展示的原文件名，不能当作服务器磁盘路径。"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "资源创建时间，带时区ISO 8601。"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最后状态更新时间，带时区ISO 8601。"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "source",
+          "ingestion_method",
+          "status",
+          "rows",
+          "issues",
+          "progress",
+          "file_name",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Batch；HTTP请求与响应均遵守本定义。"
+      },
+      "ConfirmRow": {
+        "type": "object",
+        "properties": {
+          "row_id": {
+            "type": "string",
+            "description": "本批次内稳定的草稿行标识，确认和分类按它关联，不能依赖数组顺序。"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TransactionInput",
+            "description": "该行最终入账字段，后端重新校验。"
+          },
+          "allow_suspected_duplicate": {
+            "type": "boolean",
+            "default": false,
+            "description": "仅用户明确确认疑似重复仍为新交易时设true。"
+          }
+        },
+        "required": [
+          "row_id",
+          "transaction",
+          "allow_suspected_duplicate"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ConfirmRow；HTTP请求与响应均遵守本定义。"
+      },
+      "ConfirmInput": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "确认操作的UUID。同一次网络重试复用同一ID和请求体。"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交编辑前最后读取的资源版本，冲突返回409和最新版本。"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmRow"
+            },
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "草稿或本次选中的确认行；处理中的批次可为空数组。"
+          }
+        },
+        "required": [
+          "request_id",
+          "expected_version",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ConfirmInput；HTTP请求与响应均遵守本定义。"
+      },
+      "ConfirmResult": {
+        "type": "object",
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "description": "本次确认对应的批次。"
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "本次真正新增的交易数。"
+          },
+          "duplicate_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "本次提交选中行里被明确判重而跳过的行数。"
+          },
+          "ignored_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "该批次草稿中未在本次确认请求提交的行数。"
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本次新增交易ID；重放确认返回相同数组。"
+          }
+        },
+        "required": [
+          "batch_id",
+          "created_count",
+          "duplicate_count",
+          "ignored_count",
+          "transaction_ids"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ConfirmResult；HTTP请求与响应均遵守本定义。"
+      },
+      "RetryInput": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交编辑前最后读取的资源版本，冲突返回409和最新版本。"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 RetryInput；HTTP请求与响应均遵守本定义。"
+      },
+      "TransactionPatch": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交编辑前最后读取的资源版本，冲突返回409和最新版本。"
+          },
+          "changes": {
+            "type": "object",
+            "properties": {
+              "source_transaction_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "occurred_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "amount_fen": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "currency": {
+                "type": "string",
+                "const": "CNY"
+              },
+              "flow_type": {
+                "$ref": "#/components/schemas/FlowType"
+              },
+              "merchant": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "category": {
+                "$ref": "#/components/schemas/Category"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "需要修改的字段；未提交字段保持原值。显式null只允许在契约可空字段。"
+          },
+          "remember_rule": {
+            "type": "boolean",
+            "default": false,
+            "description": "true时同时建立或更新个人商户分类规则，默认false。"
+          }
+        },
+        "required": [
+          "expected_version",
+          "changes"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 TransactionPatch；HTTP请求与响应均遵守本定义。"
+      },
+      "TransactionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            },
+            "description": "当前列表项，空结果用空数组。"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "列表中为筛选后的总数；Progress中为候选行总数，可未知。"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "页码从1开始，默认1。"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "每页默认50，范围1至100。"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 TransactionPage；HTTP请求与响应均遵守本定义。"
+      },
+      "ClassificationRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "服务端资源标识，前端原样使用，不自行拼接。"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "资源当前版本。写操作通过 expected_version 防止覆盖新修改。"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "description": "账单所属支付平台，与采集方式分开。"
+          },
+          "merchant_normalized": {
+            "type": "string",
+            "description": "按本项目标准化步骤得到的精确匹配键，仅对本人和该平台有效。",
+            "minLength": 1
+          },
+          "category": {
+            "$ref": "#/components/schemas/ResolvedCategory",
+            "description": "明确的类别代码，不接受pending。"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "个人规则是否启用，停用仅影响后续自动分类。"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "source",
+          "merchant_normalized",
+          "category",
+          "enabled"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ClassificationRule；HTTP请求与响应均遵守本定义。"
+      },
+      "RuleList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassificationRule"
+            },
+            "description": "当前列表项，空结果用空数组。"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 RuleList；HTTP请求与响应均遵守本定义。"
+      },
+      "RulePatch": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交编辑前最后读取的资源版本，冲突返回409和最新版本。"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "个人规则是否启用，停用仅影响后续自动分类。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ResolvedCategory",
+            "description": "明确的类别代码，不接受pending。"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "enabled"
+            ]
+          },
+          {
+            "required": [
+              "category"
+            ]
+          }
+        ],
+        "description": "共享模型 RulePatch；HTTP请求与响应均遵守本定义。"
+      },
+      "BudgetInput": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "YYYY-MM，接口不静默默认当前月份。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ResolvedCategory",
+            "description": "明确的类别代码，不接受pending。"
+          },
+          "amount_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "分类月预算，非负整数分；与交易金额的正整数要求不同。"
+          }
+        },
+        "required": [
+          "month",
+          "category",
+          "amount_fen"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 BudgetInput；HTTP请求与响应均遵守本定义。"
+      },
+      "Budget": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "服务端资源标识，前端原样使用，不自行拼接。"
+          },
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "YYYY-MM，接口不静默默认当前月份。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ResolvedCategory",
+            "description": "明确的类别代码，不接受pending。"
+          },
+          "amount_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "保存后的分类月预算，非负整数分。"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "category",
+          "amount_fen"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Budget；HTTP请求与响应均遵守本定义。"
+      },
+      "BudgetStatus": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ResolvedCategory",
+            "description": "明确的类别代码，不接受pending。"
+          },
+          "budget_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "该类别当月预算，非负整数分。"
+          },
+          "spent_fen": {
+            "type": "integer",
+            "description": "类别当月净支出，退款跨月时可以为负。"
+          },
+          "remaining_fen": {
+            "type": "integer",
+            "description": "预算减当月净支出，可以为负。"
+          },
+          "over_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "max(0,净支出减预算)。"
+          }
+        },
+        "required": [
+          "category",
+          "budget_fen",
+          "spent_fen",
+          "remaining_fen",
+          "over_fen"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 BudgetStatus；HTTP请求与响应均遵守本定义。"
+      },
+      "Totals": {
+        "type": "object",
+        "properties": {
+          "income_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "当月收入，不含退款和内部转账。"
+          },
+          "gross_expense_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "当月毛支出，不含内部转账和还款。"
+          },
+          "refund_fen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "按退款实际发生月计入的退款。"
+          },
+          "net_expense_fen": {
+            "type": "integer",
+            "description": "毛支出减退款，可以为负。"
+          },
+          "balance_fen": {
+            "type": "integer",
+            "description": "本期收支差额=收入减毛支出加退款，不是账户余额。"
+          }
+        },
+        "required": [
+          "income_fen",
+          "gross_expense_fen",
+          "refund_fen",
+          "net_expense_fen",
+          "balance_fen"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Totals；HTTP请求与响应均遵守本定义。"
+      },
+      "MonthlyReport": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "YYYY-MM，接口不静默默认当前月份。"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals",
+            "description": "统一口径汇总，前端不重新做另一套计算。"
+          },
+          "expense_by_category": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "$ref": "#/components/schemas/Category"
+                },
+                "amount_fen": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "category",
+                "amount_fen"
+              ],
+              "additionalProperties": false
+            },
+            "description": "分类毛支出构成，仅返回毛支出大于0的类别；用于饼图。"
+          },
+          "daily_trend": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "income_fen": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "gross_expense_fen": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "refund_fen": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "net_expense_fen": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "date",
+                "income_fen",
+                "gross_expense_fen",
+                "refund_fen",
+                "net_expense_fen"
+              ],
+              "additionalProperties": false
+            },
+            "description": "该月每个自然日按日期升序返回，无交易日各项为0。"
+          },
+          "budgets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetStatus"
+            },
+            "description": "该月已设置预算的类别，按类别代码稳定排序。"
+          }
+        },
+        "required": [
+          "month",
+          "totals",
+          "expense_by_category",
+          "daily_trend",
+          "budgets"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 MonthlyReport；HTTP请求与响应均遵守本定义。"
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "字段路径，例如rows[0].amount_fen或amount_fen。"
+          },
+          "row_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "本批次内稳定的草稿行标识，确认和分类按它关联，不能依赖数组顺序。"
+          },
+          "code": {
+            "type": "string",
+            "description": "稳定的机器错误代码，前端不能按中文message判断逻辑。"
+          },
+          "message": {
+            "type": "string",
+            "description": "面向用户的说明文本。"
+          }
+        },
+        "required": [
+          "field",
+          "row_id",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 FieldError；HTTP请求与响应均遵守本定义。"
+      },
+      "ErrorDetails": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "description": "逐字段错误列表，row_id为null表示非草稿字段。"
+          },
+          "current_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "发生版本冲突时可返回当前版本；不存在此信息时省略。"
+          },
+          "retry_after_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "限流等待秒数；不存在此信息时省略。"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "共享模型 ErrorDetails；HTTP请求与响应均遵守本定义。"
+      },
+      "Progress": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "已处理的候选行数。"
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "列表中为筛选后的总数；Progress中为候选行总数，可未知。"
+          }
+        },
+        "required": [
+          "current",
+          "total"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 Progress；HTTP请求与响应均遵守本定义。"
+      },
+      "ResolvedCategory": {
+        "type": "string",
+        "enum": [
+          "dining",
+          "transport",
+          "shopping",
+          "salary",
+          "housing",
+          "entertainment",
+          "health",
+          "education",
+          "other"
+        ],
+        "description": "用于个人规则和预算的明确类别，不接受pending。"
+      }
+    }
+  }
+}

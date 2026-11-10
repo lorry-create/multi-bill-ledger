@@ -1,0 +1,1227 @@
+{
+  "contract_version": "0.2.0",
+  "synthetic": true,
+  "scope": "每个case是独立合成快照，不是按数组运行即可成立的数据库时间线。multipart文件是占位，二进制响应是说明，不是已实现文件。",
+  "cases": [
+    {
+      "case_id": "health_success",
+      "operation_id": "health",
+      "method": "GET",
+      "path_template": "/health",
+      "request": {
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "status": "ok"
+        }
+      }
+    },
+    {
+      "case_id": "login_success",
+      "operation_id": "login",
+      "method": "POST",
+      "path_template": "/api/auth/login",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "username": "demo_a",
+          "password": "<本机演示账号密码>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json",
+          "Set-Cookie": "bill_session=synthetic-cookie; HttpOnly; SameSite=Lax"
+        },
+        "body": {
+          "user": {
+            "id": "user_demo_a",
+            "username": "demo_a"
+          },
+          "csrf_token": "synthetic-csrf-token"
+        }
+      }
+    },
+    {
+      "case_id": "getSession_success",
+      "operation_id": "getSession",
+      "method": "GET",
+      "path_template": "/api/auth/me",
+      "request": {
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "user": {
+            "id": "user_demo_a",
+            "username": "demo_a"
+          },
+          "csrf_token": "synthetic-csrf-token"
+        }
+      }
+    },
+    {
+      "case_id": "logout_success",
+      "operation_id": "logout",
+      "method": "POST",
+      "path_template": "/api/auth/logout",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token"
+        }
+      },
+      "response": {
+        "status": 204,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Set-Cookie": "bill_session=; Max-Age=0; HttpOnly; SameSite=Lax"
+        }
+      }
+    },
+    {
+      "case_id": "createImport_success",
+      "operation_id": "createImport",
+      "method": "POST",
+      "path_template": "/api/imports",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "source": "wechat",
+          "ingestion_method": "file",
+          "file": "<用户选择的本机CSV文件>"
+        }
+      },
+      "response": {
+        "status": 202,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json",
+          "Location": "/api/imports/batch_demo_01",
+          "Retry-After": 2
+        },
+        "body": {
+          "id": "batch_demo_01",
+          "version": 1,
+          "source": "wechat",
+          "ingestion_method": "file",
+          "status": "processing",
+          "rows": [],
+          "issues": [],
+          "progress": {
+            "current": 0,
+            "total": null
+          },
+          "file_name": "synthetic_bill.csv",
+          "created_at": "2026-11-08T12:00:00+08:00",
+          "updated_at": "2026-11-08T12:00:00+08:00"
+        }
+      }
+    },
+    {
+      "case_id": "getImport_success",
+      "operation_id": "getImport",
+      "method": "GET",
+      "path_template": "/api/imports/{id}",
+      "request": {
+        "headers": {},
+        "path": {
+          "id": "batch_demo_01"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "batch_demo_01",
+          "version": 2,
+          "source": "wechat",
+          "ingestion_method": "file",
+          "status": "pending_review",
+          "rows": [
+            {
+              "source_transaction_id": "SYN-HTTP-001",
+              "occurred_at": "2026-11-08T12:00:00+08:00",
+              "amount_fen": 2300,
+              "currency": "CNY",
+              "flow_type": "expense",
+              "merchant": "示例餐馆",
+              "description": "合成午餐账单",
+              "category": "dining",
+              "row_id": "row_demo_01",
+              "classification_source": "general_rule",
+              "classification_reason": "商户命中餐饮规则",
+              "duplicate_status": "unique",
+              "issues": []
+            }
+          ],
+          "issues": [],
+          "progress": {
+            "current": 1,
+            "total": 1
+          },
+          "file_name": "synthetic_bill.csv",
+          "created_at": "2026-11-08T12:00:00+08:00",
+          "updated_at": "2026-11-08T12:00:00+08:00"
+        }
+      }
+    },
+    {
+      "case_id": "getImportOriginal_success",
+      "operation_id": "getImportOriginal",
+      "method": "GET",
+      "path_template": "/api/imports/{id}/original",
+      "request": {
+        "headers": {},
+        "path": {
+          "id": "batch_demo_01"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": "attachment; filename=\"synthetic_bill.csv\""
+        },
+        "body": "<原图或文件的二进制内容>"
+      }
+    },
+    {
+      "case_id": "retryImport_success",
+      "operation_id": "retryImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/retry",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "expected_version": 3
+        }
+      },
+      "response": {
+        "status": 202,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json",
+          "Location": "/api/imports/batch_demo_01",
+          "Retry-After": 2
+        },
+        "body": {
+          "id": "batch_demo_01",
+          "version": 4,
+          "source": "wechat",
+          "ingestion_method": "file",
+          "status": "processing",
+          "rows": [],
+          "issues": [],
+          "progress": {
+            "current": 0,
+            "total": null
+          },
+          "file_name": "synthetic_bill.csv",
+          "created_at": "2026-11-08T12:00:00+08:00",
+          "updated_at": "2026-11-08T12:00:00+08:00"
+        }
+      }
+    },
+    {
+      "case_id": "confirmImport_success",
+      "operation_id": "confirmImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/confirm",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "request_id": "30fd9d73-08f4-4947-911c-64d32ce24d00",
+          "expected_version": 2,
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "transaction": {
+                "source_transaction_id": "SYN-HTTP-001",
+                "occurred_at": "2026-11-08T12:00:00+08:00",
+                "amount_fen": 2300,
+                "currency": "CNY",
+                "flow_type": "expense",
+                "merchant": "示例餐馆",
+                "description": "合成午餐账单",
+                "category": "dining"
+              },
+              "allow_suspected_duplicate": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "batch_id": "batch_demo_01",
+          "created_count": 1,
+          "duplicate_count": 0,
+          "ignored_count": 0,
+          "transaction_ids": [
+            "txn_demo_01"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "listTransactions_success",
+      "operation_id": "listTransactions",
+      "method": "GET",
+      "path_template": "/api/transactions",
+      "request": {
+        "headers": {},
+        "query": {
+          "date_from": "2026-11-01",
+          "date_to": "2026-11-30",
+          "source": "wechat",
+          "page": 1,
+          "page_size": 50
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [
+            {
+              "source_transaction_id": "SYN-HTTP-001",
+              "occurred_at": "2026-11-08T12:00:00+08:00",
+              "amount_fen": 2300,
+              "currency": "CNY",
+              "flow_type": "expense",
+              "merchant": "示例餐馆",
+              "description": "合成午餐账单",
+              "category": "dining",
+              "id": "txn_demo_01",
+              "version": 1,
+              "source": "wechat",
+              "ingestion_method": "file",
+              "import_batch_id": "batch_demo_01",
+              "classification_source": "general_rule",
+              "classification_reason": "商户命中餐饮规则",
+              "status": "confirmed"
+            }
+          ],
+          "total": 1,
+          "page": 1,
+          "page_size": 50
+        }
+      }
+    },
+    {
+      "case_id": "patchTransaction_success",
+      "operation_id": "patchTransaction",
+      "method": "PATCH",
+      "path_template": "/api/transactions/{id}",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "txn_demo_01"
+        },
+        "body": {
+          "expected_version": 1,
+          "changes": {
+            "category": "shopping"
+          },
+          "remember_rule": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source_transaction_id": "SYN-HTTP-001",
+          "occurred_at": "2026-11-08T12:00:00+08:00",
+          "amount_fen": 2300,
+          "currency": "CNY",
+          "flow_type": "expense",
+          "merchant": "示例餐馆",
+          "description": "合成午餐账单",
+          "category": "shopping",
+          "id": "txn_demo_01",
+          "version": 2,
+          "source": "wechat",
+          "ingestion_method": "file",
+          "import_batch_id": "batch_demo_01",
+          "classification_source": "manual",
+          "classification_reason": "用户手动修正分类",
+          "status": "confirmed"
+        }
+      }
+    },
+    {
+      "case_id": "listRules_success",
+      "operation_id": "listRules",
+      "method": "GET",
+      "path_template": "/api/classification-rules",
+      "request": {
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [
+            {
+              "id": "rule_demo_01",
+              "version": 1,
+              "source": "wechat",
+              "merchant_normalized": "示例餐馆",
+              "category": "shopping",
+              "enabled": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "patchRule_success",
+      "operation_id": "patchRule",
+      "method": "PATCH",
+      "path_template": "/api/classification-rules/{id}",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "rule_demo_01"
+        },
+        "body": {
+          "expected_version": 1,
+          "enabled": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "rule_demo_01",
+          "version": 2,
+          "source": "wechat",
+          "merchant_normalized": "示例餐馆",
+          "category": "shopping",
+          "enabled": false
+        }
+      }
+    },
+    {
+      "case_id": "getMonthlyReport_success",
+      "operation_id": "getMonthlyReport",
+      "method": "GET",
+      "path_template": "/api/reports/monthly",
+      "request": {
+        "headers": {},
+        "query": {
+          "month": "2026-11"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "month": "2026-11",
+          "totals": {
+            "income_fen": 10000,
+            "gross_expense_fen": 4200,
+            "refund_fen": 500,
+            "net_expense_fen": 3700,
+            "balance_fen": 6300
+          },
+          "expense_by_category": [
+            {
+              "category": "dining",
+              "amount_fen": 3000
+            },
+            {
+              "category": "shopping",
+              "amount_fen": 1200
+            }
+          ],
+          "daily_trend": [
+            {
+              "date": "2026-11-01",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-02",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-03",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-04",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-05",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-06",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-07",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-08",
+              "income_fen": 10000,
+              "gross_expense_fen": 4200,
+              "refund_fen": 500,
+              "net_expense_fen": 3700
+            },
+            {
+              "date": "2026-11-09",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-10",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-11",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-12",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-13",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-14",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-15",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-16",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-17",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-18",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-19",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-20",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-21",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-22",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-23",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-24",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-25",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-26",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-27",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-28",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-29",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            },
+            {
+              "date": "2026-11-30",
+              "income_fen": 0,
+              "gross_expense_fen": 0,
+              "refund_fen": 0,
+              "net_expense_fen": 0
+            }
+          ],
+          "budgets": [
+            {
+              "category": "dining",
+              "budget_fen": 2000,
+              "spent_fen": 2500,
+              "remaining_fen": -500,
+              "over_fen": 500
+            },
+            {
+              "category": "shopping",
+              "budget_fen": 1500,
+              "spent_fen": 1200,
+              "remaining_fen": 300,
+              "over_fen": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "putBudget_success",
+      "operation_id": "putBudget",
+      "method": "PUT",
+      "path_template": "/api/budgets",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "month": "2026-11",
+          "category": "dining",
+          "amount_fen": 2000
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "budget_demo_01",
+          "month": "2026-11",
+          "category": "dining",
+          "amount_fen": 2000
+        }
+      }
+    },
+    {
+      "case_id": "exportTransactions_success",
+      "operation_id": "exportTransactions",
+      "method": "GET",
+      "path_template": "/api/exports/transactions.csv",
+      "request": {
+        "headers": {},
+        "query": {
+          "date_from": "2026-11-01",
+          "date_to": "2026-11-30",
+          "source": "wechat"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "text/csv",
+          "Content-Disposition": "attachment; filename=\"ledger.csv\""
+        },
+        "body": "source,amount_fen,flow_type,category\nwechat,2300,expense,dining\n"
+      }
+    },
+    {
+      "case_id": "exportMonthlyPdf_success",
+      "operation_id": "exportMonthlyPdf",
+      "method": "GET",
+      "path_template": "/api/exports/monthly.pdf",
+      "request": {
+        "headers": {},
+        "query": {
+          "month": "2026-11"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/pdf",
+          "Content-Disposition": "attachment; filename=\"ledger-2026-11.pdf\""
+        },
+        "body": "<PDF二进制内容，不是JSON>"
+      }
+    },
+    {
+      "case_id": "getSession_auth_required",
+      "operation_id": "getSession",
+      "method": "GET",
+      "path_template": "/api/auth/me",
+      "request": {
+        "headers": {}
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "AUTH_REQUIRED",
+            "message": "请先登录",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "login_auth_invalid",
+      "operation_id": "login",
+      "method": "POST",
+      "path_template": "/api/auth/login",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "username": "demo_a",
+          "password": "<本机演示账号密码>"
+        }
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "AUTH_INVALID",
+            "message": "账号或密码错误",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "confirmImport_csrf_invalid",
+      "operation_id": "confirmImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/confirm",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "request_id": "30fd9d73-08f4-4947-911c-64d32ce24d00",
+          "expected_version": 2,
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "transaction": {
+                "source_transaction_id": "SYN-HTTP-001",
+                "occurred_at": "2026-11-08T12:00:00+08:00",
+                "amount_fen": 2300,
+                "currency": "CNY",
+                "flow_type": "expense",
+                "merchant": "示例餐馆",
+                "description": "合成午餐账单",
+                "category": "dining"
+              },
+              "allow_suspected_duplicate": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "CSRF_INVALID",
+            "message": "会话校验失败，请刷新后重试",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "getImport_resource_not_found",
+      "operation_id": "getImport",
+      "method": "GET",
+      "path_template": "/api/imports/{id}",
+      "request": {
+        "headers": {},
+        "path": {
+          "id": "batch_demo_01"
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "RESOURCE_NOT_FOUND",
+            "message": "资源不存在",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "patchTransaction_version_conflict",
+      "operation_id": "patchTransaction",
+      "method": "PATCH",
+      "path_template": "/api/transactions/{id}",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "txn_demo_01"
+        },
+        "body": {
+          "expected_version": 1,
+          "changes": {
+            "category": "shopping"
+          },
+          "remember_rule": true
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "VERSION_CONFLICT",
+            "message": "记录已被其他操作修改",
+            "details": {
+              "current_version": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "case_id": "confirmImport_idempotency_conflict",
+      "operation_id": "confirmImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/confirm",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "request_id": "30fd9d73-08f4-4947-911c-64d32ce24d00",
+          "expected_version": 2,
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "transaction": {
+                "source_transaction_id": "SYN-HTTP-001",
+                "occurred_at": "2026-11-08T12:00:00+08:00",
+                "amount_fen": 2300,
+                "currency": "CNY",
+                "flow_type": "expense",
+                "merchant": "示例餐馆",
+                "description": "合成午餐账单",
+                "category": "dining"
+              },
+              "allow_suspected_duplicate": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "IDEMPOTENCY_CONFLICT",
+            "message": "同一request_id不能提交不同内容",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "retryImport_batch_state_conflict",
+      "operation_id": "retryImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/retry",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "expected_version": 3
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "BATCH_STATE_CONFLICT",
+            "message": "只有失败批次能够重试",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "createImport_upload_too_large",
+      "operation_id": "createImport",
+      "method": "POST",
+      "path_template": "/api/imports",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "source": "wechat",
+          "ingestion_method": "file",
+          "file": "<用户选择的本机CSV文件>"
+        }
+      },
+      "response": {
+        "status": 413,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "UPLOAD_TOO_LARGE",
+            "message": "文件超过10MiB",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "createImport_unsupported_media_type",
+      "operation_id": "createImport",
+      "method": "POST",
+      "path_template": "/api/imports",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "multipart/form-data"
+        },
+        "body": {
+          "source": "wechat",
+          "ingestion_method": "file",
+          "file": "<用户选择的本机CSV文件>"
+        }
+      },
+      "response": {
+        "status": 415,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "UNSUPPORTED_MEDIA_TYPE",
+            "message": "不支持该文件类型",
+            "details": {}
+          }
+        }
+      }
+    },
+    {
+      "case_id": "confirmImport_validation_error",
+      "operation_id": "confirmImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/confirm",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "request_id": "30fd9d73-08f4-4947-911c-64d32ce24d00",
+          "expected_version": 2,
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "transaction": {
+                "source_transaction_id": "SYN-HTTP-001",
+                "occurred_at": "2026-11-08T12:00:00+08:00",
+                "amount_fen": 0,
+                "currency": "CNY",
+                "flow_type": "expense",
+                "merchant": "示例餐馆",
+                "description": "合成午餐账单",
+                "category": "dining"
+              },
+              "allow_suspected_duplicate": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "请修正金额字段",
+            "details": {
+              "fields": [
+                {
+                  "field": "rows[0].transaction.amount_fen",
+                  "row_id": "row_demo_01",
+                  "code": "INVALID_AMOUNT",
+                  "message": "金额必须为正整数分"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "request_valid": false
+    },
+    {
+      "case_id": "login_rate_limited",
+      "operation_id": "login",
+      "method": "POST",
+      "path_template": "/api/auth/login",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "username": "demo_a",
+          "password": "<本机演示账号密码>"
+        }
+      },
+      "response": {
+        "status": 429,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "RATE_LIMITED",
+            "message": "登录请求过于频繁",
+            "details": {
+              "retry_after_seconds": 30
+            }
+          }
+        }
+      }
+    },
+    {
+      "case_id": "exportMonthlyPdf_export_unavailable",
+      "operation_id": "exportMonthlyPdf",
+      "method": "GET",
+      "path_template": "/api/exports/monthly.pdf",
+      "request": {
+        "headers": {},
+        "query": {
+          "month": "2026-11"
+        }
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "EXPORT_UNAVAILABLE",
+            "message": "报表导出暂不可用，请稍后重试",
+            "details": {}
+          }
+        }
+      }
+    }
+  ]
+}

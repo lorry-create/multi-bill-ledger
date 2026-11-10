@@ -1,0 +1,147 @@
+{
+  "synthetic": true,
+  "contract_version": "0.2.0",
+  "description": "全为合成数据，不能当作真实平台解析、OCR或模型效果的证据。",
+  "month": "2026-11",
+  "transactions": [
+    {
+      "source_transaction_id": "SYN-IN-1",
+      "source": "alipay",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-08T09:00:00+08:00",
+      "amount_fen": 10000,
+      "currency": "CNY",
+      "flow_type": "income",
+      "merchant": "合成工资",
+      "description": "仅为合成测试数据",
+      "category": "salary",
+      "status": "confirmed"
+    },
+    {
+      "source_transaction_id": "SYN-ORDER-1",
+      "source": "wechat",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-08T12:00:00+08:00",
+      "amount_fen": 3000,
+      "currency": "CNY",
+      "flow_type": "expense",
+      "merchant": "合成餐馆",
+      "description": "仅为合成测试数据",
+      "category": "dining",
+      "status": "confirmed"
+    },
+    {
+      "source_transaction_id": "SYN-EXP-2",
+      "source": "alipay",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-08T13:00:00+08:00",
+      "amount_fen": 1200,
+      "currency": "CNY",
+      "flow_type": "expense",
+      "merchant": "合成商店",
+      "description": "仅为合成测试数据",
+      "category": "shopping",
+      "status": "confirmed"
+    },
+    {
+      "source_transaction_id": "SYN-ORDER-1",
+      "source": "wechat",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-08T14:00:00+08:00",
+      "amount_fen": 500,
+      "currency": "CNY",
+      "flow_type": "refund",
+      "merchant": "合成餐馆",
+      "description": "仅为合成测试数据",
+      "category": "dining",
+      "status": "confirmed"
+    },
+    {
+      "source_transaction_id": "SYN-TRANSFER-1",
+      "source": "wechat",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-08T15:00:00+08:00",
+      "amount_fen": 2000,
+      "currency": "CNY",
+      "flow_type": "transfer",
+      "merchant": "合成自转",
+      "description": "仅为合成测试数据",
+      "category": "other",
+      "status": "confirmed"
+    },
+    {
+      "source_transaction_id": "SYN-REPAY-1",
+      "source": "alipay",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-08T16:00:00+08:00",
+      "amount_fen": 4000,
+      "currency": "CNY",
+      "flow_type": "repayment",
+      "merchant": "合成还款",
+      "description": "仅为合成测试数据",
+      "category": "other",
+      "status": "confirmed"
+    }
+  ],
+  "budgets": [
+    {
+      "category": "dining",
+      "amount_fen": 2000
+    },
+    {
+      "category": "shopping",
+      "amount_fen": 1500
+    }
+  ],
+  "expected": {
+    "totals": {
+      "income_fen": 10000,
+      "gross_expense_fen": 4200,
+      "refund_fen": 500,
+      "net_expense_fen": 3700,
+      "balance_fen": 6300
+    },
+    "expense_by_category": {
+      "dining": 3000,
+      "shopping": 1200
+    },
+    "budgets": [
+      {
+        "category": "dining",
+        "budget_fen": 2000,
+        "spent_fen": 2500,
+        "remaining_fen": -500,
+        "over_fen": 500
+      },
+      {
+        "category": "shopping",
+        "budget_fen": 1500,
+        "spent_fen": 1200,
+        "remaining_fen": 300,
+        "over_fen": 0
+      }
+    ]
+  },
+  "feedback_case": {
+    "source": "wechat",
+    "merchant": "校园便利店",
+    "initial_category": "shopping",
+    "correction_category": "dining",
+    "new_transaction": {
+      "source_transaction_id": "SYN-RULE-NEW-1",
+      "source": "wechat",
+      "ingestion_method": "file",
+      "occurred_at": "2026-11-10T12:00:00+08:00",
+      "amount_fen": 600,
+      "currency": "CNY",
+      "flow_type": "expense",
+      "merchant": "校园便利店",
+      "description": "仅为合成测试数据",
+      "category": "pending",
+      "status": "confirmed"
+    },
+    "expected_new_category": "dining",
+    "expected_new_source": "user_rule",
+    "note": "独立反馈样例，不加入上方六笔月报预期。"
+  }
+}

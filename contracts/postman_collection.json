@@ -1,0 +1,518 @@
+{
+  "info": {
+    "name": "multi-bill-ledger 0.2.0 契约请求示例",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "独立合成请求模板，不能一键执行所有示例。先登录，上传时选择本机文件，按实际草稿替换确认行和版本。失败批次重试单独运行；不含真实凭据。"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "username",
+      "value": "demo_a"
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "csrfToken",
+      "value": ""
+    },
+    {
+      "key": "batchId",
+      "value": ""
+    },
+    {
+      "key": "transactionId",
+      "value": ""
+    },
+    {
+      "key": "ruleId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "GET /health [health]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health",
+        "description": "GET /health 检查应用和数据库，200表示必要依赖就绪；不返回密钥或账单。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/auth/login [login]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/login",
+        "description": "校验账号密码与同源Origin，成功设置HttpOnly会话Cookie并返回CSRF token。401表示账号或密码错误。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"csrfToken\", pm.response.json().csrf_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/auth/me [getSession]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/auth/me",
+        "description": "读取当前用户及CSRF token。浏览器保存Cookie，JavaScript不读取Set-Cookie。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"csrfToken\", pm.response.json().csrf_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/auth/logout [logout]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/logout",
+        "description": "校验CSRF后清除会话Cookie；204没有JSON正文，前端清空用户和CSRF状态。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/imports [createImport]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/imports",
+        "description": "multipart上传source、ingestion_method、file，返回202和批次。请求仅创建批次，不自动确认入账。文件10MiB、图片5MiB，PNG/JPEG/CSV/XLSX。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "source",
+              "value": "wechat",
+              "type": "text"
+            },
+            {
+              "key": "ingestion_method",
+              "value": "file",
+              "type": "text"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(202));",
+              "if (pm.response.code === 202) pm.collectionVariables.set(\"batchId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/imports/{id} [getImport]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/imports/{{batchId}}",
+        "description": "读取本人批次。首次1秒后轮询，之后每2秒；pending_review、completed或failed停止。120秒仍处理中暂停自动轮询并允许手动刷新；不能由前端自行判失败。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/imports/{id}/original [getImportOriginal]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/imports/{{batchId}}/original",
+        "description": "鉴权流式返回原文件。前端以Blob预览图片，不能将其当JSON或可公开访问的静态URL。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/imports/{id}/retry [retryImport]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/imports/{{batchId}}/retry",
+        "description": "仅failed且版本相符才能重试；返回202、新版本与processing。该接口不重新确认已完成批次，旧版本或其他状态返回409。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": 3\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(202));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/imports/{id}/confirm [confirmImport]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/imports/{{batchId}}/confirm",
+        "description": "pending_review批次才能确认。同request_id同请求体返回原200结果，先检查幂等记录再检查旧版本；同ID异体或已完成批次新ID返回409。全部选中行同事务，不部分入账。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"request_id\": \"30fd9d73-08f4-4947-911c-64d32ce24d00\",\n  \"expected_version\": 2,\n  \"rows\": [\n    {\n      \"row_id\": \"row_demo_01\",\n      \"transaction\": {\n        \"source_transaction_id\": \"SYN-HTTP-001\",\n        \"occurred_at\": \"2026-11-08T12:00:00+08:00\",\n        \"amount_fen\": 2300,\n        \"currency\": \"CNY\",\n        \"flow_type\": \"expense\",\n        \"merchant\": \"示例餐馆\",\n        \"description\": \"合成午餐账单\",\n        \"category\": \"dining\"\n      },\n      \"allow_suspected_duplicate\": false\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"transactionId\", pm.response.json().transaction_ids[0] ?? \"\");"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/transactions [listTransactions]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/transactions?date_from=2026-11-01&date_to=2026-11-30&source=wechat&page=1&page_size=50",
+        "description": "只返回本人已确认交易。默认page=1、page_size=50；按occurred_at倒序再id倒序。日期两端均为上海自然日包含边界；不传日期则查本人全部记录。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PATCH /api/transactions/{id} [patchTransaction]",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/transactions/{{transactionId}}",
+        "description": "expected_version必填；未提交字段不变。显式更改类别标manual，未提交category则保留原类别及来源。remember_rule只在非空商户和非pending类别时生效。账单、规则、日志及索引原子更新。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": 1,\n  \"changes\": {\n    \"category\": \"shopping\"\n  },\n  \"remember_rule\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/classification-rules [listRules]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/classification-rules",
+        "description": "返回本人全部规则，包括已停用项，按source再merchant_normalized升序。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"ruleId\", pm.response.json().items[0]?.id ?? \"\");"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PATCH /api/classification-rules/{id} [patchRule]",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/classification-rules/{{ruleId}}",
+        "description": "至少提供enabled或category，携带expected_version；已停用规则可重新启用。停用不重写历史交易。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": 1,\n  \"enabled\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/reports/monthly [getMonthlyReport]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/reports/monthly?month=2026-11",
+        "description": "month必填。返回统一汇总、分类毛支出、全月日趋势和预算。列表/图表/导出共用相同口径，空月返回0与完整日期序列。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PUT /api/budgets [putBudget]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/budgets",
+        "description": "按当前用户、month、category唯一键创建或覆盖预算，始终200。category不接受pending；金额为0时前端不计算百分比除法。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"month\": \"2026-11\",\n  \"category\": \"dining\",\n  \"amount_fen\": 2000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/exports/transactions.csv [exportTransactions]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/exports/transactions.csv?date_from=2026-11-01&date_to=2026-11-30&source=wechat",
+        "description": "导出所有筛选结果，不限当前分页，不接受page/page_size。UTF-8 CSV，文本单元格防公式注入，金额字段明确amount_fen。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/exports/monthly.pdf [exportMonthlyPdf]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/exports/monthly.pdf?month=2026-11",
+        "description": "month必填，返回中文PDF二进制，与同月份月报数字相同。字体和渲染依赖随部署包提供。\n请求中的版本、row_id和字段必须按实际返回核对。"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
