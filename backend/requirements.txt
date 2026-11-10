@@ -1,0 +1,11 @@
+# T00 运行时依赖。版本以实际安装为准，安装后由队长回填精确 pin 并在 CHG 记录。
+# 解释器口径见 AGENTS.md 第 8 行：Python 3.13 系列（基线 3.13.14）。
+fastapi>=0.115,<0.116
+uvicorn[standard]>=0.30,<0.31
+sqlalchemy>=2.0.30,<2.1
+pydantic>=2.9,<3
+python-multipart>=0.0.9,<0.1
+# 敏感字段加密（AES-GCM）与去重摘要（HMAC-SHA256）
+cryptography>=42,<50
+# 仅 PostgreSQL 部署需要；本地 SQLite 开发不加载该驱动
+psycopg[binary]>=3.2,<4

@@ -1,0 +1,66 @@
+# 独立部署骨架（对应初赛"独立部署"与"高可用"评分项）。
+#
+# 用法：
+#   cp .env.example .env        # 填 POSTGRES_PASSWORD、SESSION_SECRET、DATA_ENCRYPTION_KEY
+#   docker compose up -d --build
+#   docker compose exec api python -m app.seed_demo --username demo_a --password 你的密码
+#
+# 说明：
+# - 数据库用命名卷 pgdata，容器重建不丢数据；备份恢复见 docs/16。
+# - api 容器启动时先跑迁移再起服务，避免"表没建就接请求"。
+# - 生产环境务必设置 APP_ENV=production 与 COOKIE_SECURE=1（走 HTTPS 时）。
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ledger}
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?需要在 .env 设置 POSTGRES_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ledger} -d ${POSTGRES_DB:-ledger}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [ledger]
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ledger}
+      APP_PORT: "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT_HOST:-8000}:8000"
+    command: >
+      sh -c "python -m app.migrate &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [ledger]
+
+volumes:
+  pgdata:
+
+networks:
+  ledger:
+    driver: bridge
