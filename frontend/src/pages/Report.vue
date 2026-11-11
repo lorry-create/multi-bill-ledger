@@ -5,6 +5,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Download,
+  ChevronLeft,
+  ChevronRight,
   Plus,
   Wallet,
 } from "@lucide/vue";
@@ -30,9 +32,57 @@ const router = useRouter(),
 const activeCategory = ref<Category | null>(null);
 const trendMode = ref<"daily" | "weekly">("daily");
 const activeTrendIndex = ref<number | null>(null);
+type Tooltip = { x: number; y: number; title: string; color: string; rows: { label: string; value: string }[] };
+const tooltip = ref<Tooltip | null>(null);
+function placeTooltip(event: PointerEvent, title: string, color: string, rows: Tooltip["rows"]) {
+  if (event.pointerType === "touch") return;
+  tooltip.value = {
+    x: Math.max(12, Math.min(event.clientX + 18, window.innerWidth - 228)),
+    y: Math.max(12, Math.min(event.clientY + 18, window.innerHeight - 154)),
+    title, color, rows,
+  };
+}
+function showCategoryTooltip(event: PointerEvent, item: (typeof chartSegments.value)[number]) {
+  activeCategory.value = item.category;
+  placeTooltip(event, categories[item.category], item.color, [
+    { label: "支出", value: yuan(item.amount_fen) },
+    { label: "占比", value: `${item.percent.toFixed(1)}%` },
+  ]);
+}
+function chooseCategory(category: Category) {
+  if (window.matchMedia("(hover: none)").matches) {
+    activeCategory.value = category;
+    return;
+  }
+  goCategory(category);
+}
+function showTrendTooltip(event: PointerEvent, index: number) {
+  activeTrendIndex.value = index;
+  const item = trendData.value[index];
+  if (!item) return;
+  placeTooltip(event, item.range, "#007aff", [
+    { label: "收入", value: yuan(item.income_fen) },
+    { label: "支出", value: yuan(item.gross_expense_fen) },
+    { label: "退款", value: yuan(item.refund_fen) },
+  ]);
+}
+function hideTooltip() { tooltip.value = null; }
+function leaveCategory(event: PointerEvent) {
+  hideTooltip();
+  if (event.pointerType !== "touch") activeCategory.value = null;
+}
+function shiftMonth(delta: number) {
+  const [year, part] = month.value.split("-").map(Number);
+  const next = new Date(year, part - 1 + delta, 1);
+  month.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+  activeCategory.value = null;
+  activeTrendIndex.value = null;
+  tooltip.value = null;
+  load();
+}
 const trendData = computed(() => {
   const days = report.value?.daily_trend ?? [];
-  if (trendMode.value === "daily") return days.map((day) => ({ ...day, label: `${Number(day.date.slice(-2))}日`, range: day.date }));
+  if (trendMode.value === "daily") return days.map((day) => ({ ...day, label: String(Number(day.date.slice(-2))), range: day.date }));
   const weeks = [];
   for (let i = 0; i < days.length; i += 7) {
     const group = days.slice(i, i + 7);
@@ -85,6 +135,8 @@ const chartSegments = computed(() => {
     });
 });
 const inspectedCategory = computed(() => chartSegments.value.find((x) => x.category === activeCategory.value));
+const topExpense = computed(() => [...chartSegments.value].sort((a, b) => b.amount_fen - a.amount_fen)[0]);
+const exceededBudgets = computed(() => (report.value?.budgets ?? []).filter((x) => x.over_fen > 0));
 function changeTrendMode(mode: "daily" | "weekly") {
   trendMode.value = mode;
   activeTrendIndex.value = null;
@@ -175,12 +227,15 @@ function goCategory(category: string) {
       <p>把这个月的收支，放在一张清楚的账上。</p>
     </div>
     <div class="head-actions">
+      <button class="month-step" type="button" aria-label="上个月" @click="shiftMonth(-1)"><ChevronLeft :size="17" /></button>
       <input
         v-model="month"
         type="month"
         aria-label="选择月份"
         @change="load"
-      /><button class="secondary-btn" @click="exportPdf">
+      />
+      <button class="month-step" type="button" aria-label="下个月" @click="shiftMonth(1)"><ChevronRight :size="17" /></button>
+      <button class="secondary-btn" @click="exportPdf">
         <Download :size="16" /> 导出月报
       </button>
     </div>
@@ -215,7 +270,7 @@ function goCategory(category: string) {
           </div>
         </div>
         <div v-if="categoryTotal" class="category-content">
-          <div class="donut" @mouseleave="activeCategory = null">
+          <div class="donut" @pointerleave="leaveCategory">
             <svg viewBox="0 0 180 180" role="group" aria-label="支出类别环形图">
               <circle class="donut-track" cx="90" cy="90" r="70" fill="none" stroke-width="25" />
               <circle
@@ -230,10 +285,11 @@ function goCategory(category: string) {
                 transform="rotate(-90 90 90)"
                 role="button" tabindex="0"
                 :aria-label="`${categories[item.category]} ${yuan(item.amount_fen)}，占 ${item.percent.toFixed(1)}%`"
-                @mouseenter="activeCategory = item.category"
+                @pointerenter="showCategoryTooltip($event, item)"
+                @pointermove="showCategoryTooltip($event, item)"
                 @focus="activeCategory = item.category"
                 @blur="activeCategory = null"
-                @click="goCategory(item.category)"
+                @click="chooseCategory(item.category)"
                 @keydown.enter="goCategory(item.category)"
                 @keydown.space.prevent="goCategory(item.category)"
               />
@@ -249,8 +305,9 @@ function goCategory(category: string) {
               v-for="item in chartSegments"
               :key="item.category"
               :class="{ active: activeCategory === item.category }"
-              @mouseenter="activeCategory = item.category"
-              @mouseleave="activeCategory = null"
+              @pointerenter="showCategoryTooltip($event, item)"
+              @pointermove="showCategoryTooltip($event, item)"
+              @pointerleave="leaveCategory"
               @focus="activeCategory = item.category"
               @blur="activeCategory = null"
               @click="goCategory(item.category)"
@@ -290,7 +347,9 @@ function goCategory(category: string) {
             :class="{ selected: activeTrendIndex === index }"
             role="button" tabindex="0"
             :aria-label="`${day.range} 收入 ${yuan(day.income_fen)}，支出 ${yuan(day.gross_expense_fen)}，退款 ${yuan(day.refund_fen)}`"
-            @mouseenter="activeTrendIndex = index"
+            @pointerenter="showTrendTooltip($event, index)"
+            @pointermove="showTrendTooltip($event, index)"
+            @pointerleave="hideTooltip()"
             @focus="activeTrendIndex = index"
             @click="activeTrendIndex = index"
             @keydown.enter="activeTrendIndex = index"
@@ -321,6 +380,15 @@ function goCategory(category: string) {
         </div>
       </section>
     </div>
+    <section v-if="topExpense || exceededBudgets.length" class="report-insights" aria-label="消费观察">
+      <div class="insight-intro"><span>消费观察</span><strong>从数字里找到下一步</strong></div>
+      <button v-if="topExpense" class="insight-item" @click="goCategory(topExpense.category)">
+        <span>本月最大支出类别</span><strong>{{ categories[topExpense.category] }} · {{ yuan(topExpense.amount_fen) }}</strong><span>查看明细 <ChevronRight :size="14" /></span>
+      </button>
+      <button v-if="exceededBudgets.length" class="insight-item" @click="goCategory(exceededBudgets[0].category)">
+        <span>需要留意</span><strong>{{ categories[exceededBudgets[0].category] }}超出预算 {{ yuan(exceededBudgets[0].over_fen) }}</strong><span>查看相关账单 <ChevronRight :size="14" /></span>
+      </button>
+    </section>
     <div class="report-lower-grid"><section class="content-panel income-panel">
       <div class="panel-heading"><div><h2>收入构成</h2><p>按已确认收入的类别汇总</p></div></div>
       <div v-if="incomeParts.length" class="income-list">
@@ -420,4 +488,10 @@ function goCategory(category: string) {
       </div>
     </section>
   </div>
+  <Teleport to="body">
+    <div v-if="tooltip" class="chart-cursor-tooltip" :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }" role="status">
+      <div class="cursor-tooltip-title"><i :style="{ background: tooltip.color }"></i><strong>{{ tooltip.title }}</strong></div>
+      <div v-for="row in tooltip.rows" :key="row.label" class="cursor-tooltip-row"><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div>
+    </div>
+  </Teleport>
 </template>

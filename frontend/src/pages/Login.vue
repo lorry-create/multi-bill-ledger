@@ -31,7 +31,7 @@ async function submit() {
   <div class="login-page">
     <section class="login-story">
       <div class="login-brand">
-        <span class="brand-mark">归</span> 归账<span class="brand-dot">.</span>
+        <span class="brand-mark"><img src="/brand.svg" alt="" /></span> 归账
       </div>
       <div class="login-story-copy">
         <h1>钱花在哪里，<br />心里有数。</h1>
