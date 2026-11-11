@@ -1,9 +1,11 @@
 """按配置选择智能模块实现。
 
-只有两档，没有"自动降级"：
+内置两档，没有自动降级：
 
-- `fallback-rules`（默认）：纯规则，永远可用；
-- D 的真实实现注册后按名字启用（`intelligence.deepseek:DeepSeekIntelligence` 这类点分路径）。
+- `local-rapidocr`（默认）：本地 OCR 与规则分类；
+- `fallback-rules`：只解析文件和规则分类，截图明确报错。
+
+也可以按点分路径接入其他实现（`intelligence.custom:Provider`）。
 
 **故意不提供"真实实现失败就悄悄换成 fallback"**。原因：那样分类结果会标成
 `general_rule` 却让所有人以为走了模型，准确率报表全错，属于 docs/08 A06 说的伪成功。
@@ -16,11 +18,12 @@ import importlib
 
 from .base import IntelligenceProvider
 from .fallback import FallbackIntelligence
+from .ocr import LocalOCRIntelligence
 
-DEFAULT_PROVIDER = "fallback-rules"
+DEFAULT_PROVIDER = "local-rapidocr"
 
 # 内置实现注册表；D 的实现通过点分路径按需导入，不写死 import 避免循环依赖
-_BUILTIN: dict[str, type] = {DEFAULT_PROVIDER: FallbackIntelligence}
+_BUILTIN: dict[str, type] = {DEFAULT_PROVIDER: LocalOCRIntelligence, "fallback-rules": FallbackIntelligence}
 
 
 class ProviderNotAvailable(RuntimeError):

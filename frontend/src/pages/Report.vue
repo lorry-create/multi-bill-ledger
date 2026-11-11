@@ -9,7 +9,7 @@ import {
   Wallet,
 } from "@lucide/vue";
 import { api, isDemo } from "../api";
-import type { MonthlyReport, ResolvedCategory } from "../api";
+import type { Category, MonthlyReport, ResolvedCategory } from "../api";
 import { categories, download, parseYuan, yuan } from "../format";
 import { csrf, errorText } from "../session";
 
@@ -20,6 +20,7 @@ const router = useRouter(),
       .slice(0, 7),
   ),
   report = ref<MonthlyReport | null>(null),
+  incomeParts = ref<{ category: Category; amount_fen: number }[]>([]),
   loading = ref(false),
   error = ref(""),
   budgetCategory = ref<ResolvedCategory>("dining"),
@@ -41,7 +42,7 @@ const categoryTotal = computed(
 );
 const chartSegments = computed(() => {
   let offset = 0;
-  const colors = ["#297f78", "#85b8aa", "#e9ad72", "#8da6bc", "#c3cdd0"];
+  const colors = ["#4d55e8", "#8c93ec", "#ee9d75", "#515c91", "#bec4e5"];
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
     .map((x, i) => {
@@ -70,6 +71,18 @@ async function load() {
     report.value = await api.getMonthlyReport({
       query: { month: month.value },
     });
+    incomeParts.value = [];
+    const [year, part] = month.value.split("-").map(Number);
+    const date_to = `${month.value}-${new Date(year, part, 0).getDate()}`;
+    let page = 1;
+    const totals = new Map<Category, number>();
+    while (true) {
+      const result = await api.listTransactions({query:{date_from:`${month.value}-01`,date_to,flow_type:"income",page,page_size:100}});
+      for (const item of result.items) totals.set(item.category,(totals.get(item.category)??0)+item.amount_fen);
+      if (page * 100 >= result.total) break;
+      page++;
+    }
+    incomeParts.value = [...totals].map(([category,amount_fen])=>({category,amount_fen})).sort((a,b)=>b.amount_fen-a.amount_fen);
   } catch (e) {
     error.value = errorText(e);
   } finally {
@@ -246,6 +259,15 @@ function goCategory(category: string) {
         </div>
       </section>
     </div>
+    <section class="content-panel income-panel">
+      <div class="panel-heading"><div><h2>收入构成</h2><p>按已确认收入的类别汇总</p></div></div>
+      <div v-if="incomeParts.length" class="income-list">
+        <div v-for="part in incomeParts" :key="part.category" class="income-row">
+          <span>{{ categories[part.category] }}</span><div class="income-track"><i :style="{width:`${report.totals.income_fen?part.amount_fen/report.totals.income_fen*100:0}%`}"></i></div><strong>{{ yuan(part.amount_fen) }}</strong>
+        </div>
+      </div>
+      <div v-else class="empty-state"><strong>本月没有收入明细</strong><span>收入账单确认后会在这里展示来源。</span></div>
+    </section>
     <section class="content-panel budget-panel">
       <div class="panel-heading">
         <div>

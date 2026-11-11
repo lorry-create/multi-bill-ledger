@@ -33,17 +33,18 @@ async function submit() {
       <div class="login-brand">
         <span class="brand-mark">归</span> 归账<span class="brand-dot">.</span>
       </div>
-      <div class="login-art" aria-hidden="true">
-        <div class="art-line art-one"></div>
-        <div class="art-line art-two"></div>
-        <div class="art-line art-three"></div>
-        <div class="art-circle"></div>
-      </div>
       <div class="login-story-copy">
-        <h1>从散落的账单，<br />看见清楚的生活。</h1>
-        <p>微信、支付宝的每笔收支，汇成一份你看得懂、核得准的账。</p>
+        <h1>钱花在哪里，<br />心里有数。</h1>
+        <p>把分散在微信和支付宝的记录，整理成一份可信的个人账本。</p>
       </div>
-      <div class="login-foot">个人财务管理 · 数据由你确认</div>
+      <div class="login-preview" aria-hidden="true">
+        <div class="preview-head"><span>十一月账目</span><span>归账 / 2026</span></div>
+        <div class="preview-line"><span>收入</span><strong>+ ¥10,000.00</strong></div>
+        <div class="preview-line"><span>餐饮与日常</span><strong>− ¥2,438.00</strong></div>
+        <div class="preview-line"><span>交通出行</span><strong>− ¥856.00</strong></div>
+        <div class="preview-total"><span>每一笔，都经过确认。</span><span>↗</span></div>
+      </div>
+      <div class="login-foot">多平台账单 · 一处核对</div>
     </section>
     <section class="login-form-panel">
       <div class="login-form">

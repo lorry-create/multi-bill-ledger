@@ -1,8 +1,28 @@
 # multi-bill-ledger
 
-多源账单导入与个人财务管理。契约版本 0.2.0，日期 2026 年 11 月 10 日。
+多源账单导入与个人财务管理。契约版本 0.2.0。
 
-**当前状态：T00 骨架已完成并实测通过。** 后端能启动、能登录（`GET /health`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout` 共 4 个接口，字段与契约一致）；其余 13 个接口与全部前端页面尚未实现。目标 11 月 19 日前完成初赛核心闭环，20 日提交。
+**当前状态：核心闭环已实现。** 后端实现契约中的全部 17 个业务接口，前端提供登录、文件或截图导入、逐笔核对、账单修正、分类规则、月报和预算。默认在本地使用 RapidOCR 识别 PNG/JPEG，CSV/XLSX 可直接解析。已确认账单、原始文件及修正日志加密存储；修正时可记住商户规则，供后续导入自动分类。支付平台开放接口属于可选扩展，目前未接入。
+
+本地启动：
+
+```powershell
+python -m pip install -r backend/requirements-dev.txt
+cd backend
+python -m app.migrate
+python -m app.seed_demo --username demo_a --password 你设置的本地密码
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+另开终端运行前端：
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+访问 `http://127.0.0.1:5173`。默认连接真实后端；前端演示模式见 [前端说明](frontend/README.md)。
 
 ## 先看接口设计
 
@@ -19,7 +39,7 @@
 | **今天从哪开工（T00 骨架半天落地）** | [T00 骨架落地清单](docs/16_T00_scaffold_checklist.md) |
 | **F 今天做什么** | [F 首日开工卡](docs/17_F_first_day_card.md) |
 | **D 今天做什么** | [D 首日开工卡](docs/18_D_first_day_card.md) |
-| **后端还缺什么（13 接口 + 隐蔽缺口）** | [后端差距分析](docs/19_backend_gap_analysis.md) |
+| T00 时的后端差距分析（历史记录） | [后端差距分析](docs/19_backend_gap_analysis.md) |
 | **智能模块怎么接（D 必读）/ Issue 码表（F 必读）** | [智能模块对接说明](docs/20_intelligence_contract.md) |
 
 共用 Pydantic 模型由契约生成，不要手写：`python tools/gen_pydantic_models.py` 产出 `backend/app/contracts.py`，`--check` 已接入 CI 防漂移。
@@ -59,24 +79,24 @@ python tools/validate_examples.py --self-test
 python tools/generate_contract_artifacts.py --check
 ```
 
-后端（T00 起可跑）：
+后端和契约：
 
 ```bash
 python -m pip install -r backend/requirements-dev.txt
-python tools/check_implemented_contract.py        # 已实现接口 vs 契约，未实现的不算失败
+python tools/check_implemented_contract.py        # 17 个接口 vs 权威契约
 cd backend
 python -m app.migrate                              # 建表；--check 校验，--sql 导出 PG DDL
 python -m app.seed_demo --username demo_a --password 你的密码
-python -m unittest discover -s tests -v            # 9 项冒烟测试，不占端口
+python -m pytest -q                                # 后端完整测试
 ```
 
-本地已执行 OpenAPI 标准、29 例 Schema、生成一致性、TypeScript 严格检查、9 项 fetch 替身调用测试，以及 T00 的建表/导入/9 项后端测试，结果见[检查记录](VALIDATION.md)。完整命令在 `.github/workflows/contract-check.yml`（已含契约漂移与后端冒烟两步），远端 Actions 尚未实跑。静态例子和替身不是实际业务服务，真实权限、金额事务、OCR 模型和部署仍需后续验证。
+本地完整后端测试、契约比对和前端构建均已通过；另在真实 HTTP 页面完成合成 CSV 上传、确认、修正分类与规则反馈。OCR 已用本地合成截图验证金额和时间识别，真实账单版式的准确率仍需用脱敏样本评估。
 
 ## GitHub 协作
 
 仓库：https://github.com/lorry-create/multi-bill-ledger ，**已设为 public**，评委可直接按链接查看代码与提交历史。
 
-T00 基线已推到 `task/T00-baseline` 分支（3 个 commit：导入契约与文档、生成共用模型并接入漂移检查、补 T00 清单与两张首日卡），**`main` 未改动**，等队友验证后再合并。
+`task/T00-baseline` 为最初骨架分支；本地功能继续在任务分支上开发。合并和远端部署状态以 Git 历史为准。
 
 注意初赛要求是「提供仓库链接与提交历史」：public 只解决"能打开"，**提交历史必须体现三人分工**——三个人的 commit 都要真的出现在 `main` 上。按任务分支开发、PR 提交、Actions 检查、队长拉取具体 SHA 验收后合并。步骤与套餐限制见[GitHub 指南](docs/07_github_review.md)。真实账单、密钥不入 Git；[合成账本](fixtures/synthetic_ledger.json)只用于口径测试。
 

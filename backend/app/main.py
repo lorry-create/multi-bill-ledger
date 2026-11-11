@@ -6,9 +6,8 @@
     python -m app.seed_demo ...    # 可选：导入合成演示数据
     python -m uvicorn app.main:app --reload --port 8000
 
-T00 只暴露 /health 与 /api/auth/*，其余 13 个接口由 T01/T02 按契约逐个补齐。
-后端自己导出的 /openapi.json 反映"已实现部分"，不是权威契约；权威仍是
-contracts/openapi.json，两边不一致时必须先改文档再改代码（docs/13 末尾）。
+实现健康检查和契约中的 17 个业务接口。权威契约是 contracts/openapi.json；
+后端导出的 /openapi.json 由检查脚本与权威契约比对。
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from .contracts import CONTRACT_VERSION
 from .db import build_engine, build_session_factory
 from .errors import register_error_handlers
 from .middleware import ContractVersionMiddleware
-from .routers import auth, health
+from .routers import auth, health, imports, ledger, exports
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,6 +73,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(imports.router)
+    app.include_router(ledger.router)
+    app.include_router(exports.router)
 
     return app
 

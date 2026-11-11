@@ -315,8 +315,8 @@ class ResultAlignmentTest(unittest.TestCase):
 
 
 class ProviderFactoryTest(unittest.TestCase):
-    def test_default_is_fallback(self) -> None:
-        self.assertEqual(build_intelligence().name, "fallback-rules")
+    def test_default_has_local_ocr(self) -> None:
+        self.assertEqual(build_intelligence().name, "local-rapidocr")
 
     def test_unknown_provider_fails_loudly(self) -> None:
         """不存在的实现必须启动即失败，不能静默降级成规则实现。"""

@@ -1,4 +1,4 @@
-# T00 运行时依赖。版本以实际安装为准，安装后由队长回填精确 pin 并在 CHG 记录。
+# 运行时依赖。版本范围以实际部署环境锁定。
 # 解释器口径见 AGENTS.md 第 8 行：Python 3.13 系列（基线 3.13.14）。
 fastapi>=0.115,<0.116
 uvicorn[standard]>=0.30,<0.31
@@ -9,5 +9,8 @@ python-multipart>=0.0.9,<0.1
 cryptography>=42,<50
 # 账单 .xlsx 解析（契约允许 CSV/XLSX）。旧版 .xls 明确不支持，会返回 UNSUPPORTED_TEMPLATE
 openpyxl>=3.1,<4
+reportlab>=4.2,<5
+rapidocr==3.10.0
+onnxruntime>=1.20,<2
 # 仅 PostgreSQL 部署需要；本地 SQLite 开发不加载该驱动
 psycopg[binary]>=3.2,<4

@@ -147,7 +147,7 @@ def load_settings() -> Settings:
         login_lock_seconds=_env_int("LOGIN_LOCK_SECONDS", 60),
         allow_test_doubles=_env_bool("ALLOW_TEST_DOUBLES", False),
         cors_origins=cors_origins,
-        # 默认纯规则实现；D 的实现按 包.模块:类名 填入。故意不支持"自动降级"，
+        # 默认本地 OCR + 规则分类；自定义实现按 包.模块:类名 填入。不自动降级，
         # 否则分类来源会撒谎（见 app/intelligence/factory.py 顶部说明）
-        intelligence_provider=_env("INTELLIGENCE_PROVIDER", "fallback-rules"),
+        intelligence_provider=_env("INTELLIGENCE_PROVIDER", "local-rapidocr"),
     )

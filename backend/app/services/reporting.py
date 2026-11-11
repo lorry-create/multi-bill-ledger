@@ -30,6 +30,7 @@ from ..contracts import (
     Totals,
 )
 from ..crypto import CryptoError, decrypt_json
+from ..errors import ApiError
 
 
 def compute_totals(rows: list[dict]) -> Totals:
@@ -73,10 +74,8 @@ def build_monthly_report(db: Session, user_id: str, month: str, key: str) -> Mon
     for record in stored:
         try:
             rows.append(decrypt_json(key, record.encrypted_payload))
-        except CryptoError:
-            # 单条密文损坏不应让整个月报 500：跳过并继续，缺的条数会体现在合计里。
-            # 真正的止血手段是备份与密钥管理，不是在这里吞异常假装正常。
-            continue
+        except CryptoError as exc:
+            raise ApiError("REPORT_DATA_UNAVAILABLE", 503, "部分账单无法读取，请检查数据密钥或备份") from exc
 
     totals = compute_totals(rows)
 
@@ -175,8 +174,8 @@ def _budget_statuses(
     for record in records:
         try:
             payload = decrypt_json(key, record.encrypted_payload)
-        except CryptoError:
-            continue
+        except CryptoError as exc:
+            raise ApiError("BUDGET_DATA_UNAVAILABLE", 503, "预算数据无法读取，请检查数据密钥或备份") from exc
         budget_fen = int(payload.get("amount_fen", 0))
         # 用净支出而不是毛支出：退款回到预算里，才符合"这个月还能花多少"的直觉（A10）
         spent = net_by_category.get(record.category, 0)

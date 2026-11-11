@@ -69,10 +69,6 @@ async function leave() {
         /></RouterLink>
       </nav>
       <div class="side-bottom">
-        <div class="side-note">
-          <div class="note-symbol">↗</div>
-          <strong>每一笔都清楚</strong><span>从导入到月报，账目由你确认。</span>
-        </div>
         <div class="profile">
           <span class="avatar">{{
             auth.session?.user.username.slice(0, 1).toUpperCase()

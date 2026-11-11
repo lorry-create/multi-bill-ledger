@@ -76,6 +76,8 @@ def check_fixture(fixture, doc):
 
 def check_links(root):
     for path in root.rglob('*.md'):
+        if any(part in {'node_modules', 'dist', '.git', '.venv', 'venv'} for part in path.relative_to(root).parts):
+            continue
         for link in re.findall(r'\]\(([^)]+)\)', path.read_text(encoding='utf-8')):
             if re.match(r'^(https?://|#|[A-Za-z]:)', link):
                 continue

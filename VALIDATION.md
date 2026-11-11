@@ -51,3 +51,19 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 使用捆绑Python 3.12.14、项目临时目录中的Schema校验库和TypeScript编译器，未替换系统Python。T00仍需落实三人解释器、应用依赖锁和启动命令。生成SDK和检查工具是交接辅助，不是账单业务实现。
 
 注：上述 3.12.14 是 0.2.0 文档校验当时的解释器，属历史记录不追溯。自 T00 起团队统一 Python 3.13 系列（CHG-001，见 docs/10_change_delivery.md）：共用模型生成器已在 3.13.14 实测通过，含 463 行/39 符号生成、7 项负向用例与 --check 幂等。
+
+## 2026 年 11 月 11 日补充：业务闭环与界面验收
+
+以上段落保留各阶段的历史状态；以下记录反映当前任务分支。环境为 Python 3.13.9、Node 24、本地 SQLite，测试数据仅为仓库合成样本。
+
+| 检查 | 结果 |
+| --- | --- |
+| `python -m pytest -q`（backend） | 76 项通过；含 CSV 导入、幂等确认、修正规则反馈、预算、月报、CSV/PDF、加密字段与跨用户隔离 |
+| `python tools/check_implemented_contract.py` | 17 个接口与契约一致，待实现 0 个 |
+| `python tools/check_contract.py --self-test`、`python tools/validate_examples.py --self-test` | 通过，包含 29 个请求/响应快照及负向验证 |
+| `python tools/gen_pydantic_models.py --check`、`python tools/generate_contract_artifacts.py --check` | 生成物一致 |
+| `npm run build`（frontend） | TypeScript 严格检查与 Vite 构建通过 |
+| 真实浏览器 + HTTP | 登录、合成微信 CSV 上传识别 6 笔、确认入账、账单页显示、改分类并记住规则、规则页显示，均通过 |
+| 本地 RapidOCR 合成截图 | 识别金额 23.00 元及交易时间；仅用于功能冒烟，不代表真实版式准确率 |
+
+待进一步评估：真实平台截图和账单的解析准确率、Linux 容器部署、备份恢复，以及可选的支付平台开放接口授权接入。远端 Actions 与正式部署尚未在本轮执行。
