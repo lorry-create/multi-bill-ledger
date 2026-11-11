@@ -27,10 +27,35 @@ const router = useRouter(),
   budgetAmount = ref(""),
   budgetOpen = ref(false),
   saving = ref(false);
+const activeCategory = ref<Category | null>(null);
+const trendMode = ref<"daily" | "weekly">("daily");
+const activeTrendIndex = ref<number | null>(null);
+const trendData = computed(() => {
+  const days = report.value?.daily_trend ?? [];
+  if (trendMode.value === "daily") return days.map((day) => ({ ...day, label: `${Number(day.date.slice(-2))}日`, range: day.date }));
+  const weeks = [];
+  for (let i = 0; i < days.length; i += 7) {
+    const group = days.slice(i, i + 7);
+    weeks.push({
+      date: group[0].date,
+      label: `${i + 1}–${i + group.length}日`,
+      range: `${group[0].date} — ${group[group.length - 1].date}`,
+      income_fen: group.reduce((sum, day) => sum + day.income_fen, 0),
+      gross_expense_fen: group.reduce((sum, day) => sum + day.gross_expense_fen, 0),
+      refund_fen: group.reduce((sum, day) => sum + day.refund_fen, 0),
+    });
+  }
+  return weeks;
+});
+const inspectedTrend = computed(() => {
+  const items = trendData.value;
+  const fallback = items.findIndex((item) => item.income_fen > 0 || item.gross_expense_fen > 0);
+  return items[activeTrendIndex.value ?? (fallback < 0 ? 0 : fallback)];
+});
 const maxTrend = computed(() =>
   Math.max(
     1,
-    ...(report.value?.daily_trend ?? []).map((x) =>
+    ...trendData.value.map((x) =>
       Math.max(x.income_fen, x.gross_expense_fen),
     ),
   ),
@@ -59,11 +84,11 @@ const chartSegments = computed(() => {
       return segment;
     });
 });
-const donut = computed(() =>
-  chartSegments.value.length
-    ? `conic-gradient(${chartSegments.value.map((x) => `${x.color} ${x.offset}% ${x.offset + x.percent}%`).join(",")})`
-    : "#e7eceb",
-);
+const inspectedCategory = computed(() => chartSegments.value.find((x) => x.category === activeCategory.value));
+function changeTrendMode(mode: "daily" | "weekly") {
+  trendMode.value = mode;
+  activeTrendIndex.value = null;
+}
 async function load() {
   loading.value = true;
   error.value = "";
@@ -190,16 +215,44 @@ function goCategory(category: string) {
           </div>
         </div>
         <div v-if="categoryTotal" class="category-content">
-          <div class="donut" :style="{ background: donut }">
-            <div class="donut-hole">
-              <span>毛支出</span
-              ><strong>{{ yuan(report.totals.gross_expense_fen) }}</strong>
+          <div class="donut" @mouseleave="activeCategory = null">
+            <svg viewBox="0 0 180 180" role="group" aria-label="支出类别环形图">
+              <circle class="donut-track" cx="90" cy="90" r="70" fill="none" stroke-width="25" />
+              <circle
+                v-for="item in chartSegments"
+                :key="item.category"
+                class="donut-segment"
+                :class="{ muted: activeCategory && activeCategory !== item.category, active: activeCategory === item.category }"
+                cx="90" cy="90" r="70" fill="none" stroke-width="25" pathLength="100"
+                :stroke="item.color"
+                :stroke-dasharray="`${item.percent} ${100 - item.percent}`"
+                :stroke-dashoffset="-item.offset"
+                transform="rotate(-90 90 90)"
+                role="button" tabindex="0"
+                :aria-label="`${categories[item.category]} ${yuan(item.amount_fen)}，占 ${item.percent.toFixed(1)}%`"
+                @mouseenter="activeCategory = item.category"
+                @focus="activeCategory = item.category"
+                @blur="activeCategory = null"
+                @click="goCategory(item.category)"
+                @keydown.enter="goCategory(item.category)"
+                @keydown.space.prevent="goCategory(item.category)"
+              />
+            </svg>
+            <div class="donut-hole" aria-live="polite">
+              <span>{{ inspectedCategory ? categories[inspectedCategory.category] : "毛支出" }}</span>
+              <strong>{{ yuan(inspectedCategory?.amount_fen ?? report.totals.gross_expense_fen) }}</strong>
+              <small v-if="inspectedCategory">{{ inspectedCategory.percent.toFixed(1) }}%</small>
             </div>
           </div>
           <div class="category-legend">
             <button
               v-for="item in chartSegments"
               :key="item.category"
+              :class="{ active: activeCategory === item.category }"
+              @mouseenter="activeCategory = item.category"
+              @mouseleave="activeCategory = null"
+              @focus="activeCategory = item.category"
+              @blur="activeCategory = null"
               @click="goCategory(item.category)"
             >
               <i :style="{ background: item.color }"></i
@@ -220,17 +273,28 @@ function goCategory(category: string) {
             <h2>每日收支</h2>
             <p>每一天的收入与毛支出</p>
           </div>
-          <div class="chart-key">
-            <span><i class="income-key"></i>收入</span
-            ><span><i class="expense-key"></i>支出</span>
+          <div class="chart-switch" role="group" aria-label="趋势时间范围">
+            <button :class="{ active: trendMode === 'daily' }" :aria-pressed="trendMode === 'daily'" @click="changeTrendMode('daily')">按日</button>
+            <button :class="{ active: trendMode === 'weekly' }" :aria-pressed="trendMode === 'weekly'" @click="changeTrendMode('weekly')">按周</button>
           </div>
         </div>
-        <div class="trend-chart" role="img" aria-label="每日收入与支出柱状图">
+        <div v-if="inspectedTrend" class="trend-inspector" aria-live="polite">
+          <strong>{{ inspectedTrend.range }}</strong>
+          <div class="chart-key"><span><i class="income-key"></i>收入 {{ yuan(inspectedTrend.income_fen) }}</span><span><i class="expense-key"></i>支出 {{ yuan(inspectedTrend.gross_expense_fen) }}</span><span>退款 {{ yuan(inspectedTrend.refund_fen) }}</span></div>
+        </div>
+        <div class="trend-chart" :class="{ weekly: trendMode === 'weekly' }" aria-label="收入与支出柱状图">
           <div
-            v-for="day in report.daily_trend"
+            v-for="(day, index) in trendData"
             :key="day.date"
             class="trend-day"
-            :title="`${day.date} 收入 ${yuan(day.income_fen)}，支出 ${yuan(day.gross_expense_fen)}，退款 ${yuan(day.refund_fen)}`"
+            :class="{ selected: activeTrendIndex === index }"
+            role="button" tabindex="0"
+            :aria-label="`${day.range} 收入 ${yuan(day.income_fen)}，支出 ${yuan(day.gross_expense_fen)}，退款 ${yuan(day.refund_fen)}`"
+            @mouseenter="activeTrendIndex = index"
+            @focus="activeTrendIndex = index"
+            @click="activeTrendIndex = index"
+            @keydown.enter="activeTrendIndex = index"
+            @keydown.space.prevent="activeTrendIndex = index"
           >
             <span class="trend-bars"
               ><i
@@ -246,10 +310,8 @@ function goCategory(category: string) {
                 }"
               ></i></span
             ><small
-              v-if="
-                Number(day.date.slice(-2)) % 5 === 0 || day.date.endsWith('01')
-              "
-              >{{ Number(day.date.slice(-2)) }}</small
+              v-if="trendMode === 'weekly' || Number(day.date.slice(-2)) % 5 === 0 || day.date.endsWith('01')"
+              >{{ day.label }}</small
             >
           </div>
         </div>
@@ -259,7 +321,7 @@ function goCategory(category: string) {
         </div>
       </section>
     </div>
-    <section class="content-panel income-panel">
+    <div class="report-lower-grid"><section class="content-panel income-panel">
       <div class="panel-heading"><div><h2>收入构成</h2><p>按已确认收入的类别汇总</p></div></div>
       <div v-if="incomeParts.length" class="income-list">
         <div v-for="part in incomeParts" :key="part.category" class="income-row">
@@ -309,7 +371,7 @@ function goCategory(category: string) {
           }}</span>
         </button>
       </div>
-    </section></template
+    </section></div></template
   >
   <div
     v-if="budgetOpen"
