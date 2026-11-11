@@ -42,7 +42,7 @@ const categoryTotal = computed(
 );
 const chartSegments = computed(() => {
   let offset = 0;
-  const colors = ["#4d55e8", "#8c93ec", "#ee9d75", "#515c91", "#bec4e5"];
+  const colors = ["#007aff", "#8fc5ff", "#ffad42", "#68a7c8", "#cbd6e1"];
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
     .map((x, i) => {

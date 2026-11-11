@@ -88,6 +88,12 @@ async function leave() {
         </div>
       </div>
     </aside>
+    <nav aria-label="手机主导航" class="mobile-nav">
+      <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="mobile-nav-link">
+        <component :is="item.icon" :size="21" :stroke-width="1.8" />
+        <span>{{ item.label }}</span>
+      </RouterLink>
+    </nav>
     <main class="main">
       <header class="topbar">
         <span class="breadcrumb"
@@ -106,7 +112,13 @@ async function leave() {
           }}</span>
         </div>
       </header>
-      <div class="page-wrap"><RouterView /></div>
+      <div class="page-wrap">
+        <RouterView v-slot="{ Component }">
+          <Transition name="screen" mode="out-in">
+            <component :is="Component" />
+          </Transition>
+        </RouterView>
+      </div>
     </main>
   </div>
 </template>
