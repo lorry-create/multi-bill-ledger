@@ -451,6 +451,7 @@ Content-Type: application/json
 | --- | --- | --- |
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 | 404 | RESOURCE_NOT_FOUND | 提示资源不可用，不泄露别的用户资源。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
 错误示例：HTTP 404
 
@@ -514,6 +515,7 @@ Content-Disposition: attachment; filename="synthetic_bill.csv"
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 | 404 | RESOURCE_NOT_FOUND | 提示资源不可用，不泄露别的用户资源。 |
 | 503 | SERVICE_UNAVAILABLE | 保留用户输入并提示稍后手动重试。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
 ## API08 仅对失败批次进行可追踪重试
 
@@ -597,6 +599,7 @@ Retry-After: 2
 | 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
 | 404 | RESOURCE_NOT_FOUND | 提示资源不可用，不泄露别的用户资源。 |
 | 409 | VERSION_CONFLICT, BATCH_STATE_CONFLICT | 按error.code区分版本、幂等或状态冲突；重新读取后由用户确认。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
 错误示例：HTTP 409
 

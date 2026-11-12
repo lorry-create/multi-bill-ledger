@@ -9,7 +9,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 node_modules/
-frontend/dist/
+web/dist/
 data/private/
 local-data/
 runtime/

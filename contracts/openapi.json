@@ -785,6 +785,25 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -891,6 +910,25 @@
           },
           "503": {
             "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
             "content": {
               "application/json": {
                 "schema": {
@@ -1071,6 +1109,25 @@
                       }
                     }
                   }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             },

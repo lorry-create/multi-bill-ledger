@@ -30,6 +30,6 @@
 
 ## 直接使用接口的方式
 
-必读11逐接口手册和12页面调用表。T00创建frontend/src/api目录并运行tools/generate_contract_artifacts.py，自动得到client.generated.ts；F从此文件导入operationId同名函数。它处理同源Cookie、CSRF、FormData、查询参数、204和Blob；页面负责表单校验、轮询、版本冲突、显示和刷新。
+必读11逐接口手册和12页面调用表。T00创建web/src/api目录并运行tools/generate_contract_artifacts.py，自动得到client.generated.ts；F从此文件导入operationId同名函数。它处理同源Cookie、CSRF、FormData、查询参数、204和Blob；页面负责表单校验、轮询、版本冲突、显示和刷新。
 
 不能手写另一套DTO，不能手工更改生成SDK。更改契约后重新生成；--check会核对已存在的前端API目录中的SDK。TypeScript的number本身不能保证整数，金额输入还需精确转换与校验，后端再次检查。

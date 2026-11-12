@@ -192,8 +192,8 @@ export async function callApi<K extends OperationId>(operation: K, args: Operati
         if name=='listRules':scripts+=['if (pm.response.code === 200) pm.collectionVariables.set("ruleId", pm.response.json().items[0]?.id ?? "");']
         collection['item'].append({'name':method.upper()+' '+path+' ['+name+']','request':request,'event':[{'listen':'test','script':{'type':'text/javascript','exec':scripts}}]})
     generated={'docs/11_api_reference.md':'\n'.join(doc)+'\n','contracts/client.generated.ts':'\n'.join(ts)+'\n','contracts/postman_collection.json':dumps(collection)+'\n'}
-    if (ROOT/'frontend/src/api').is_dir():
-        generated['frontend/src/api/client.generated.ts']=generated['contracts/client.generated.ts']
+    if (ROOT/'web/src/api').is_dir():
+        generated['web/src/api/client.generated.ts']=generated['contracts/client.generated.ts']
     return generated
 
 def main():
