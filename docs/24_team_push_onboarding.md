@@ -1,7 +1,7 @@
 # 团队代码推送接入说明（队长 / 队友各看一半）
 
 > 适用仓库：`https://github.com/lorry-create/multi-bill-ledger`（public，默认分支 `main`，后端代码在 `task/T00-baseline`）
-> 目标：让队友 F 在自己电脑上改 `frontend/` 并能 `git push` 上来，不改到别人的东西。
+> 目标：让队友 F 在自己电脑上改 `web/` 并能 `git push` 上来，不改到别人的东西。
 
 ---
 
@@ -115,7 +115,7 @@ GitHub → Settings → Developer settings → Personal access tokens 撤销。*
 
 | 目录 | 谁改 | 其他人 |
 | --- | --- | --- |
-| `frontend/` | F | 队长、D 不碰 |
+| `web/` | F | 队长、D 不碰 |
 | `backend/` | 队长 | F、D 不碰，有问题提 issue 或微信说 |
 | `contracts/` | 队长 | **所有人都别手改**，它由 `tools/` 生成 |
 | `docs/` | 各自改自己相关的那份 | 别大改别人的 |
@@ -139,7 +139,7 @@ git push -u origin feat/frontend     # 推上去后开 PR 到 task/T00-baseline
 ```bash
 git pull --rebase origin task/T00-baseline   # 先同步，避免 non-fast-forward
 git status                                    # 看清自己要提交什么
-git add frontend && git commit -m "feat(frontend): 登录页接通 /api/auth/login"
+git add web && git commit -m "feat(web): 登录页接通 /api/auth/login"
 ```
 
 > 别用 `git add -A` / `git add .` 在仓库根目录扫全量——容易把本地临时文件、
@@ -159,7 +159,7 @@ git add frontend && git commit -m "feat(frontend): 登录页接通 /api/auth/log
 | `GH001: Large files detected` / 文件超 100MB | 把 `node_modules`、`*.zip`、视频提上去了 | `git reset --soft HEAD~1` 撤回这次提交，检查 `.gitignore` 后重来 |
 | push 卡住不动、没提示 | 代理 / 网络 | 关掉 VPN 或代理重试；`git config --global --unset http.proxy` |
 
-`.gitignore` 里已经排掉：`node_modules/`、`frontend/dist/`、`.env*`（保留 `.env.example`）、`local-data/`、`*.zip`。所以前端初始化完直接 `git add frontend` 是安全的。
+`.gitignore` 里已经排掉：`node_modules/`、`web/dist/`、`.env*`（保留 `.env.example`）、`local-data/`、`*.zip`。所以前端初始化完直接 `git add web` 是安全的。
 
 ---
 
@@ -168,7 +168,7 @@ git add frontend && git commit -m "feat(frontend): 登录页接通 /api/auth/log
 - [ ] 已接受 GitHub 邀请（`Pending invite` 变成 `Collaborator`）
 - [ ] `git clone` 成功，`git checkout task/T00-baseline` 后 `ls` 能看到 `backend/`、`contracts/`、`docs/`
 - [ ] `git config user.name` / `user.email` 是**他自己**的
-- [ ] 建 `frontend/` 脚手架（`npm create vite@latest frontend -- --template react-ts`），`npm run dev` 能起来
+- [ ] 建 `web/` 脚手架（`npm create vite@latest frontend -- --template react-ts`），`npm run dev` 能起来
 - [ ] 按 `docs/23_frontend_development_guide.md` 配好 `vite.config.ts` 的 `/api` 代理到 `http://127.0.0.1:8000`
 - [ ] 起后端：`cd backend && python -m uvicorn app.main:app --reload --port 8000`
 - [ ] 前端页面上能打到 `GET /api/health` 返回 200

@@ -10,6 +10,8 @@ __pycache__/
 .pytest_cache/
 node_modules/
 frontend/dist/
+web/dist/
+web/dev-dist/
 data/private/
 local-data/
 runtime/

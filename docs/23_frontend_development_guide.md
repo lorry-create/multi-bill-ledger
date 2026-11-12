@@ -21,8 +21,10 @@
 | 后端实现 | `backend/app/**` | 有疑问就读代码，以代码为准 |
 | 导出样例 | `桌面/智能挑战赛/导出样例/` | PDF/CSV 真实产物，用于对照你要展示的数字 |
 
-**当前状态**：`frontend/` 目录还不存在。第一步由你建工程（下面给完整命令与配置），
-不要指望仓库里已经有一个能跑的前端骨架。
+**当前状态**：F 的前端工程已经在 `web/`（Vue 3 + Vite，见分支 `task/frontend-app`），
+**目录名以 `web/` 为准**。如果你接手的是这条分支，直接跳到 1.3；如果从零重建，
+下面给了完整命令，建目录时同样用 `web/`，不要另起 `frontend/`——生成脚本
+`tools/generate_contract_artifacts.py` 只认 `web/src/api`。
 
 ---
 
@@ -65,13 +67,13 @@ curl -i -X POST http://127.0.0.1:8000/api/auth/login \
 
 ```bash
 cd ..                                   # 回到仓库根
-npm create vite@latest frontend -- --template vue-ts
-cd frontend
+npm create vite@latest web -- --template vue-ts
+cd web
 npm install
 npm install vue-router@4 echarts
 ```
 
-`frontend/vite.config.ts` 必须配代理（**不要**用 `http://127.0.0.1:8000` 直连）：
+`web/vite.config.ts` 必须配代理（**不要**用 `http://127.0.0.1:8000` 直连）：
 
 ```ts
 import { defineConfig } from 'vite'
@@ -96,8 +98,8 @@ export default defineConfig({
 ### 1.4 同步 SDK
 
 ```bash
-mkdir -p frontend/src/api
-python tools/generate_contract_artifacts.py          # 会把 SDK 同步到 frontend/src/api/client.generated.ts
+mkdir -p web/src/api
+python tools/generate_contract_artifacts.py          # 会把 SDK 同步到 web/src/api/client.generated.ts
 python tools/generate_contract_artifacts.py --check  # CI 用，必须无漂移
 ```
 
@@ -112,7 +114,7 @@ python tools/generate_contract_artifacts.py --check  # CI 用，必须无漂移
 ### 2.1 建议目录
 
 ```text
-frontend/src/
+web/src/
   api/
     client.generated.ts     # 生成物，禁止手改
     index.ts                # 页面唯一入口：封装会话/CSRF/错误/下载
