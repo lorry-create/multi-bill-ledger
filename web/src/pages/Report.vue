@@ -14,6 +14,7 @@ import { api, isDemo } from "../api";
 import type { Category, MonthlyReport, ResolvedCategory } from "../api";
 import { categories, download, parseYuan, yuan } from "../format";
 import { csrf, errorText } from "../session";
+import ParticleField from "../components/ParticleField.vue";
 
 const router = useRouter(),
   month = ref(
@@ -60,7 +61,7 @@ function showTrendTooltip(event: PointerEvent, index: number) {
   activeTrendIndex.value = index;
   const item = trendData.value[index];
   if (!item) return;
-  placeTooltip(event, item.range, "#007aff", [
+  placeTooltip(event, item.range, "#19b59c", [
     { label: "收入", value: yuan(item.income_fen) },
     { label: "支出", value: yuan(item.gross_expense_fen) },
     { label: "退款", value: yuan(item.refund_fen) },
@@ -117,7 +118,7 @@ const categoryTotal = computed(
 );
 const chartSegments = computed(() => {
   let offset = 0;
-  const colors = ["#007aff", "#8fc5ff", "#ffad42", "#68a7c8", "#cbd6e1"];
+  const colors = ["#19b59c", "#74d4bb", "#f4ad69", "#6e9bac", "#a8c6c6"];
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
     .map((x, i) => {
@@ -244,6 +245,7 @@ function goCategory(category: string) {
   <div v-if="loading" class="empty-state">正在读取月报…</div>
   <template v-else-if="report"
     ><section class="balance-hero">
+      <ParticleField />
       <div class="balance-main">
         <span>本月收支差额</span
         ><strong>{{ yuan(report.totals.balance_fen) }}</strong>
