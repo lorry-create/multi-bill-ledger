@@ -17,12 +17,12 @@ python -m uvicorn app.main:app --reload --port 8000
 另开终端运行前端：
 
 ```powershell
-cd frontend
+cd web
 npm ci
 npm run dev
 ```
 
-访问 `http://127.0.0.1:5173`。默认连接真实后端；前端演示模式见 [前端说明](frontend/README.md)。
+访问 `http://127.0.0.1:5173`。默认连接真实后端；前端演示模式见 [前端说明](web/README.md)。
 
 ## 先看接口设计
 
@@ -68,7 +68,7 @@ OpenAPI + examples
 
 OpenAPI定义路径字段，02/12/13定义业务约束，examples定义独立合成快照。不要手改生成文件，也不要让后端导出覆盖设计契约来掩盖偏差。接口变更需[变更说明](docs/10_change_delivery.md)，同一PR更新受影响两端和测试。
 
-F在T00创建frontend/src/api目录后，生成器会把同一份SDK同步至frontend/src/api/client.generated.ts，--check同时检查它。三人用同一契约版本与提交SHA，避免依赖各自旧ZIP。
+F在T00创建web/src/api目录后，生成器会把同一份SDK同步至web/src/api/client.generated.ts，--check同时检查它。三人用同一契约版本与提交SHA，避免依赖各自旧ZIP。
 
 ## 现在可以执行的检查
 

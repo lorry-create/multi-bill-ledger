@@ -85,7 +85,7 @@ T00 和 T10 应将以下约定实现为可运行命令，当前文档包本身�
 ```powershell
 python -m pip install -r backend/requirements-dev.txt
 python -m pytest backend/tests --junitxml=test-results/backend.xml
-Set-Location frontend
+Set-Location web
 npm ci
 npm run typecheck
 npm run lint

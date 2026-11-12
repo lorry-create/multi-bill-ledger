@@ -62,7 +62,7 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 | `python tools/check_implemented_contract.py` | 17 个接口与契约一致，待实现 0 个 |
 | `python tools/check_contract.py --self-test`、`python tools/validate_examples.py --self-test` | 通过，包含 29 个请求/响应快照及负向验证 |
 | `python tools/gen_pydantic_models.py --check`、`python tools/generate_contract_artifacts.py --check` | 生成物一致 |
-| `npm run build`（frontend） | TypeScript 严格检查与 Vite 构建通过 |
+| `npm run build`（web） | TypeScript 严格检查与 Vite 构建通过 |
 | 真实浏览器 + HTTP | 登录、合成微信 CSV 上传识别 6 笔、确认入账、账单页显示、改分类并记住规则、规则页显示，均通过 |
 | 本地 RapidOCR 合成截图 | 识别金额 23.00 元及交易时间；仅用于功能冒烟，不代表真实版式准确率 |
 

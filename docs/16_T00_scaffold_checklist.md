@@ -2,7 +2,7 @@
 
 写这份清单的原因很直接：`docs/04` 和 `docs/05` 两份任务书质量够高，但队友当天 clone 下来会发现：
 
-- F 没有 `frontend/` 工程，也没有 `frontend/src/api/`，拿不到 `client.generated.ts`，五个页面无从落笔；
+- F 没有 `web/` 工程，也没有 `web/src/api/`，拿不到 `client.generated.ts`，五个页面无从落笔；
 - D 没有 `backend/app/contracts.py`，无法 `from app.contracts import ParseResult`，只能自己造一遍字段，直接违反 AGENTS 第 7 条。
 
 所以 **T00 不是"队长自己的第一张卡"，它是两个队友的开工许可**。骨架不做完就催队友开工，他们只能写空页面和自造 DTO，后面全部要返工。
@@ -74,7 +74,7 @@ multi-bill-ledger/
 │   ├── tests/test_t00_smoke.py # 9 项回归，不占端口
 │   ├── requirements.txt / requirements-dev.txt / Dockerfile
 │   └── local-data/             # 开发 SQLite 与开发密钥，已被 .gitignore 排除
-├── frontend/                   # 仍为空，由 F 建（docs/17）
+├── web/                   # 仍为空，由 F 建（docs/17）
 ├── docker-compose.yml          # PostgreSQL + api，命名卷，健康检查
 ├── contracts/  tools/  docs/  fixtures/   # 已有
 ```

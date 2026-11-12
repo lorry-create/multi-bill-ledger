@@ -3,7 +3,7 @@
 Vue 3 + TypeScript + Vite。页面通过 `src/api/client.generated.ts` 调用仓库 OpenAPI 0.2.0 契约。开发代理把 `/api` 和 `/health` 转到 `http://127.0.0.1:8000`。
 
 ```powershell
-cd frontend
+cd web
 npm ci
 npm run dev
 ```
