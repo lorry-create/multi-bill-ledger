@@ -8,7 +8,8 @@ import {
   ArrowRight,
 } from "@lucide/vue";
 import { api } from "../api";
-import type { IngestionMethod, Source } from "../api";
+import type { Batch, IngestionMethod, Source } from "../api";
+import { AlertTriangle, X } from "@lucide/vue";
 import { errorText, withCsrfRetry } from "../session";
 
 const router = useRouter(),
@@ -17,7 +18,27 @@ const router = useRouter(),
   file = ref<File | null>(null),
   dragging = ref(false),
   busy = ref(false),
-  error = ref("");
+  error = ref(""),
+  duplicateBatch = ref<Batch | null>(null);
+const uploadStatusText: Record<Batch["status"], string> = {
+  uploaded: "等待处理",
+  processing: "正在识别",
+  pending_review: "等待确认",
+  completed: "已完成入账",
+  failed: "处理失败",
+};
+function formatDupTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
 function choose(e: Event) {
   file.value = (e.target as HTMLInputElement).files?.[0] ?? null;
   error.value = "";
@@ -59,6 +80,7 @@ async function submit() {
   }
   busy.value = true;
   error.value = "";
+  duplicateBatch.value = null;
   try {
     const batch = await withCsrfRetry((token) =>
       api.createImport(
@@ -68,6 +90,17 @@ async function submit() {
         token,
       ),
     );
+    const hasDupAlert =
+      Boolean(batch.duplicate_match) ||
+      batch.issues.some(
+        (x) =>
+          x.code === "DUPLICATE_FILE_UPLOADED" ||
+          x.code === "SIMILAR_IMAGE_UPLOADED",
+      );
+    if (hasDupAlert) {
+      duplicateBatch.value = batch;
+      return;
+    }
     router.push(`/import/${batch.id}`);
   } catch (e) {
     error.value = errorText(e);
@@ -191,4 +224,117 @@ async function submit() {
       <div class="aside-foot">原始文件仅供当前账号查看</div>
     </aside>
   </div>
+  <div
+    v-if="duplicateBatch"
+    class="modal-backdrop"
+    @click.self="duplicateBatch = null"
+  >
+    <section
+      class="edit-dialog dup-upload-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label="重复账单上传提醒"
+    >
+      <div class="dialog-head">
+        <div>
+          <h2 class="dup-upload-title">
+            <AlertTriangle :size="18" />
+            {{
+              duplicateBatch.duplicate_match?.match_type === "similar_image"
+                ? "检测到高度相似的账单截图"
+                : "检测到此前已上传过该账单"
+            }}
+          </h2>
+          <p>为避免同一笔交易被重复记入账本，请先确认是否需要继续导入。</p>
+        </div>
+        <button
+          class="icon-btn"
+          aria-label="关闭"
+          @click="duplicateBatch = null"
+        >
+          <X :size="20" />
+        </button>
+      </div>
+
+      <div v-if="duplicateBatch.duplicate_match" class="dup-upload-box">
+        <p>
+          <strong>历史文件：</strong>{{ duplicateBatch.duplicate_match.file_name }}
+        </p>
+        <p>
+          <strong>上次上传：</strong
+          >{{ formatDupTime(duplicateBatch.duplicate_match.created_at) }}
+        </p>
+        <p>
+          <strong>批次状态：</strong
+          >{{ uploadStatusText[duplicateBatch.duplicate_match.status] }}
+          （{{
+            duplicateBatch.duplicate_match.created_count > 0
+              ? `已正式入账 ${duplicateBatch.duplicate_match.created_count} 笔`
+              : "尚未正式入账"
+          }}）
+        </p>
+      </div>
+      <div v-else class="dup-upload-box">
+        <p>
+          {{
+            duplicateBatch.issues
+              .map((i) => i.message)
+              .join("；") || "该账单与历史上传重合，请注意核对。"
+          }}
+        </p>
+      </div>
+
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="secondary-btn"
+          @click="router.push('/transactions')"
+        >
+          查看已入账单
+        </button>
+        <button
+          v-if="duplicateBatch.duplicate_match"
+          type="button"
+          class="secondary-btn"
+          @click="
+            router.push(`/import/${duplicateBatch.duplicate_match.batch_id}`)
+          "
+        >
+          查看历史批次
+        </button>
+        <button
+          type="button"
+          class="primary-btn"
+          @click="router.push(`/import/${duplicateBatch.id}`)"
+        >
+          仍要前往逐笔核对
+        </button>
+      </div>
+    </section>
+  </div>
 </template>
+<style scoped>
+.dup-upload-dialog {
+  width: min(100%, 560px);
+}
+.dup-upload-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #b25200;
+}
+.dup-upload-box {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff7ea;
+  border: 1px solid #f2c474;
+  font-size: 13px;
+  color: #7c4a03;
+}
+.dup-upload-box p {
+  margin: 0;
+}
+</style>

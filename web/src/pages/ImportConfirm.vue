@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+  AlertTriangle,
   ArrowLeft,
   ExternalLink,
   RefreshCw,
@@ -16,6 +17,10 @@ import type {
   FlowType,
   TransactionDraft,
 } from "../api";
+import type {
+  DuplicateBatchMatch,
+  DuplicateRowMatch,
+} from "../api/client.generated";
 import {
   categories,
   classificationSources,
@@ -72,12 +77,47 @@ const route = useRoute(),
   resolveYear = ref<number | null>(new Date().getFullYear()),
   resolveInstruction = ref(""),
   resolveError = ref(""),
-  promptAutoShownFor = ref<string>("");
+  promptAutoShownFor = ref<string>(""),
+  dupModalOpen = ref(false),
+  dupModalHint = ref(""),
+  dupAutoWarnedFor = ref<string>(""),
+  dupCheckBusy = ref(false),
+  dupCheckNotice = ref(""),
+  dupModalItems = ref<
+    Array<{
+      row_id: string;
+      index: number;
+      merchant: string;
+      occurred_at: string;
+      amount: string;
+      duplicate_status: "duplicate" | "suspected";
+      reason: string;
+      matched_summary: string;
+    }>
+  >([]);
 let active = true;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let retryPayload: ConfirmInput | null = null;
 const ready = computed(() => batch.value?.status === "pending_review");
 const selected = computed(() => rows.value.filter((r) => r.selected));
+const dupBatchMatch = computed<DuplicateBatchMatch | null>(
+  () => batch.value?.duplicate_match ?? null,
+);
+const dupCounts = computed(() => {
+  let dup = 0;
+  let sus = 0;
+  for (const item of rows.value) {
+    if (item.row.duplicate_status === "duplicate") dup += 1;
+    else if (item.row.duplicate_status === "suspected") sus += 1;
+  }
+  return { dup, sus, total: dup + sus };
+});
+const hasUnallowedSuspectedSelected = computed(() =>
+  selected.value.some(
+    (x) =>
+      x.row.duplicate_status === "suspected" && !x.allow_suspected_duplicate,
+  ),
+);
 const missingTimeRows = computed(() =>
   rows.value.filter((r) => !r.occurred_at),
 );
@@ -177,6 +217,18 @@ async function load(preserve = false, resetTimeout = false) {
     ) {
       promptAutoShownFor.value = b.id;
       openResolveModal();
+    } else if (
+      b.status === "pending_review" &&
+      dupAutoWarnedFor.value !== b.id &&
+      (b.duplicate_match ||
+        b.rows.some((row) => row.duplicate_status !== "unique"))
+    ) {
+      dupAutoWarnedFor.value = b.id;
+      openDupModalFromCurrent(
+        b.duplicate_match
+          ? "检测到当前上传与历史导入文件/截图重复，请核对以下已存在或疑似重复的账单记录。"
+          : "系统检测到本批次包含此前已录入或疑似重复的账单，请确认后再入账。",
+      );
     }
     if (["uploaded", "processing"].includes(b.status) && elapsed.value < 120) {
       const wait = elapsed.value ? 2000 : 1000;
@@ -195,6 +247,10 @@ function onConfirmKeydown(event: KeyboardEvent) {
     originalZoomed.value = false;
     return;
   }
+  if (dupModalOpen.value && !busy.value) {
+    dupModalOpen.value = false;
+    return;
+  }
   if (resolveOpen.value && !resolveBusy.value) {
     resolveOpen.value = false;
   }
@@ -211,8 +267,12 @@ watch(
     rows.value = [];
     error.value = "";
     notice.value = "";
+    dupCheckNotice.value = "";
     rowErrors.value = {};
     resolveOpen.value = false;
+    dupModalOpen.value = false;
+    dupAutoWarnedFor.value = "";
+    promptAutoShownFor.value = "";
     originalZoomed.value = false;
     originalLoadedFor.value = null;
     if (originalUrl.value) {
@@ -232,9 +292,201 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onConfirmKeydown);
   if (originalUrl.value) URL.revokeObjectURL(originalUrl.value);
 });
+function formatShortDate(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return iso;
+  return dt.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+function buildModalItemsFromRows(
+  targetRowIds?: Set<string>,
+  matchById?: Map<string, DuplicateRowMatch>,
+) {
+  return rows.value
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      if (targetRowIds && !targetRowIds.has(item.row.row_id)) return false;
+      return item.row.duplicate_status !== "unique";
+    })
+    .map(({ item, index }) => {
+      const m = matchById?.get(item.row.row_id);
+      const dupIssue = item.row.issues.find(
+        (iss) =>
+          iss.code === "DUPLICATE_EXISTING" ||
+          iss.code === "DUPLICATE_SUSPECTED",
+      );
+      return {
+        row_id: item.row.row_id,
+        index,
+        merchant: item.merchant.trim() || item.row.merchant || "未知商户",
+        occurred_at: item.occurred_at ? item.occurred_at.replace("T", " ") : "未填写时间",
+        amount: item.amount || "0.00",
+        duplicate_status: item.row.duplicate_status as "duplicate" | "suspected",
+        reason: m?.reason || dupIssue?.message || "疑似与已入账账单重复",
+        matched_summary: m?.matched_summary || "",
+      };
+    });
+}
+function openDupModalFromCurrent(
+  hint = "以下账单在历史记录中检测到重复或高度疑似重复，请核对后选择处理方式。",
+  targetRowIds?: Set<string>,
+  matchById?: Map<string, DuplicateRowMatch>,
+) {
+  dupModalHint.value = hint;
+  dupModalItems.value = buildModalItemsFromRows(targetRowIds, matchById);
+  dupModalOpen.value = true;
+}
+function findEditableByRowId(rowId: string): Editable | undefined {
+  return rows.value.find((item) => item.row.row_id === rowId);
+}
+function applyCheckResultToRows(
+  matchById: Map<string, DuplicateRowMatch>,
+  fileMatch?: DuplicateBatchMatch,
+): {
+  newlyFlaggedSelected: Set<string>;
+  blockingSelected: Set<string>;
+} {
+  if (batch.value && fileMatch) {
+    batch.value = { ...batch.value, duplicate_match: fileMatch };
+  }
+  const newlyFlaggedSelected = new Set<string>();
+  const blockingSelected = new Set<string>();
+  for (const item of rows.value) {
+    const res = matchById.get(item.row.row_id);
+    if (!res) continue;
+    const prevStatus = item.row.duplicate_status;
+    const keptIssues = item.row.issues.filter(
+      (iss) =>
+        iss.code !== "DUPLICATE_EXISTING" &&
+        (iss.code !== "DUPLICATE_SUSPECTED" || iss.message.includes("同一")),
+    );
+    if (res.duplicate_status === "duplicate") {
+      item.row.issues = [
+        ...keptIssues,
+        {
+          row_id: item.row.row_id,
+          field: "source_transaction_id",
+          code: "DUPLICATE_EXISTING",
+          message:
+            res.reason || "该交易此前已入账，确认时会自动跳过",
+        },
+      ];
+      if (item.selected) {
+        blockingSelected.add(item.row.row_id);
+        if (prevStatus !== "duplicate") {
+          newlyFlaggedSelected.add(item.row.row_id);
+        }
+        item.selected = false;
+      }
+      item.allow_suspected_duplicate = false;
+    } else if (res.duplicate_status === "suspected") {
+      const hasSameIntra = keptIssues.some(
+        (iss) => iss.code === "DUPLICATE_SUSPECTED",
+      );
+      item.row.issues = hasSameIntra
+        ? keptIssues
+        : [
+            ...keptIssues,
+            {
+              row_id: item.row.row_id,
+              field: "occurred_at",
+              code: "DUPLICATE_SUSPECTED",
+              message: res.reason || "疑似与已入账记录重复",
+            },
+          ];
+      if (item.selected && !item.allow_suspected_duplicate) {
+        blockingSelected.add(item.row.row_id);
+        if (prevStatus === "unique") {
+          newlyFlaggedSelected.add(item.row.row_id);
+        }
+      }
+    } else {
+      item.row.issues = keptIssues;
+      item.allow_suspected_duplicate = false;
+    }
+    item.row.duplicate_status = res.duplicate_status;
+  }
+  return { newlyFlaggedSelected, blockingSelected };
+}
+async function runDuplicatePrecheck(): Promise<{
+  matchById: Map<string, DuplicateRowMatch>;
+  newlyFlaggedSelected: Set<string>;
+  blockingSelected: Set<string>;
+  fileMatch?: DuplicateBatchMatch;
+} | null> {
+  if (!batch.value || !rows.value.length) return null;
+  const payload = {
+    expected_version: batch.value.version,
+    rows: rows.value.map((r) => ({
+      row_id: r.row.row_id,
+      source_transaction_id: r.row.source_transaction_id,
+      occurred_at: r.occurred_at ? fromLocalInput(r.occurred_at) : null,
+      amount_fen: parseYuan(r.amount),
+      flow_type: r.flow_type,
+      merchant: r.merchant.trim(),
+      description: r.description,
+    })),
+  };
+  const result = await withCsrfRetry(() =>
+    api.checkImportDuplicates(
+      { path: { id: batch.value!.id }, body: payload },
+      csrf(),
+    ),
+  );
+  const matchById = new Map(result.rows.map((m) => [m.row_id, m]));
+  const { newlyFlaggedSelected, blockingSelected } = applyCheckResultToRows(
+    matchById,
+    result.file_match,
+  );
+  return {
+    matchById,
+    newlyFlaggedSelected,
+    blockingSelected,
+    fileMatch: result.file_match,
+  };
+}
+async function checkDuplicatesManual() {
+  if (!batch.value || !ready.value || !rows.value.length) return;
+  dupCheckBusy.value = true;
+  dupCheckNotice.value = "";
+  error.value = "";
+  try {
+    const res = await runDuplicatePrecheck();
+    if (!res) return;
+    if (dupCounts.value.total > 0 || res.fileMatch) {
+      openDupModalFromCurrent(
+        dupCounts.value.total > 0
+          ? `实时核对发现 ${dupCounts.value.total} 笔与已入账账单重复/疑似重复的明细，请确认处理方式。`
+          : "当前批次文件与历史上传一致，但明细行暂未命中已入账交易（可能尚未确认入账）。",
+        undefined,
+        res.matchById,
+      );
+    } else {
+      dupCheckNotice.value = "实时判重完成：当前明细未发现已入账重复记录。";
+    }
+  } catch (e) {
+    error.value = errorText(e);
+    if ((e as { status?: number }).status === 409) load(true);
+  } finally {
+    dupCheckBusy.value = false;
+  }
+}
 function edited(rowId?: string) {
   retryPayload = null;
   notice.value = "";
+  dupCheckNotice.value = "";
+  if (rowId) {
+    const item = findEditableByRowId(rowId);
+    if (item && item.row.duplicate_status !== "suspected") {
+      item.allow_suspected_duplicate = false;
+    }
+  }
   if (rowId && rowErrors.value[rowId]) {
     const next = { ...rowErrors.value };
     delete next[rowId];
@@ -293,7 +545,7 @@ async function retry() {
     busy.value = false;
   }
 }
-async function confirm() {
+async function confirm(skipPrecheck = false) {
   if (
     !batch.value ||
     !ready.value ||
@@ -303,8 +555,26 @@ async function confirm() {
     return;
   busy.value = true;
   error.value = "";
+  dupCheckNotice.value = "";
   rowErrors.value = {};
   try {
+    if (!skipPrecheck) {
+      const check = await runDuplicatePrecheck();
+      if (check && check.blockingSelected.size > 0) {
+        retryPayload = null;
+        openDupModalFromCurrent(
+          check.newlyFlaggedSelected.size > 0
+            ? "提交前实时判重发现以下账单此前已经录入或高度疑似重复！明确重复项已自动取消勾选，疑似重复项需勾选「仍要入账」或取消选择后再提交。"
+            : "当前选中账单中包含尚未确认的疑似重复记录，请在下方逐项核对。",
+          check.blockingSelected,
+          check.matchById,
+        );
+        return;
+      }
+    }
+    if (!selected.value.length || invalid.value.length || hasUnallowedSuspectedSelected.value) {
+      return;
+    }
     if (!retryPayload)
       retryPayload = {
         request_id: crypto.randomUUID(),
@@ -332,6 +602,7 @@ async function confirm() {
         csrf(),
       ),
     );
+    dupModalOpen.value = false;
     notice.value = `已入账 ${result.created_count} 笔，跳过重复 ${result.duplicate_count} 笔，忽略 ${result.ignored_count} 笔。`;
     await load(true);
     retryPayload = null;
@@ -542,6 +813,46 @@ async function submitResolveMissing(quickOnly = false) {
         statusLabel[batch.status]
       }}</span>
     </div>
+    <div v-if="dupBatchMatch" class="alert dup-batch-banner" role="alert">
+      <div class="dup-batch-copy">
+        <strong>
+          <AlertTriangle :size="16" />
+          {{
+            dupBatchMatch.match_type === "exact_file"
+              ? "重复上传提醒：你此前已上传过完全相同的账单文件"
+              : "相似截图提醒：该截图与此前上传的账单高度相似"
+          }}
+        </strong>
+        <p>
+          历史批次「{{ dupBatchMatch.file_name }}」（{{
+            formatShortDate(dupBatchMatch.created_at)
+          }}，{{ statusLabel[dupBatchMatch.status] }}，
+          <template v-if="dupBatchMatch.created_count > 0"
+            >已正式入账 {{ dupBatchMatch.created_count }} 笔</template
+          >
+          <template v-else>尚未正式入账</template>）。请仔细核对后再确认提交。
+        </p>
+      </div>
+      <div class="dup-batch-actions">
+        <button
+          type="button"
+          class="secondary-btn"
+          @click="router.push(`/import/${dupBatchMatch.batch_id}`)"
+        >
+          查看原批次
+        </button>
+        <button
+          type="button"
+          class="secondary-btn"
+          @click="router.push('/transactions')"
+        >
+          查看已入账单
+        </button>
+      </div>
+    </div>
+    <div v-if="dupCheckNotice" class="alert success" role="status">
+      {{ dupCheckNotice }}
+    </div>
     <div v-if="batch.status === 'failed'" class="alert error">
       {{ batch.issues.map((x) => x.message).join("；") || "本批次处理失败。" }}
       <button :disabled="busy" @click="retry">重试处理</button>
@@ -631,19 +942,50 @@ async function submitResolveMissing(quickOnly = false) {
             <h2>识别明细</h2>
             <p>共 {{ rows.length }} 笔，已选择 {{ selected.length }} 笔</p>
           </div>
+          <div class="panel-heading-actions">
+            <button
+              v-if="ready && rows.length"
+              type="button"
+              class="secondary-btn"
+              :disabled="dupCheckBusy || busy"
+              @click="checkDuplicatesManual"
+            >
+              <RefreshCw :size="15" />
+              <span>{{ dupCheckBusy ? "判重中…" : "重检已录入账单" }}</span>
+            </button>
+            <button
+              v-if="ready && rows.length"
+              type="button"
+              class="secondary-btn ai-trigger-btn"
+              :class="{ highlight: missingTimeRows.length > 0 }"
+              @click="openResolveModal"
+            >
+              <Sparkles :size="15" />
+              <span>{{
+                missingTimeRows.length > 0
+                  ? `AI 补全缺失年份/时间 (${missingTimeRows.length})`
+                  : "AI 补充/调整明细"
+              }}</span>
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="ready && dupCounts.total > 0"
+          class="alert dup-rows-banner"
+          role="status"
+        >
+          <div>
+            <strong>已识别出 {{ dupCounts.total }} 笔可能重复的账单</strong>
+            <p>
+              明确重复 {{ dupCounts.dup }} 笔（已自动取消勾选并会在入账时跳过），疑似重复 {{ dupCounts.sus }} 笔（需核对并手动确认后才会入账）。
+            </p>
+          </div>
           <button
-            v-if="ready && rows.length"
             type="button"
-            class="secondary-btn ai-trigger-btn"
-            :class="{ highlight: missingTimeRows.length > 0 }"
-            @click="openResolveModal"
+            class="secondary-btn"
+            @click="openDupModalFromCurrent()"
           >
-            <Sparkles :size="15" />
-            <span>{{
-              missingTimeRows.length > 0
-                ? `AI 补全缺失年份/时间 (${missingTimeRows.length})`
-                : "AI 补充/调整明细"
-            }}</span>
+            查看重复详情
           </button>
         </div>
         <div
@@ -799,14 +1141,10 @@ async function submitResolveMissing(quickOnly = false) {
               !ready ||
               !selected.length ||
               !!invalid.length ||
-              selected.some(
-                (x) =>
-                  x.row.duplicate_status === 'suspected' &&
-                  !x.allow_suspected_duplicate,
-              ) ||
+              hasUnallowedSuspectedSelected ||
               busy
             "
-            @click="confirm"
+            @click="confirm(false)"
           >
             {{ busy ? "正在确认…" : `确认入账 ${selected.length} 笔` }}
           </button>
@@ -970,6 +1308,143 @@ async function submitResolveMissing(quickOnly = false) {
       </section>
     </div></template
   >
+  <div
+    v-if="dupModalOpen && batch"
+    class="modal-backdrop"
+    @click.self="!busy && (dupModalOpen = false)"
+  >
+    <section
+      class="edit-dialog resolve-dialog dup-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label="已录入或重复账单提醒"
+    >
+      <div class="dialog-head">
+        <div>
+          <h2 class="dup-dialog-title">
+            <AlertTriangle :size="18" /> 检测到已录入或重复账单
+          </h2>
+          <p>{{ dupModalHint }}</p>
+        </div>
+        <button
+          class="icon-btn"
+          aria-label="关闭"
+          :disabled="busy"
+          @click="dupModalOpen = false"
+        >
+          <X :size="20" />
+        </button>
+      </div>
+
+      <div v-if="dupBatchMatch" class="dup-modal-filebox">
+        <strong>{{
+          dupBatchMatch.match_type === "exact_file"
+            ? "上传原件与历史批次完全一致"
+            : "上传截图与历史批次高度相似"
+        }}</strong>
+        <p>
+          历史上传「{{ dupBatchMatch.file_name }}」（{{
+            formatShortDate(dupBatchMatch.created_at)
+          }}，{{ statusLabel[dupBatchMatch.status] }}，已入账
+          {{ dupBatchMatch.created_count }} 笔）。
+        </p>
+      </div>
+
+      <div v-if="dupModalItems.length" class="dup-modal-list">
+        <div
+          v-for="item in dupModalItems"
+          :key="item.row_id"
+          class="dup-modal-item"
+          :class="item.duplicate_status"
+        >
+          <div class="dup-item-top">
+            <span class="row-num">第 {{ item.index + 1 }} 笔</span>
+            <strong class="row-merchant">{{ item.merchant }}</strong>
+            <span class="row-amt">¥{{ item.amount }}</span>
+            <span class="small-tag warn">
+              {{
+                item.duplicate_status === "duplicate"
+                  ? "明确已入账"
+                  : "疑似重复"
+              }}
+            </span>
+          </div>
+          <p class="dup-item-meta">
+            当前编辑时间：{{ item.occurred_at }}
+            <template v-if="item.matched_summary">
+              · 命中已入账记录：<strong>{{ item.matched_summary }}</strong>
+            </template>
+          </p>
+          <p class="dup-item-reason">{{ item.reason }}</p>
+          <div
+            v-if="item.duplicate_status === 'suspected'"
+            class="dup-item-controls"
+          >
+            <label v-if="findEditableByRowId(item.row_id)" class="check-label">
+              <input
+                v-model="findEditableByRowId(item.row_id)!.selected"
+                type="checkbox"
+                @change="edited(item.row_id)"
+              />
+              <span>选中此笔（取消勾选可跳过不入账）</span>
+            </label>
+            <label
+              v-if="
+                findEditableByRowId(item.row_id)?.selected
+              "
+              class="suspect-check"
+            >
+              <input
+                v-model="
+                  findEditableByRowId(item.row_id)!.allow_suspected_duplicate
+                "
+                type="checkbox"
+              />
+              <span>我已核对，确认仍要作为新交易入账</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div v-else class="dup-modal-empty">
+        当前选中待入账明细未直接命中已入账交易（可能原批次仍处于草稿状态，或你已取消勾选重复行）。
+      </div>
+
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="secondary-btn"
+          :disabled="busy"
+          @click="dupModalOpen = false"
+        >
+          返回列表修改
+        </button>
+        <button
+          type="button"
+          class="secondary-btn"
+          :disabled="busy"
+          @click="router.push('/transactions')"
+        >
+          查看已入账单
+        </button>
+        <button
+          v-if="
+            ready &&
+            selected.length > 0 &&
+            !invalid.length &&
+            !hasUnallowedSuspectedSelected
+          "
+          type="button"
+          class="primary-btn"
+          :disabled="busy"
+          @click="confirm(true)"
+        >
+          {{
+            busy ? "正在确认…" : `确认提交剩余 ${selected.length} 笔`
+          }}
+        </button>
+      </div>
+    </section>
+  </div>
   <div
     v-if="originalZoomed && originalUrl && batch"
     class="modal-backdrop"
@@ -1284,5 +1759,138 @@ async function submitResolveMissing(quickOnly = false) {
     grid-column: 1 / -1;
     justify-self: start;
   }
+}
+.panel-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.dup-batch-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: #fff6e6;
+  border: 1px solid #f0be6b;
+  color: #7c4a03;
+}
+.dup-batch-copy strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.dup-batch-copy p {
+  margin: 0;
+  font-size: 12px;
+  color: #8a5a12;
+}
+.dup-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dup-batch-actions .secondary-btn {
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid #e3b25a;
+  color: #7c4a03;
+  height: 34px;
+  padding: 0 12px;
+}
+.dup-rows-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #fff4ec;
+  border: 1px solid #f3b589;
+  color: #8f3c07;
+  margin-bottom: 14px;
+}
+.dup-rows-banner strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.dup-rows-banner p {
+  margin: 0;
+  font-size: 12px;
+}
+.dup-rows-banner .secondary-btn {
+  flex: none;
+  text-decoration: none;
+  background: #fff;
+  border: 1px solid #e79e69;
+  color: #8f3c07;
+  height: 34px;
+  padding: 0 12px;
+}
+.dup-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #b25200;
+}
+.dup-modal-filebox {
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: #fff7ea;
+  border: 1px solid #f3c87d;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #7c4a03;
+}
+.dup-modal-filebox p {
+  margin: 4px 0 0;
+}
+.dup-modal-list {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 14px 0;
+}
+.dup-modal-item {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #eed2a4;
+  background: #fffcf6;
+}
+.dup-modal-item.duplicate {
+  border-color: #f0b0ab;
+  background: #fff7f6;
+}
+.dup-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.dup-item-meta,
+.dup-item-reason {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #55676b;
+}
+.dup-item-controls {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #e9d4ad;
+  font-size: 12px;
+}
+.dup-modal-empty {
+  padding: 14px;
+  margin: 12px 0;
+  border-radius: 10px;
+  background: #f5f9f8;
+  font-size: 12px;
+  color: #4a6368;
 }
 </style>

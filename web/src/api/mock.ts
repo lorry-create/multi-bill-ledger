@@ -190,4 +190,40 @@ export const mock = {
       type: "text/plain",
     });
   },
+  async checkImportDuplicates(
+    args: SDK.OperationArgs["checkImportDuplicates"],
+  ): Promise<SDK.DuplicateCheckResult> {
+    const page = await this.listTransactions({ query: { page: 1, page_size: 100 } });
+    const existing = page.items;
+    return {
+      batch_id: args.path.id,
+      version: args.body.expected_version,
+      rows: args.body.rows.map((row) => {
+        const day = row.occurred_at ? row.occurred_at.slice(0, 10) : "";
+        const hitExact = existing.find(
+          (tx) =>
+            (row.source_transaction_id &&
+              tx.source_transaction_id === row.source_transaction_id) ||
+            (tx.occurred_at.slice(0, 10) === day &&
+              row.amount_fen !== null &&
+              tx.amount_fen === row.amount_fen &&
+              tx.merchant.trim() === row.merchant.trim()),
+        );
+        if (hitExact) {
+          return {
+            row_id: row.row_id,
+            duplicate_status: "duplicate",
+            reason: "与演示账本中已有记录一致",
+            matched_summary: `${hitExact.occurred_at.slice(0, 10)} ${hitExact.merchant} ¥${(hitExact.amount_fen / 100).toFixed(2)}`,
+          };
+        }
+        return {
+          row_id: row.row_id,
+          duplicate_status: "unique",
+          reason: "",
+          matched_summary: "",
+        };
+      }),
+    };
+  },
 };

@@ -39,9 +39,13 @@ from ..config import Settings
 from ..contracts import (
     Batch,
     BatchStatus,
+    CheckDuplicatesInput,
     ClassificationRule,
     ClassificationSource,
     ConfirmResult,
+    DuplicateBatchMatch,
+    DuplicateCheckResult,
+    DuplicateRowMatch,
     ErrorDetails,
     FieldError,
     FlowType,
@@ -54,7 +58,14 @@ from ..contracts import (
     TransactionDraft,
     TransactionInput,
 )
-from ..crypto import CryptoError, decrypt_bytes, decrypt_json, encrypt_bytes, encrypt_json
+from ..crypto import (
+    CryptoError,
+    decrypt_bytes,
+    decrypt_json,
+    encrypt_bytes,
+    encrypt_json,
+    file_digest,
+)
 from ..db import as_utc, utcnow
 from ..errors import ApiError
 from ..intelligence import resolve_missing_deterministic
@@ -68,6 +79,17 @@ from ..intelligence.base import (
     assert_one_result_per_row,
 )
 from .dedupe import flow_value, month_index, row_digest
+from .duplicate_detector import (
+    DAY_ZONE,
+    ISSUE_DUPLICATE_FILE,
+    ISSUE_SIMILAR_IMAGE,
+    DuplicateRowProbe,
+    compute_image_fingerprint,
+    evaluate_rows_duplicates,
+    find_matching_prior_batch,
+    read_filename_meta,
+    refresh_duplicate_match,
+)
 
 STATUS_UPLOADED = BatchStatus.uploaded.value
 STATUS_PROCESSING = BatchStatus.processing.value
@@ -225,6 +247,20 @@ def read_limited(stream, target: UploadTarget) -> bytes:
 # ---------------------------------------------------------------- 批次读写
 
 
+def _batch_duplicate_issue(match: DuplicateBatchMatch) -> Issue:
+    code = ISSUE_DUPLICATE_FILE if match.match_type == "exact_file" else ISSUE_SIMILAR_IMAGE
+    status_hint = (
+        f"已有 {match.created_count} 笔入账"
+        if match.status == BatchStatus.completed
+        else "历史批次正在等待确认或处理中"
+    )
+    if match.match_type == "exact_file":
+        msg = f"检测到此前已上传过完全相同的账单「{match.file_name}」（{status_hint}），请注意核对避免重复记账"
+    else:
+        msg = f"检测到与历史截图「{match.file_name}」画面高度相似（{status_hint}），请核对是否已录入过该账单"
+    return Issue(row_id=None, field=None, code=code, message=msg)
+
+
 def create_batch(
     db: Session,
     *,
@@ -237,6 +273,34 @@ def create_batch(
 ) -> models.ImportBatch:
     now = utcnow()
     key = settings.data_encryption_key
+    fdigest = file_digest(key, data)
+    visual_fp = (
+        compute_image_fingerprint(data)
+        if method is IngestionMethod.screenshot
+        else None
+    )
+    prior_match = find_matching_prior_batch(
+        db,
+        user_id=user_id,
+        method=method,
+        fdigest=fdigest,
+        visual_fp=visual_fp,
+        key=key,
+    )
+    meta_payload: dict[str, object] = {
+        "name": target.file_name,
+        "media_type": target.media_type,
+        "file_digest": fdigest,
+        "visual_fp": visual_fp,
+        "duplicate_match": (
+            prior_match.model_dump(mode="json") if prior_match is not None else None
+        ),
+    }
+    initial_issues = (
+        [_batch_duplicate_issue(prior_match).model_dump(mode="json")]
+        if prior_match is not None
+        else None
+    )
     batch = models.ImportBatch(
         id=str(uuid.uuid4()),
         user_id=user_id,
@@ -249,10 +313,11 @@ def create_batch(
         created_at=now,
         updated_at=now,
         expires_at=now + timedelta(hours=settings.batch_draft_ttl_hours),
-        encrypted_filename=encrypt_json(
-            key, {"name": target.file_name, "media_type": target.media_type}
-        ),
+        encrypted_filename=encrypt_json(key, meta_payload),
         encrypted_original=encrypt_bytes(key, data),
+        encrypted_issues=(
+            encrypt_json(key, initial_issues) if initial_issues is not None else None
+        ),
     )
     db.add(batch)
     db.commit()
@@ -260,13 +325,10 @@ def create_batch(
 
 
 def file_meta(batch: models.ImportBatch, key: str) -> dict[str, str]:
-    try:
-        payload = decrypt_json(key, batch.encrypted_filename or "")
-    except CryptoError:
-        payload = {}
+    meta = read_filename_meta(batch, key)
     return {
-        "name": str(payload.get("name") or "未知文件"),
-        "media_type": str(payload.get("media_type") or "application/octet-stream"),
+        "name": str(meta["name"]),
+        "media_type": str(meta["media_type"]),
     }
 
 
@@ -352,9 +414,34 @@ def load_rules(db: Session, user_id: str, source: str, key: str) -> list[Classif
     return items
 
 
-def to_contract(batch: models.ImportBatch, key: str) -> Batch:
+def _extract_duplicate_match(
+    meta: dict[str, object], key: str, db: Session | None = None
+) -> DuplicateBatchMatch | None:
+    raw = meta.get("duplicate_match")
+    if not isinstance(raw, dict):
+        return None
+    try:
+        parsed = DuplicateBatchMatch.model_validate(raw)
+    except Exception:
+        return None
+    if db is not None:
+        return refresh_duplicate_match(db, parsed, key)
+    return parsed
+
+
+def to_contract(
+    batch: models.ImportBatch, key: str, db: Session | None = None
+) -> Batch:
     rows, issues = load_drafts(batch, key)
-    meta = file_meta(batch, key)
+    meta = read_filename_meta(batch, key)
+    dup_match = _extract_duplicate_match(meta, key, db=db)
+    filtered_issues = [
+        issue
+        for issue in issues
+        if issue.code not in {ISSUE_DUPLICATE_FILE, ISSUE_SIMILAR_IMAGE}
+    ]
+    if dup_match is not None:
+        filtered_issues = [_batch_duplicate_issue(dup_match), *filtered_issues]
     return Batch(
         id=batch.id,
         version=batch.version,
@@ -362,14 +449,15 @@ def to_contract(batch: models.ImportBatch, key: str) -> Batch:
         ingestion_method=IngestionMethod(batch.ingestion_method),
         status=BatchStatus(batch.status),
         rows=rows,
-        issues=issues,
+        issues=filtered_issues,
         progress=Progress(
             current=batch.progress_current,
             total=batch.progress_total or None,
         ),
-        file_name=meta["name"],
+        file_name=str(meta["name"]),
         created_at=as_utc(batch.created_at),
         updated_at=as_utc(batch.updated_at),
+        duplicate_match=dup_match,
     )
 
 
@@ -438,45 +526,74 @@ def mark_duplicates(
     key: str,
     issues: list[Issue],
 ) -> list[TransactionDraft]:
-    """拿每行的摘要去比对已入账交易，撞上的标 duplicate。
+    """拿每行的精确与容错摘要去比对已入账交易，分别标 duplicate 或 suspected。
 
-    没有这一步，用户重传同一份文件会看到一屏"可入账"的草稿，点确认才被
-    静默跳过——那种体验比直接标出来差得多。
+    没有这一步，用户重传同一份文件或另一张等价截图会看到一屏"可入账"的草稿，
+    点确认才被静默跳过或误重复入账。
     """
-    marked: list[TransactionDraft] = []
-    for draft in drafts:
-        if draft.occurred_at is None or draft.amount_fen is None:
-            marked.append(draft)
-            continue
-        digest = row_digest(
-            key,
-            source=source,
-            flow_type=draft.flow_type or FlowType.expense,
+    probes = [
+        DuplicateRowProbe(
+            row_id=draft.row_id,
             source_transaction_id=draft.source_transaction_id,
             occurred_at=draft.occurred_at,
             amount_fen=draft.amount_fen,
+            flow_type=draft.flow_type or FlowType.expense,
             merchant=draft.merchant,
             description=draft.description,
         )
-        hit = db.scalar(
-            select(models.Transaction.id).where(
-                models.Transaction.user_id == user_id,
-                models.Transaction.dedupe_digest == digest,
-            )
+        for draft in drafts
+        if draft.occurred_at is not None and draft.amount_fen is not None
+    ]
+    evals = (
+        evaluate_rows_duplicates(
+            db, user_id=user_id, source=source, rows=probes, key=key
         )
-        if hit is None:
+        if probes
+        else {}
+    )
+    marked: list[TransactionDraft] = []
+    for draft in drafts:
+        ev = evals.get(draft.row_id)
+        if ev is None or ev.duplicate_status == "unique":
             marked.append(draft)
             continue
+        if ev.duplicate_status == "duplicate":
+            msg = (
+                f"该交易此前已入账，确认时会自动跳过（命中：{ev.matched_summary}）"
+                if ev.matched_summary
+                else "该交易此前已入账，确认时会自动跳过"
+            )
+            issue = Issue(
+                row_id=draft.row_id,
+                field="source_transaction_id",
+                code=ISSUE_DUPLICATE_EXISTING,
+                message=msg,
+            )
+            marked.append(
+                draft.model_copy(
+                    update={
+                        "duplicate_status": "duplicate",
+                        "issues": list(draft.issues) + [issue],
+                    }
+                )
+            )
+            issues.append(issue)
+            continue
+
+        # suspected 容错命中：若原本是 intra-batch suspected，同样补挂已入账参考摘要
         issue = Issue(
             row_id=draft.row_id,
-            field="source_transaction_id",
-            code=ISSUE_DUPLICATE_EXISTING,
-            message="该交易此前已入账，确认时会自动跳过",
+            field="occurred_at",
+            code=ISSUE_DUPLICATE_SUSPECTED,
+            message=ev.reason,
+        )
+        next_status = (
+            "duplicate" if draft.duplicate_status == "duplicate" else "suspected"
         )
         marked.append(
             draft.model_copy(
                 update={
-                    "duplicate_status": "duplicate",
+                    "duplicate_status": next_status,
                     "issues": list(draft.issues) + [issue],
                 }
             )
@@ -668,7 +785,14 @@ def confirm_batch(
     by_row = {draft.row_id: draft for draft in drafts}
 
     # 4) 逐行重校验。任何一行不合法就整体 422，绝不部分入账
-    errors = _validate_rows(payload, by_row)
+    errors = _validate_rows(
+        payload,
+        by_row,
+        db=db,
+        user_id=batch.user_id,
+        source=batch.source,
+        key=key,
+    )
     if errors:
         raise ApiError(
             "VALIDATION_ERROR",
@@ -777,8 +901,39 @@ def _replay_result(batch: models.ImportBatch, key: str) -> ConfirmResult:
     return ConfirmResult.model_validate(payload)
 
 
-def _validate_rows(payload, drafts: dict[str, TransactionDraft]) -> list[FieldError]:
+def _validate_rows(
+    payload,
+    drafts: dict[str, TransactionDraft],
+    *,
+    db: Session | None = None,
+    user_id: str | None = None,
+    source: str | None = None,
+    key: str | None = None,
+) -> list[FieldError]:
     errors: list[FieldError] = []
+    tolerant_evals = {}
+    if db is not None and user_id is not None and source is not None and key is not None:
+        probes = [
+            DuplicateRowProbe(
+                row_id=item.row_id,
+                source_transaction_id=item.transaction.source_transaction_id,
+                occurred_at=item.transaction.occurred_at,
+                amount_fen=item.transaction.amount_fen,
+                flow_type=item.transaction.flow_type,
+                merchant=item.transaction.merchant,
+                description=item.transaction.description,
+            )
+            for item in payload.rows
+            if item.row_id in drafts
+            and item.transaction.occurred_at.tzinfo is not None
+            and (item.transaction.merchant or "").strip()
+            and not item.allow_suspected_duplicate
+        ]
+        if probes:
+            tolerant_evals = evaluate_rows_duplicates(
+                db, user_id=user_id, source=source, rows=probes, key=key
+            )
+
     for index, item in enumerate(payload.rows):
         prefix = f"rows[{index}]"
         draft = drafts.get(item.row_id)
@@ -812,6 +967,7 @@ def _validate_rows(payload, drafts: dict[str, TransactionDraft]) -> list[FieldEr
                     message="商户不能为空",
                 )
             )
+        tol = tolerant_evals.get(item.row_id)
         if draft.duplicate_status == "suspected" and not item.allow_suspected_duplicate:
             # 疑似重复必须用户显式选择。静默跳过会让用户以为记上了，静默入账
             # 则会凭空多一笔，两种都比"让用户点一下"差
@@ -821,6 +977,19 @@ def _validate_rows(payload, drafts: dict[str, TransactionDraft]) -> list[FieldEr
                     row_id=item.row_id,
                     code="SUSPECTED_DUPLICATE_NOT_ALLOWED",
                     message="该行疑似重复，请确认是否仍作为新交易入账",
+                )
+            )
+        elif (
+            tol is not None
+            and tol.duplicate_status == "suspected"
+            and not item.allow_suspected_duplicate
+        ):
+            errors.append(
+                FieldError(
+                    field=f"{prefix}.allow_suspected_duplicate",
+                    row_id=item.row_id,
+                    code="SUSPECTED_DUPLICATE_NOT_ALLOWED",
+                    message=tol.reason,
                 )
             )
     return errors
@@ -965,7 +1134,130 @@ def resolve_missing_batch(
     batch.version += 1
     batch.updated_at = utcnow()
     db.commit()
-    return to_contract(batch, key)
+    return to_contract(batch, key, db=db)
+
+
+def check_import_duplicates(
+    db: Session,
+    batch: models.ImportBatch,
+    payload: CheckDuplicatesInput,
+    settings: Settings,
+) -> DuplicateCheckResult:
+    """只读实时判重预检：对用户编辑中的草稿执行完整精确 + 容错判重，不改变批次版本。"""
+    if batch.status != STATUS_PENDING_REVIEW:
+        raise ApiError(
+            "BATCH_STATE_CONFLICT",
+            409,
+            "只有待确认的批次可以执行实时判重",
+            details=ErrorDetails(current_version=batch.version),
+        )
+    if is_expired(batch):
+        raise ApiError(
+            "BATCH_STATE_CONFLICT",
+            409,
+            "批次草稿已过期，请重新上传该账单",
+            details=ErrorDetails(current_version=batch.version),
+        )
+    if payload.expected_version != batch.version:
+        raise ApiError(
+            "VERSION_CONFLICT",
+            409,
+            "批次已被修改，请刷新后重试",
+            details=ErrorDetails(current_version=batch.version),
+        )
+
+    key = settings.data_encryption_key
+    drafts, _issues = load_drafts(batch, key)
+    by_row = {draft.row_id: draft for draft in drafts}
+
+    unknown_errors: list[FieldError] = []
+    probes: list[DuplicateRowProbe] = []
+    for index, item in enumerate(payload.rows):
+        if item.row_id not in by_row:
+            unknown_errors.append(
+                FieldError(
+                    field=f"rows[{index}].row_id",
+                    row_id=item.row_id,
+                    code="UNKNOWN_ROW",
+                    message="该行不属于当前批次，请刷新后重试",
+                )
+            )
+            continue
+        occ = item.occurred_at
+        if occ is not None and occ.tzinfo is None:
+            occ = occ.replace(tzinfo=DAY_ZONE)
+        probes.append(
+            DuplicateRowProbe(
+                row_id=item.row_id,
+                source_transaction_id=item.source_transaction_id,
+                occurred_at=occ,
+                amount_fen=item.amount_fen,
+                flow_type=item.flow_type,
+                merchant=item.merchant,
+                description=item.description,
+            )
+        )
+
+    if unknown_errors:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            422,
+            "请修正无效的草稿行后重试",
+            details=ErrorDetails(fields=unknown_errors),
+        )
+
+    evals = evaluate_rows_duplicates(
+        db,
+        user_id=batch.user_id,
+        source=batch.source,
+        rows=probes,
+        key=key,
+    )
+
+    out_rows: list[DuplicateRowMatch] = []
+    for item in payload.rows:
+        ev = evals.get(item.row_id)
+        draft = by_row[item.row_id]
+        if ev is not None and ev.duplicate_status != "unique":
+            out_rows.append(
+                DuplicateRowMatch(
+                    row_id=item.row_id,
+                    duplicate_status=ev.duplicate_status,  # type: ignore[arg-type]
+                    reason=ev.reason,
+                    matched_summary=ev.matched_summary,
+                )
+            )
+        elif draft.duplicate_status == "suspected":
+            intra_msg = next(
+                (i.message for i in draft.issues if i.code == ISSUE_DUPLICATE_SUSPECTED),
+                "该行疑似同批次重复，请确认是否仍作为新交易入账",
+            )
+            out_rows.append(
+                DuplicateRowMatch(
+                    row_id=item.row_id,
+                    duplicate_status="suspected",
+                    reason=intra_msg,
+                    matched_summary="",
+                )
+            )
+        else:
+            out_rows.append(
+                DuplicateRowMatch(
+                    row_id=item.row_id,
+                    duplicate_status="unique",
+                    reason="",
+                    matched_summary="",
+                )
+            )
+
+    meta = read_filename_meta(batch, key)
+    file_match = _extract_duplicate_match(meta, key, db=db)
+    return DuplicateCheckResult(
+        batch_id=batch.id,
+        version=batch.version,
+        file_match=file_match,
+        rows=out_rows,
+    )
 
 
 def ensure_pending_state(batch: models.ImportBatch) -> None:
@@ -1011,6 +1303,7 @@ __all__ = [
     "STATUS_UPLOADED",
     "UploadTarget",
     "check_content",
+    "check_import_duplicates",
     "confirm_batch",
     "create_batch",
     "ensure_pending_state",

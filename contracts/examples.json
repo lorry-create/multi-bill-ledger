@@ -361,6 +361,62 @@
       }
     },
     {
+      "case_id": "checkImportDuplicates_success",
+      "operation_id": "checkImportDuplicates",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/check-duplicates",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "expected_version": 2,
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "source_transaction_id": "SYN-HTTP-001",
+              "occurred_at": "2026-11-08T12:00:00+08:00",
+              "amount_fen": 2300,
+              "flow_type": "expense",
+              "merchant": "示例餐馆",
+              "description": "合成午餐账单"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "batch_id": "batch_demo_01",
+          "version": 2,
+          "file_match": {
+            "batch_id": "batch_prev_01",
+            "file_name": "wechat_nov.png",
+            "created_at": "2026-11-08T10:00:00+08:00",
+            "status": "completed",
+            "created_count": 2,
+            "match_type": "exact_file"
+          },
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "duplicate_status": "duplicate",
+              "reason": "与已入账记录精确匹配（同平台同日期同金额同交易单号）",
+              "matched_summary": "2026-11-08 12:00 示例餐馆 ¥23.00"
+            }
+          ]
+        }
+      }
+    },
+    {
       "case_id": "listTransactions_success",
       "operation_id": "listTransactions",
       "method": "GET",
