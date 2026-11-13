@@ -66,9 +66,14 @@ async function change(
       <span class="count-label">{{ rules.length }} 条规则</span>
     </div>
     <div v-if="loading" class="empty-state">正在读取规则…</div>
+    <div v-else-if="error" class="empty-state">
+      <strong>规则暂时没有加载出来</strong>
+      <button type="button" class="text-btn" @click="load">重新加载</button>
+    </div>
     <div v-else-if="!rules.length" class="empty-state">
       <strong>还没有分类规则</strong
       ><span>在账单页修正类别时勾选“记住该商户”，规则会显示在这里。</span>
+      <RouterLink to="/transactions" class="text-btn">前往账单修正分类</RouterLink>
     </div>
     <div v-else class="rule-list">
       <div v-for="rule in rules" :key="rule.id" class="rule-row">
