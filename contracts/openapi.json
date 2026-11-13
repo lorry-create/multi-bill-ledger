@@ -1393,6 +1393,459 @@
         }
       }
     },
+    "/api/imports/{id}/resolve-missing": {
+      "post": {
+        "operationId": "resolveImportMissing",
+        "summary": "根据用户确认的年份或自然语言补充说明，由智能体批量补全缺失字段并重跑判重",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                },
+                "example": {
+                  "id": "batch_demo_01",
+                  "version": 3,
+                  "source": "wechat",
+                  "ingestion_method": "screenshot",
+                  "status": "pending_review",
+                  "rows": [
+                    {
+                      "source_transaction_id": null,
+                      "occurred_at": "2026-11-06T16:53:00+08:00",
+                      "amount_fen": 98057,
+                      "currency": "CNY",
+                      "flow_type": "expense",
+                      "merchant": "示例医院",
+                      "description": "合成截图补充年份示例",
+                      "category": "health",
+                      "row_id": "row_demo_01",
+                      "classification_source": "deepseek",
+                      "classification_reason": "医院医疗消费分类",
+                      "duplicate_status": "unique",
+                      "issues": []
+                    }
+                  ],
+                  "issues": [],
+                  "progress": {
+                    "current": 1,
+                    "total": 1
+                  },
+                  "file_name": "synthetic_bill.png",
+                  "created_at": "2026-11-08T12:00:00+08:00",
+                  "updated_at": "2026-11-08T12:05:00+08:00"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveMissingInput"
+              },
+              "example": {
+                "expected_version": 2,
+                "default_year": 2026,
+                "instruction": "前7笔都是2026年，第8笔是2026年11月1日 12:00"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "仅pending_review且未过期、版本相符的批次可用。接收default_year或自然语言instruction交由智能体补全缺失时间、类别或流向，并重跑确定性判重返回最新Batch；绝不擅自猜测未确认日期。",
+        "tags": [
+          "导入确认页"
+        ],
+        "x-page": "导入确认页",
+        "x-task": "T02/T05/T07",
+        "x-action": "通过弹窗补充缺失年份或自然语言说明",
+        "x-frontend-function": "resolveImportMissing",
+        "x-business-rules": [
+          "仅pending_review且未过期、版本相符的批次才能补全缺失字段。",
+          "default_year和instruction至少提供一项有效输入，否则返回422。",
+          "补全occurred_at后重跑确定性判重，不虚构用户未确认的数据。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT",
+            "BATCH_STATE_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ],
+          "503": [
+            "SERVICE_UNAVAILABLE"
+          ]
+        }
+      }
+    },
+    "/api/imports/{id}/check-duplicates": {
+      "post": {
+        "operationId": "checkImportDuplicates",
+        "summary": "对用户编辑中的草稿行执行只读实时判重预检",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCheckResult"
+                },
+                "example": {
+                  "batch_id": "batch_demo_01",
+                  "version": 2,
+                  "file_match": {
+                    "batch_id": "batch_prev_01",
+                    "file_name": "wechat_nov.png",
+                    "created_at": "2026-11-08T10:00:00+08:00",
+                    "status": "completed",
+                    "created_count": 2,
+                    "match_type": "exact_file"
+                  },
+                  "rows": [
+                    {
+                      "row_id": "row_demo_01",
+                      "duplicate_status": "duplicate",
+                      "reason": "与已入账记录精确匹配（同平台同日期同金额同交易单号）",
+                      "matched_summary": "2026-11-08 12:00 示例餐馆 ¥23.00"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDuplicatesInput"
+              },
+              "example": {
+                "expected_version": 2,
+                "rows": [
+                  {
+                    "row_id": "row_demo_01",
+                    "source_transaction_id": "SYN-HTTP-001",
+                    "occurred_at": "2026-11-08T12:00:00+08:00",
+                    "amount_fen": 2300,
+                    "flow_type": "expense",
+                    "merchant": "示例餐馆",
+                    "description": "合成午餐账单"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "仅pending_review且未过期、版本相符的批次可用。按用户当前在确认页编辑后的交易字段执行只读判重（精确指纹 + 跨形式容错匹配），不修改批次版本号或草稿持久化内容，供确认入账前向用户弹窗预警。",
+        "tags": [
+          "导入确认页"
+        ],
+        "x-page": "导入确认页",
+        "x-task": "T02/T03",
+        "x-action": "编辑草稿后实时预检或点击确认入账前二次判重",
+        "x-frontend-function": "checkImportDuplicates",
+        "x-business-rules": [
+          "只读操作，不递增批次version，也不写入confirmed交易。",
+          "版本不一致返回409 VERSION_CONFLICT；非pending_review或已过期返回409。",
+          "同时返回批次级别文件/相似截图命中信息以及逐行duplicate/suspected/unique判重详情。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT",
+            "BATCH_STATE_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
+      }
+    },
     "/api/transactions": {
       "get": {
         "operationId": "listTransactions",
@@ -3414,6 +3867,10 @@
             "type": "string",
             "format": "date-time",
             "description": "最后状态更新时间，带时区ISO 8601。"
+          },
+          "duplicate_match": {
+            "$ref": "#/components/schemas/DuplicateBatchMatch",
+            "description": "命中相同文件或高度相似历史截图时返回来源批次摘要，未命中时省略。"
           }
         },
         "required": [
@@ -3431,6 +3888,209 @@
         ],
         "additionalProperties": false,
         "description": "共享模型 Batch；HTTP请求与响应均遵守本定义。"
+      },
+      "DuplicateBatchMatch": {
+        "type": "object",
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "description": "匹配到的历史导入批次ID。"
+          },
+          "file_name": {
+            "type": "string",
+            "description": "历史批次原始文件名。"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "历史批次上传时间，带时区ISO 8601。"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BatchStatus",
+            "description": "历史批次当前状态。"
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "历史批次已确认入账的交易笔数；尚未确认时为0。"
+          },
+          "match_type": {
+            "type": "string",
+            "enum": [
+              "exact_file",
+              "similar_image"
+            ],
+            "description": "exact_file表示文件内容完全一致，similar_image表示截图画面高度相似。"
+          }
+        },
+        "required": [
+          "batch_id",
+          "file_name",
+          "created_at",
+          "status",
+          "created_count",
+          "match_type"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 DuplicateBatchMatch；HTTP请求与响应均遵守本定义。"
+      },
+      "DuplicateCheckRowInput": {
+        "type": "object",
+        "properties": {
+          "row_id": {
+            "type": "string",
+            "description": "本批次内稳定的草稿行标识。"
+          },
+          "source_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "可靠的源交易或退款事件标识。"
+          },
+          "occurred_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "用户编辑后的交易时间；尚未填写完整时为null。"
+          },
+          "amount_fen": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "CNY整数分；尚未填写完整时为null。"
+          },
+          "flow_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "income",
+              "expense",
+              "refund",
+              "transfer",
+              "repayment",
+              null
+            ],
+            "description": "收支方向；尚未选择时为null。"
+          },
+          "merchant": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "用户编辑后的商户展示名称。"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "用户编辑后的交易摘要/备注。"
+          }
+        },
+        "required": [
+          "row_id",
+          "source_transaction_id",
+          "occurred_at",
+          "amount_fen",
+          "flow_type",
+          "merchant",
+          "description"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 DuplicateCheckRowInput；HTTP请求与响应均遵守本定义。"
+      },
+      "CheckDuplicatesInput": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交预检前最后读取的批次版本，冲突返回409。"
+          },
+          "rows": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCheckRowInput"
+            },
+            "description": "待实时判重的草稿行列表。"
+          }
+        },
+        "required": [
+          "expected_version",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 CheckDuplicatesInput；HTTP请求与响应均遵守本定义。"
+      },
+      "DuplicateRowMatch": {
+        "type": "object",
+        "properties": {
+          "row_id": {
+            "type": "string",
+            "description": "草稿行标识。"
+          },
+          "duplicate_status": {
+            "type": "string",
+            "enum": [
+              "unique",
+              "duplicate",
+              "suspected"
+            ],
+            "description": "实时判重结果：unique未重复，duplicate已明确存在，suspected疑似已录入。"
+          },
+          "reason": {
+            "type": "string",
+            "description": "判重依据说明，未命中时为空字符串。"
+          },
+          "matched_summary": {
+            "type": "string",
+            "description": "命中的已入账交易摘要（时间、商户、金额），未命中时为空字符串。"
+          }
+        },
+        "required": [
+          "row_id",
+          "duplicate_status",
+          "reason",
+          "matched_summary"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 DuplicateRowMatch；HTTP请求与响应均遵守本定义。"
+      },
+      "DuplicateCheckResult": {
+        "type": "object",
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "description": "被预检的导入批次ID。"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "当前批次版本号（只读预检，不自增版本）。"
+          },
+          "file_match": {
+            "$ref": "#/components/schemas/DuplicateBatchMatch",
+            "description": "若当前批次命中相同文件或高度相似历史截图则返回来源摘要，未命中时省略。"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateRowMatch"
+            },
+            "description": "与输入对应的逐行实时判重结果。"
+          }
+        },
+        "required": [
+          "batch_id",
+          "version",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 DuplicateCheckResult；HTTP请求与响应均遵守本定义。"
       },
       "ConfirmRow": {
         "type": "object",
@@ -3542,6 +4202,38 @@
         ],
         "additionalProperties": false,
         "description": "共享模型 RetryInput；HTTP请求与响应均遵守本定义。"
+      },
+      "ResolveMissingInput": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交编辑前最后读取的资源版本，冲突返回409和最新版本。"
+          },
+          "default_year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 2000,
+            "maximum": 2100,
+            "description": "快捷确认的默认年份（如2026）；配合截图月日时间自动补全。"
+          },
+          "instruction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "description": "用户的自然语言补充说明，交由DeepSeek智能体逐行核对补全。"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ResolveMissingInput；HTTP请求与响应均遵守本定义。"
       },
       "TransactionPatch": {
         "type": "object",

@@ -251,6 +251,65 @@
       }
     },
     {
+      "case_id": "resolveImportMissing_success",
+      "operation_id": "resolveImportMissing",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/resolve-missing",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "expected_version": 2,
+          "default_year": 2026,
+          "instruction": "前7笔是2026年，第8笔是2026年11月1日 12:00"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "batch_demo_01",
+          "version": 3,
+          "source": "wechat",
+          "ingestion_method": "screenshot",
+          "status": "pending_review",
+          "rows": [
+            {
+              "source_transaction_id": null,
+              "occurred_at": "2026-11-06T16:53:00+08:00",
+              "amount_fen": 98057,
+              "currency": "CNY",
+              "flow_type": "expense",
+              "merchant": "示例医院",
+              "description": "合成截图补充年份示例",
+              "category": "health",
+              "row_id": "row_demo_01",
+              "classification_source": "deepseek",
+              "classification_reason": "医院医疗消费分类",
+              "duplicate_status": "unique",
+              "issues": []
+            }
+          ],
+          "issues": [],
+          "progress": {
+            "current": 1,
+            "total": 1
+          },
+          "file_name": "synthetic_bill.png",
+          "created_at": "2026-11-08T12:00:00+08:00",
+          "updated_at": "2026-11-08T12:05:00+08:00"
+        }
+      }
+    },
+    {
       "case_id": "confirmImport_success",
       "operation_id": "confirmImport",
       "method": "POST",
@@ -297,6 +356,62 @@
           "ignored_count": 0,
           "transaction_ids": [
             "txn_demo_01"
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "checkImportDuplicates_success",
+      "operation_id": "checkImportDuplicates",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/check-duplicates",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {
+          "expected_version": 2,
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "source_transaction_id": "SYN-HTTP-001",
+              "occurred_at": "2026-11-08T12:00:00+08:00",
+              "amount_fen": 2300,
+              "flow_type": "expense",
+              "merchant": "示例餐馆",
+              "description": "合成午餐账单"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "batch_id": "batch_demo_01",
+          "version": 2,
+          "file_match": {
+            "batch_id": "batch_prev_01",
+            "file_name": "wechat_nov.png",
+            "created_at": "2026-11-08T10:00:00+08:00",
+            "status": "completed",
+            "created_count": 2,
+            "match_type": "exact_file"
+          },
+          "rows": [
+            {
+              "row_id": "row_demo_01",
+              "duplicate_status": "duplicate",
+              "reason": "与已入账记录精确匹配（同平台同日期同金额同交易单号）",
+              "matched_summary": "2026-11-08 12:00 示例餐馆 ¥23.00"
+            }
           ]
         }
       }

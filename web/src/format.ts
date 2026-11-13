@@ -1,4 +1,9 @@
-import type { Category, FlowType, Source } from "./api/client.generated";
+import type {
+  Category,
+  ClassificationSource,
+  FlowType,
+  Source,
+} from "./api/client.generated";
 
 export const categories: Record<Category, string> = {
   dining: "餐饮",
@@ -11,6 +16,13 @@ export const categories: Record<Category, string> = {
   education: "教育",
   other: "其他",
   pending: "待确认",
+};
+export const classificationSources: Record<ClassificationSource, string> = {
+  user_rule: "个人规则",
+  general_rule: "通用规则",
+  deepseek: "DeepSeek 分类",
+  manual: "手动选择",
+  pending: "待选类别",
 };
 export const flows: Record<FlowType, string> = {
   income: "收入",

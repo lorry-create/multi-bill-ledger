@@ -14,23 +14,29 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 
-from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..contracts import (
     Batch,
+    CheckDuplicatesInput,
     ConfirmInput,
     ConfirmResult,
+    DuplicateCheckResult,
     Error,
     ErrorDetails,
     IngestionMethod,
+    ResolveMissingInput,
     RetryInput,
     Source,
 )
 from ..crypto import CryptoError, decrypt_bytes
 from ..deps import AuthContext, get_db, require_csrf, require_session
 from ..errors import ApiError
+from ..intelligence import build_intelligence
 from ..http_utils import content_disposition
 from ..services import imports
 
@@ -42,6 +48,20 @@ _ERR = {"model": Error, "description": "统一错误结构"}
 _IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 
+def _omit_optional_none(
+    model: Batch | DuplicateCheckResult,
+    key_name: str,
+    *,
+    status_code: int = 200,
+    headers: Mapping[str, str] | None = None,
+) -> JSONResponse:
+    """仅当根级可选字段为 None 时省略它，保留行内 occurred_at/total 等必填 null。"""
+    data = model.model_dump(mode="json")
+    if data.get(key_name) is None:
+        data.pop(key_name, None)
+    return JSONResponse(status_code=status_code, content=data, headers=dict(headers or {}))
+
+
 @router.post(
     "",
     status_code=202,
@@ -50,13 +70,12 @@ _IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 )
 def create_import(
     request: Request,
-    response: Response,
     source: Source = Form(...),
     ingestion_method: IngestionMethod = Form(...),
     file: UploadFile = File(...),
     auth: AuthContext = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> Batch:
+) -> JSONResponse:
     """只创建批次并返回 202，绝不在请求内解析。
 
     解析放请求里会有两个坏结果：大文件把响应拖到超时（用户以为失败，其实成功了），
@@ -79,10 +98,17 @@ def create_import(
         settings=settings,
     )
 
-    response.headers["Location"] = f"/api/imports/{batch.id}"
-    # 契约规定这个头；前端首轮轮询按它 1 秒后再来
-    response.headers["Retry-After"] = "1"
-    return imports.to_contract(batch, settings.data_encryption_key)
+    model = imports.to_contract(batch, settings.data_encryption_key, db=db)
+    return _omit_optional_none(
+        model,
+        "duplicate_match",
+        status_code=202,
+        headers={
+            "Location": f"/api/imports/{batch.id}",
+            # 契约规定这个头；前端首轮轮询按它 1 秒后再来
+            "Retry-After": "1",
+        },
+    )
 
 
 @router.get("/{id}", response_model=Batch, responses={401: _ERR, 404: _ERR})
@@ -91,9 +117,12 @@ def get_import(
     request: Request,
     auth: AuthContext = Depends(require_session),
     db: Session = Depends(get_db),
-) -> Batch:
+) -> JSONResponse:
     batch = imports.load_owned(db, auth.user.id, id)
-    return imports.to_contract(batch, request.app.state.settings.data_encryption_key)
+    model = imports.to_contract(
+        batch, request.app.state.settings.data_encryption_key, db=db
+    )
+    return _omit_optional_none(model, "duplicate_match")
 
 
 @router.get(
@@ -159,10 +188,9 @@ def retry_import(
     id: str,
     payload: RetryInput,
     request: Request,
-    response: Response,
     auth: AuthContext = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> Batch:
+) -> JSONResponse:
     """只重跑失败批次，且版本必须相符。
 
     已完成批次不允许重跑：确认入账是不可逆的，重跑只会产生一批"看起来新"的
@@ -181,9 +209,16 @@ def retry_import(
         )
 
     imports.reset_for_retry(db, batch)
-    response.headers["Location"] = f"/api/imports/{batch.id}"
-    response.headers["Retry-After"] = "1"
-    return imports.to_contract(batch, settings.data_encryption_key)
+    model = imports.to_contract(batch, settings.data_encryption_key, db=db)
+    return _omit_optional_none(
+        model,
+        "duplicate_match",
+        status_code=202,
+        headers={
+            "Location": f"/api/imports/{batch.id}",
+            "Retry-After": "1",
+        },
+    )
 
 
 @router.post(
@@ -201,6 +236,46 @@ def confirm_import(
     settings = request.app.state.settings
     batch = imports.load_owned(db, auth.user.id, id)
     return imports.confirm_batch(db, batch, payload, settings)
+
+
+@router.post(
+    "/{id}/resolve-missing",
+    response_model=Batch,
+    responses={401: _ERR, 403: _ERR, 404: _ERR, 409: _ERR, 422: _ERR, 503: _ERR},
+)
+def resolve_import_missing(
+    id: str,
+    payload: ResolveMissingInput,
+    request: Request,
+    auth: AuthContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    settings = request.app.state.settings
+    provider = getattr(request.app.state, "intelligence_provider", None)
+    if provider is None:
+        provider = build_intelligence(settings.intelligence_provider)
+        request.app.state.intelligence_provider = provider
+    batch = imports.load_owned(db, auth.user.id, id)
+    model = imports.resolve_missing_batch(db, batch, payload, settings, provider)
+    return _omit_optional_none(model, "duplicate_match")
+
+
+@router.post(
+    "/{id}/check-duplicates",
+    response_model=DuplicateCheckResult,
+    responses={401: _ERR, 403: _ERR, 404: _ERR, 409: _ERR, 422: _ERR},
+)
+def check_import_duplicates(
+    id: str,
+    payload: CheckDuplicatesInput,
+    request: Request,
+    auth: AuthContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    settings = request.app.state.settings
+    batch = imports.load_owned(db, auth.user.id, id)
+    result = imports.check_import_duplicates(db, batch, payload, settings)
+    return _omit_optional_none(result, "file_match")
 
 
 # ---------------------------------------------------------------- 内部工具

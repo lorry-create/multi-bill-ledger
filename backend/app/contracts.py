@@ -35,12 +35,18 @@ __all__ = [
     "ParseResult",
     "ClassificationResult",
     "Transaction",
+    "DuplicateBatchMatch",
     "Progress",
     "Batch",
+    "DuplicateCheckRowInput",
+    "CheckDuplicatesInput",
+    "DuplicateRowMatch",
+    "DuplicateCheckResult",
     "ConfirmRow",
     "ConfirmInput",
     "ConfirmResult",
     "RetryInput",
+    "ResolveMissingInput",
     "TransactionPatchChanges",
     "TransactionPatch",
     "TransactionPage",
@@ -239,6 +245,17 @@ class Transaction(BaseModel):
     classification_reason: str = Field(..., description="供用户查看的简短分类依据，不是准确率或概率。")
     status: Literal["confirmed"] = Field(..., description="BatchStatus为批次状态；交易status为confirmed，草稿不进入报表。")
 
+class DuplicateBatchMatch(BaseModel):
+    """共享模型 DuplicateBatchMatch；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    batch_id: str = Field(..., description="匹配到的历史导入批次ID。")
+    file_name: str = Field(..., description="历史批次原始文件名。")
+    created_at: _datetime = Field(..., description="历史批次上传时间，带时区ISO 8601。")
+    status: BatchStatus = Field(..., description="历史批次当前状态。")
+    created_count: int = Field(..., ge=0, description="历史批次已确认入账的交易笔数；尚未确认时为0。")
+    match_type: Literal["exact_file", "similar_image"] = Field(..., description="exact_file表示文件内容完全一致，similar_image表示截图画面高度相似。")
+
 class Progress(BaseModel):
     """共享模型 Progress；HTTP请求与响应均遵守本定义。"""
     model_config = ConfigDict(extra="forbid")
@@ -261,6 +278,44 @@ class Batch(BaseModel):
     file_name: str = Field(..., description="经过鉴权后展示的原文件名，不能当作服务器磁盘路径。")
     created_at: _datetime = Field(..., description="资源创建时间，带时区ISO 8601。")
     updated_at: _datetime = Field(..., description="最后状态更新时间，带时区ISO 8601。")
+    duplicate_match: Optional[DuplicateBatchMatch] = Field(default=None, description="命中相同文件或高度相似历史截图时返回来源批次摘要，未命中时省略。")
+
+class DuplicateCheckRowInput(BaseModel):
+    """共享模型 DuplicateCheckRowInput；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    row_id: str = Field(..., description="本批次内稳定的草稿行标识。")
+    source_transaction_id: Optional[str] = Field(..., description="可靠的源交易或退款事件标识。")
+    occurred_at: Optional[_datetime] = Field(..., description="用户编辑后的交易时间；尚未填写完整时为null。")
+    amount_fen: Optional[StrictInt] = Field(..., ge=1, description="CNY整数分；尚未填写完整时为null。")
+    flow_type: Optional[FlowType] = Field(..., description="收支方向；尚未选择时为null。")
+    merchant: str = Field(..., max_length=500, description="用户编辑后的商户展示名称。")
+    description: str = Field(..., max_length=2000, description="用户编辑后的交易摘要/备注。")
+
+class CheckDuplicatesInput(BaseModel):
+    """共享模型 CheckDuplicatesInput；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1, description="提交预检前最后读取的批次版本，冲突返回409。")
+    rows: list[DuplicateCheckRowInput] = Field(..., min_length=1, description="待实时判重的草稿行列表。")
+
+class DuplicateRowMatch(BaseModel):
+    """共享模型 DuplicateRowMatch；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    row_id: str = Field(..., description="草稿行标识。")
+    duplicate_status: Literal["unique", "duplicate", "suspected"] = Field(..., description="实时判重结果：unique未重复，duplicate已明确存在，suspected疑似已录入。")
+    reason: str = Field(..., description="判重依据说明，未命中时为空字符串。")
+    matched_summary: str = Field(..., description="命中的已入账交易摘要（时间、商户、金额），未命中时为空字符串。")
+
+class DuplicateCheckResult(BaseModel):
+    """共享模型 DuplicateCheckResult；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    batch_id: str = Field(..., description="被预检的导入批次ID。")
+    version: int = Field(..., ge=1, description="当前批次版本号（只读预检，不自增版本）。")
+    file_match: Optional[DuplicateBatchMatch] = Field(default=None, description="若当前批次命中相同文件或高度相似历史截图则返回来源摘要，未命中时省略。")
+    rows: list[DuplicateRowMatch] = Field(..., description="与输入对应的逐行实时判重结果。")
 
 class ConfirmRow(BaseModel):
     """共享模型 ConfirmRow；HTTP请求与响应均遵守本定义。"""
@@ -293,6 +348,14 @@ class RetryInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_version: int = Field(..., ge=1, description="提交编辑前最后读取的资源版本，冲突返回409和最新版本。")
+
+class ResolveMissingInput(BaseModel):
+    """共享模型 ResolveMissingInput；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1, description="提交编辑前最后读取的资源版本，冲突返回409和最新版本。")
+    default_year: Optional[int] = Field(default=None, ge=2000, le=2100, description="快捷确认的默认年份（如2026）；配合截图月日时间自动补全。")
+    instruction: Optional[str] = Field(default=None, max_length=2000, description="用户的自然语言补充说明，交由DeepSeek智能体逐行核对补全。")
 
 class TransactionPatchChanges(BaseModel):
     """需要修改的字段；未提交字段保持原值。显式null只允许在契约可空字段。"""
@@ -439,12 +502,18 @@ _MODELS = (
     ParseResult,
     ClassificationResult,
     Transaction,
+    DuplicateBatchMatch,
     Progress,
     Batch,
+    DuplicateCheckRowInput,
+    CheckDuplicatesInput,
+    DuplicateRowMatch,
+    DuplicateCheckResult,
     ConfirmRow,
     ConfirmInput,
     ConfirmResult,
     RetryInput,
+    ResolveMissingInput,
     TransactionPatchChanges,
     TransactionPatch,
     TransactionPage,

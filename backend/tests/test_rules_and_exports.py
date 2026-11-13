@@ -638,6 +638,27 @@ class ExportPdfTest(_Base):
         self.assertEqual(422, response.status_code, response.text)
         self.assertEqual("VALIDATION_ERROR", response.json()["error"]["code"])
 
+    def test_export_pdf_paginates_when_month_is_dense(self) -> None:
+        cats = ["dining", "transport", "shopping", "housing", "entertainment", "health", "education", "other"]
+        for day in range(1, 31):
+            self._insert_txn(
+                occurred_at=f"2026-11-{day:02d}T12:00:00+08:00",
+                amount_fen=1000 + day,
+                category=cats[day % len(cats)],
+            )
+        for cat in cats:
+            self.client.put(
+                "/api/budgets",
+                json={"month": "2026-11", "category": cat, "amount_fen": 50000},
+                headers={"X-CSRF-Token": self.csrf},
+            )
+        response = self.client.get(
+            "/api/exports/monthly.pdf", params={"month": "2026-11"}
+        )
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(response.content.startswith(b"%PDF-"))
+        self.assertGreaterEqual(response.content.count(b"/Type /Page") - 1, 2)
+
 
 def _pdf_text_blobs(data: bytes) -> list[str]:
     """把 PDF 里可能含文本的分支解出来（Flate 压缩的 content stream）。

@@ -520,6 +520,326 @@ class ImportApiTest(unittest.TestCase):
         self.assertEqual(3, response.json()["duplicate_count"])
         self.assertEqual(before, self._txn_count(), "重复行不得二次入账")
 
+    def test_more_than_500_rows_fails_during_processing(self) -> None:
+        header = (
+            "微信支付账单明细,,,,\n"
+            "----------------------,,,,\n"
+            "交易时间,交易类型,交易对方,商品,收/支,金额(元),支付方式,当前状态,交易单号,商户单号,备注\n"
+        )
+        lines = [
+            f"2026-11-01 09:{i // 60:02d}:{i % 60:02d},商户消费,测试店{i},早餐,支出,¥5.00,零钱,支付成功,ORD500_{i},, "
+            for i in range(501)
+        ]
+        batch = self._pending_batch(data=(header + "\n".join(lines)).encode("utf-8-sig"))
+        self.assertEqual("failed", batch["status"])
+        codes = {issue["code"] for issue in batch["issues"]}
+        self.assertIn("TOO_MANY_ROWS", codes)
+
+    @staticmethod
+    def _render_bill_image(
+        rows: list[tuple[str, str, str]], status_time: str = "09:41"
+    ):
+        from PIL import Image, ImageDraw, ImageFont
+
+        font_lg = ImageFont.load_default(size=24)
+        font_sm = ImageFont.load_default(size=16)
+        img = Image.new("RGB", (450, 900), (245, 245, 245))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([0, 0, 450, 50], fill=(235, 235, 235))
+        draw.text((20, 14), status_time, fill=(30, 30, 30), font=font_sm)
+        draw.rectangle([0, 60, 450, 140], fill=(255, 255, 255))
+        draw.text((20, 86), "WeChat Bills", fill=(0, 0, 0), font=font_lg)
+        y = 160
+        for idx, (merchant, amount, dt_text) in enumerate(rows):
+            draw.rectangle([0, y, 450, y + 130], fill=(255, 255, 255))
+            color = (80, 160, 90) if idx % 2 == 0 else (220, 140, 40)
+            draw.ellipse([20, y + 25, 70, y + 75], fill=color)
+            draw.text((90, y + 20), merchant, fill=(20, 20, 20), font=font_lg)
+            draw.text((90, y + 62), dt_text, fill=(130, 130, 130), font=font_sm)
+            draw.text((330, y + 22), amount, fill=(20, 20, 20), font=font_lg)
+            y += 140
+        return img
+
+    def test_reupload_same_file_returns_duplicate_match_and_live_count(self) -> None:
+        first = self._pending_batch(data=WECHAT_SAMPLE, name="first_wechat.csv")
+        self.assertNotIn("duplicate_match", first)
+
+        # 第一批还在 pending_review 时重传完全相同文件，立刻给出原批次提示
+        second = self._upload_ok(data=WECHAT_SAMPLE, name="wechat_copy.csv")
+        self.assertIn("duplicate_match", second)
+        self.assertEqual(first["id"], second["duplicate_match"]["batch_id"])
+        self.assertEqual("exact_file", second["duplicate_match"]["match_type"])
+        self.assertEqual("pending_review", second["duplicate_match"]["status"])
+        self.assertEqual(0, second["duplicate_match"]["created_count"])
+        self.assertIn(
+            "DUPLICATE_FILE_UPLOADED", [i["code"] for i in second["issues"]]
+        )
+
+        # 确认第一批入账后，再去查第二批，状态与已入账笔数必须实时反映为 6 笔
+        confirm_res = self._confirm(first["id"], self._confirm_payload(first))
+        self.assertEqual(200, confirm_res.status_code, confirm_res.text)
+        waited = self._wait_status(second["id"], {"pending_review", "failed"})
+        self.assertEqual("pending_review", waited["status"])
+        self.assertEqual("completed", waited["duplicate_match"]["status"])
+        self.assertEqual(6, waited["duplicate_match"]["created_count"])
+        self.assertIn(
+            "DUPLICATE_FILE_UPLOADED", [i["code"] for i in waited["issues"]]
+        )
+
+    def test_similar_recompressed_screenshot_triggers_similar_image_while_distinct_bill_does_not(
+        self,
+    ) -> None:
+        import io
+
+        img_a = self._render_bill_image(
+            [
+                ("Starbucks Coffee #102", "-38.50", "05-01 12:30"),
+                ("Didi Express 88412", "-24.00", "05-01 18:15"),
+                ("Meituan Takeout Order", "-45.80", "05-02 11:45"),
+                ("FamilyMart Store", "-12.30", "05-02 20:10"),
+            ],
+            status_time="09:41",
+        )
+        buf_a = io.BytesIO()
+        img_a.save(buf_a, format="PNG")
+        first = self._upload_ok(
+            data=buf_a.getvalue(), name="bill_a.png", method="screenshot"
+        )
+        self.assertNotIn("duplicate_match", first)
+        # 等待测试环境下 fallback worker 落盘后再置为 pending_review（模拟真实 OCR 识别完成，避免竞态转为 failed）
+        self._wait_status(first["id"], {"pending_review", "failed"})
+        db = app.state.session_factory()
+        try:
+            rec = db.get(models.ImportBatch, first["id"])
+            rec.status = "pending_review"
+            db.commit()
+        finally:
+            db.close()
+
+        # 微信转发/二次压缩 + 尺寸缩放成 JPEG，应检出 similar_image
+        buf_jpg = io.BytesIO()
+        img_a.resize((360, 720)).save(buf_jpg, format="JPEG", quality=55)
+        similar = self._upload_ok(
+            data=buf_jpg.getvalue(), name="bill_a_wechat.jpg", method="screenshot"
+        )
+        self.assertIn("duplicate_match", similar)
+        self.assertEqual(first["id"], similar["duplicate_match"]["batch_id"])
+        self.assertEqual("similar_image", similar["duplicate_match"]["match_type"])
+        self.assertIn(
+            "SIMILAR_IMAGE_UPLOADED", [i["code"] for i in similar["issues"]]
+        )
+
+        # 完全不同内容的新账单截图不得误报为相似截图
+        img_b = self._render_bill_image(
+            [
+                ("Apple Store Pudong", "-6999.00", "05-03 10:12"),
+                ("JD Express Courier", "-88.00", "05-03 14:00"),
+                ("Metro Card Topup", "-100.00", "05-04 08:20"),
+                ("KFC Breakfast Set", "-29.50", "05-04 09:05"),
+            ],
+            status_time="09:41",
+        )
+        buf_b = io.BytesIO()
+        img_b.save(buf_b, format="PNG")
+        distinct = self._upload_ok(
+            data=buf_b.getvalue(), name="bill_b.png", method="screenshot"
+        )
+        self.assertNotIn("duplicate_match", distinct)
+        self.assertNotIn(
+            "SIMILAR_IMAGE_UPLOADED", [i["code"] for i in distinct["issues"]]
+        )
+
+    def test_legacy_batch_lazy_backfill_detects_reupload(self) -> None:
+        import io
+
+        img = self._render_bill_image(
+            [
+                ("Starbucks Coffee #102", "-38.50", "05-01 12:30"),
+                ("Didi Express 88412", "-24.00", "05-01 18:15"),
+            ]
+        )
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        raw = buf.getvalue()
+        legacy = self._upload_ok(data=raw, name="legacy.png", method="screenshot")
+        self._wait_status(legacy["id"], {"pending_review", "failed"})
+
+        # 模拟 Scheme B 上线前旧已入账批次：status=completed 且 encrypted_filename 仅有 name 与 media_type
+        db = app.state.session_factory()
+        try:
+            rec = db.get(models.ImportBatch, legacy["id"])
+            rec.status = "completed"
+            rec.encrypted_filename = encrypt_json(
+                app.state.settings.data_encryption_key,
+                {"name": "legacy.png", "media_type": "image/png"},
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        reup = self._upload_ok(data=raw, name="legacy_again.png", method="screenshot")
+        self.assertIn("duplicate_match", reup)
+        self.assertEqual(legacy["id"], reup["duplicate_match"]["batch_id"])
+        self.assertEqual("exact_file", reup["duplicate_match"]["match_type"])
+
+    def test_tolerant_duplicate_marks_cross_format_and_precheck_api(self) -> None:
+        from app.contracts import TransactionDraft
+        from app.services.imports import mark_duplicates
+
+        # 1) 先用带源单号的 CSV 入账星巴克咖啡
+        csv_batch = self._pending_batch(data=WECHAT_SAMPLE, name="wechat.csv")
+        self.assertEqual(
+            200,
+            self._confirm(csv_batch["id"], self._confirm_payload(csv_batch)).status_code,
+        )
+        target_row = next(
+            r for r in csv_batch["rows"] if "星巴克" in r["merchant"]
+        )
+
+        # 2) 用 mark_duplicates 测试跨形式（无单号、略短商户名、不同备注）命中 suspected
+        db = app.state.session_factory()
+        try:
+            issues_out: list = []
+            probe_draft = TransactionDraft(
+                source_transaction_id=None,
+                occurred_at=target_row["occurred_at"],
+                amount_fen=target_row["amount_fen"],
+                currency="CNY",
+                flow_type=target_row["flow_type"],
+                merchant="星巴克",
+                description="截图识别备注不同",
+                category="dining",
+                row_id="row_cross_1",
+                classification_source="general_rule",
+                classification_reason="测试",
+                duplicate_status="unique",
+                issues=[],
+            )
+            marked = mark_duplicates(
+                db,
+                user_id=self._batch_row(csv_batch["id"]).user_id,
+                source="wechat",
+                drafts=[probe_draft],
+                key=app.state.settings.data_encryption_key,
+                issues=issues_out,
+            )
+            self.assertEqual("suspected", marked[0].duplicate_status)
+            self.assertEqual("DUPLICATE_SUSPECTED", marked[0].issues[0].code)
+        finally:
+            db.close()
+
+        # 3) 构造待确认批次：初始因缺少 occurred_at 而标 unique，用户编辑填回日期后触发 check-duplicates
+        second = self._pending_batch(data=WECHAT_SAMPLE, name="shot_like.csv")
+        edit_row = dict(second["rows"][0])
+        matched_orig = next(
+            r for r in csv_batch["rows"] if r["merchant"] == edit_row["merchant"]
+        )
+        db = app.state.session_factory()
+        try:
+            rec = db.get(models.ImportBatch, second["id"])
+            stored = decrypt_json(
+                app.state.settings.data_encryption_key, rec.encrypted_rows
+            )
+            stored["rows"][0]["source_transaction_id"] = None
+            stored["rows"][0]["occurred_at"] = None
+            stored["rows"][0]["duplicate_status"] = "unique"
+            stored["rows"][0]["issues"] = []
+            stored["rows"][0]["description"] = "手动修改备注"
+            rec.encrypted_rows = encrypt_json(
+                app.state.settings.data_encryption_key, stored
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        # 版本冲突 409
+        conflict = self.client.post(
+            f"/api/imports/{second['id']}/check-duplicates",
+            json={
+                "expected_version": second["version"] + 99,
+                "rows": [
+                    {
+                        "row_id": edit_row["row_id"],
+                        "source_transaction_id": None,
+                        "occurred_at": matched_orig["occurred_at"],
+                        "amount_fen": matched_orig["amount_fen"],
+                        "flow_type": matched_orig["flow_type"],
+                        "merchant": matched_orig["merchant"],
+                        "description": "手动修改备注",
+                    }
+                ],
+            },
+            headers={"X-CSRF-Token": self.csrf},
+        )
+        self.assertEqual(409, conflict.status_code, conflict.text)
+
+        # 实时预检：用户填写日期后命中 suspected，且返回 X-Contract-Version 与脱敏命中摘要，version 不变
+        precheck = self.client.post(
+            f"/api/imports/{second['id']}/check-duplicates",
+            json={
+                "expected_version": second["version"],
+                "rows": [
+                    {
+                        "row_id": edit_row["row_id"],
+                        "source_transaction_id": None,
+                        "occurred_at": matched_orig["occurred_at"],
+                        "amount_fen": matched_orig["amount_fen"],
+                        "flow_type": matched_orig["flow_type"],
+                        "merchant": matched_orig["merchant"],
+                        "description": "手动修改备注",
+                    }
+                ],
+            },
+            headers={"X-CSRF-Token": self.csrf},
+        )
+        self.assertEqual(200, precheck.status_code, precheck.text)
+        self.assertEqual(CONTRACT_VERSION, precheck.headers.get("X-Contract-Version"))
+        body = precheck.json()
+        self.assertEqual(second["version"], body["version"])
+        self.assertEqual("suspected", body["rows"][0]["duplicate_status"])
+        self.assertIn(matched_orig["merchant"], body["rows"][0]["matched_summary"])
+
+        # 若跳过前端弹窗直接 confirm 且未传 allow_suspected_duplicate，后端同样 422 兜底拦截
+        blocked_payload = {
+            "request_id": str(uuid.uuid4()),
+            "expected_version": second["version"],
+            "rows": [
+                {
+                    "row_id": edit_row["row_id"],
+                    "transaction": {
+                        "source_transaction_id": None,
+                        "occurred_at": matched_orig["occurred_at"],
+                        "amount_fen": matched_orig["amount_fen"],
+                        "currency": "CNY",
+                        "flow_type": matched_orig["flow_type"],
+                        "merchant": matched_orig["merchant"],
+                        "description": "手动修改备注",
+                        "category": matched_orig["category"],
+                    },
+                    "allow_suspected_duplicate": False,
+                }
+            ],
+        }
+        blocked = self._confirm(second["id"], blocked_payload)
+        self.assertEqual(422, blocked.status_code, blocked.text)
+        codes = [f["code"] for f in blocked.json()["error"]["details"]["fields"]]
+        self.assertIn("SUSPECTED_DUPLICATE_NOT_ALLOWED", codes)
+
+        # 显式确认 allow_suspected_duplicate=True 后方可入账
+        allowed_payload = {
+            **blocked_payload,
+            "request_id": str(uuid.uuid4()),
+            "rows": [
+                {
+                    **blocked_payload["rows"][0],
+                    "allow_suspected_duplicate": True,
+                }
+            ],
+        }
+        ok = self._confirm(second["id"], allowed_payload)
+        self.assertEqual(200, ok.status_code, ok.text)
+        self.assertEqual(1, ok.json()["created_count"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -18,11 +18,17 @@ export type TransactionDraft = { "source_transaction_id": string | null; "occurr
 export type ParseResult = { "rows": Array<TransactionDraft>; "issues": Array<Issue> };
 export type ClassificationResult = { "row_id": string; "category": Category; "classification_source": ClassificationSource; "classification_reason": string; "issues": Array<Issue> };
 export type Transaction = { "source_transaction_id": string | null; "occurred_at": string; "amount_fen": number; "currency": "CNY"; "flow_type": FlowType; "merchant": string; "description": string; "category": Category; "id": string; "version": number; "source": Source; "ingestion_method": IngestionMethod; "import_batch_id": string; "classification_source": ClassificationSource; "classification_reason": string; "status": "confirmed" };
-export type Batch = { "id": string; "version": number; "source": Source; "ingestion_method": IngestionMethod; "status": BatchStatus; "rows": Array<TransactionDraft>; "issues": Array<Issue>; "progress": Progress; "file_name": string; "created_at": string; "updated_at": string };
+export type Batch = { "id": string; "version": number; "source": Source; "ingestion_method": IngestionMethod; "status": BatchStatus; "rows": Array<TransactionDraft>; "issues": Array<Issue>; "progress": Progress; "file_name": string; "created_at": string; "updated_at": string; "duplicate_match"?: DuplicateBatchMatch };
+export type DuplicateBatchMatch = { "batch_id": string; "file_name": string; "created_at": string; "status": BatchStatus; "created_count": number; "match_type": "exact_file" | "similar_image" };
+export type DuplicateCheckRowInput = { "row_id": string; "source_transaction_id": string | null; "occurred_at": string | null; "amount_fen": number | null; "flow_type": "income" | "expense" | "refund" | "transfer" | "repayment" | null; "merchant": string; "description": string };
+export type CheckDuplicatesInput = { "expected_version": number; "rows": Array<DuplicateCheckRowInput> };
+export type DuplicateRowMatch = { "row_id": string; "duplicate_status": "unique" | "duplicate" | "suspected"; "reason": string; "matched_summary": string };
+export type DuplicateCheckResult = { "batch_id": string; "version": number; "file_match"?: DuplicateBatchMatch; "rows": Array<DuplicateRowMatch> };
 export type ConfirmRow = { "row_id": string; "transaction": TransactionInput; "allow_suspected_duplicate": boolean };
 export type ConfirmInput = { "request_id": string; "expected_version": number; "rows": Array<ConfirmRow> };
 export type ConfirmResult = { "batch_id": string; "created_count": number; "duplicate_count": number; "ignored_count": number; "transaction_ids": Array<string> };
 export type RetryInput = { "expected_version": number };
+export type ResolveMissingInput = { "expected_version": number; "default_year"?: number | null; "instruction"?: string | null };
 export type TransactionPatch = { "expected_version": number; "changes": { "source_transaction_id"?: string | null; "occurred_at"?: string; "amount_fen"?: number; "currency"?: "CNY"; "flow_type"?: FlowType; "merchant"?: string; "description"?: string; "category"?: Category }; "remember_rule"?: boolean };
 export type TransactionPage = { "items": Array<Transaction>; "total": number; "page": number; "page_size": number };
 export type ClassificationRule = { "id": string; "version": number; "source": Source; "merchant_normalized": string; "category": ResolvedCategory; "enabled": boolean };
@@ -48,6 +54,8 @@ export type OperationArgs = {
 "getImportOriginal": { path: { "id": string } };
 "retryImport": { path: { "id": string }; body: RetryInput };
 "confirmImport": { path: { "id": string }; body: ConfirmInput };
+"resolveImportMissing": { path: { "id": string }; body: ResolveMissingInput };
+"checkImportDuplicates": { path: { "id": string }; body: CheckDuplicatesInput };
 "listTransactions": { query?: { "date_from"?: string; "date_to"?: string; "category"?: Category; "source"?: Source; "flow_type"?: FlowType; "page"?: number; "page_size"?: number } };
 "patchTransaction": { path: { "id": string }; body: TransactionPatch };
 "listRules": {  };
@@ -67,6 +75,8 @@ export type OperationResults = {
 "getImportOriginal": Blob;
 "retryImport": Batch;
 "confirmImport": ConfirmResult;
+"resolveImportMissing": Batch;
+"checkImportDuplicates": DuplicateCheckResult;
 "listTransactions": TransactionPage;
 "patchTransaction": Transaction;
 "listRules": RuleList;
@@ -144,6 +154,22 @@ const OPERATIONS = {
   },
   "confirmImport": {
     "path": "/api/imports/{id}/confirm",
+    "method": "POST",
+    "media": "application/json",
+    "status": 200,
+    "binary": false,
+    "csrf": true
+  },
+  "resolveImportMissing": {
+    "path": "/api/imports/{id}/resolve-missing",
+    "method": "POST",
+    "media": "application/json",
+    "status": 200,
+    "binary": false,
+    "csrf": true
+  },
+  "checkImportDuplicates": {
+    "path": "/api/imports/{id}/check-duplicates",
     "method": "POST",
     "media": "application/json",
     "status": 200,
@@ -261,6 +287,8 @@ export function getImport(args: OperationArgs["getImport"], csrfToken?: string):
 export function getImportOriginal(args: OperationArgs["getImportOriginal"], csrfToken?: string): Promise<OperationResults["getImportOriginal"]> { return callApi("getImportOriginal", args, csrfToken); }
 export function retryImport(args: OperationArgs["retryImport"], csrfToken?: string): Promise<OperationResults["retryImport"]> { return callApi("retryImport", args, csrfToken); }
 export function confirmImport(args: OperationArgs["confirmImport"], csrfToken?: string): Promise<OperationResults["confirmImport"]> { return callApi("confirmImport", args, csrfToken); }
+export function resolveImportMissing(args: OperationArgs["resolveImportMissing"], csrfToken?: string): Promise<OperationResults["resolveImportMissing"]> { return callApi("resolveImportMissing", args, csrfToken); }
+export function checkImportDuplicates(args: OperationArgs["checkImportDuplicates"], csrfToken?: string): Promise<OperationResults["checkImportDuplicates"]> { return callApi("checkImportDuplicates", args, csrfToken); }
 export function listTransactions(args: OperationArgs["listTransactions"], csrfToken?: string): Promise<OperationResults["listTransactions"]> { return callApi("listTransactions", args, csrfToken); }
 export function patchTransaction(args: OperationArgs["patchTransaction"], csrfToken?: string): Promise<OperationResults["patchTransaction"]> { return callApi("patchTransaction", args, csrfToken); }
 export function listRules(args: OperationArgs["listRules"], csrfToken?: string): Promise<OperationResults["listRules"]> { return callApi("listRules", args, csrfToken); }

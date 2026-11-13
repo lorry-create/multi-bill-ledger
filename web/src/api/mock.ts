@@ -51,6 +51,25 @@ export const mock = {
     batch = sample<SDK.Batch>("getImport_success");
     return batch;
   },
+  async resolveImportMissing(
+    args: SDK.OperationArgs["resolveImportMissing"],
+  ) {
+    await wait();
+    const current = batch ?? sample<SDK.Batch>("getImport_success");
+    const year = args.body.default_year ?? 2026;
+    const rows = current.rows.map((row) => ({
+      ...row,
+      occurred_at: row.occurred_at ?? `${year}-11-06T16:53:00+08:00`,
+      issues: row.issues.filter((i) => i.code !== "TIME_MISSING"),
+    }));
+    batch = {
+      ...current,
+      version: current.version + 1,
+      rows,
+      issues: rows.flatMap((r) => r.issues),
+    };
+    return batch;
+  },
   async confirmImport(args: SDK.OperationArgs["confirmImport"]) {
     await wait();
     const result = sample<SDK.ConfirmResult>("confirmImport_success");
@@ -170,5 +189,41 @@ export const mock = {
     return new Blob(["合成演示不提供 PDF，请连接真实后端导出。"], {
       type: "text/plain",
     });
+  },
+  async checkImportDuplicates(
+    args: SDK.OperationArgs["checkImportDuplicates"],
+  ): Promise<SDK.DuplicateCheckResult> {
+    const page = await this.listTransactions({ query: { page: 1, page_size: 100 } });
+    const existing = page.items;
+    return {
+      batch_id: args.path.id,
+      version: args.body.expected_version,
+      rows: args.body.rows.map((row) => {
+        const day = row.occurred_at ? row.occurred_at.slice(0, 10) : "";
+        const hitExact = existing.find(
+          (tx) =>
+            (row.source_transaction_id &&
+              tx.source_transaction_id === row.source_transaction_id) ||
+            (tx.occurred_at.slice(0, 10) === day &&
+              row.amount_fen !== null &&
+              tx.amount_fen === row.amount_fen &&
+              tx.merchant.trim() === row.merchant.trim()),
+        );
+        if (hitExact) {
+          return {
+            row_id: row.row_id,
+            duplicate_status: "duplicate",
+            reason: "与演示账本中已有记录一致",
+            matched_summary: `${hitExact.occurred_at.slice(0, 10)} ${hitExact.merchant} ¥${(hitExact.amount_fen / 100).toFixed(2)}`,
+          };
+        }
+        return {
+          row_id: row.row_id,
+          duplicate_status: "unique",
+          reason: "",
+          matched_summary: "",
+        };
+      }),
+    };
   },
 };

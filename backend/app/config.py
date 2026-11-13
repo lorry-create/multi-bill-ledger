@@ -105,6 +105,10 @@ class Settings:
     allow_test_doubles: bool
     cors_origins: tuple[str, ...]
     intelligence_provider: str
+    deepseek_base_url: str
+    deepseek_api_key: str
+    deepseek_model: str
+    ocr_provider: str
     # 导入中心（T02）：限额与批次时限都来自 docs/02、docs/11、docs/13 的明文规定，
     # 不写成散布在路由里的魔法数字，测试要靠环境变量调小才跑得动
     upload_max_file_bytes: int
@@ -127,7 +131,26 @@ class Settings:
         return self.database_url.startswith("sqlite")
 
 
+def _load_dotenv_if_local() -> None:
+    """开发期自动加载 REPO_ROOT/.env 或 BACKEND_DIR/.env，不覆盖已显式设置的环境变量。"""
+    if (os.environ.get("APP_ENV") or "").strip().lower() == "test":
+        return
+    for candidate in (BACKEND_DIR / ".env", REPO_ROOT / ".env"):
+        if not candidate.is_file():
+            continue
+        for raw_line in candidate.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if key:
+                os.environ.setdefault(key, val)
+
+
 def load_settings() -> Settings:
+    _load_dotenv_if_local()
     app_env = _env("APP_ENV", "development").lower() or "development"
 
     database_url = _env("DATABASE_URL")
@@ -172,6 +195,10 @@ def load_settings() -> Settings:
         # 默认纯规则实现；D 的实现按 包.模块:类名 填入。故意不支持"自动降级"，
         # 否则分类来源会撒谎（见 app/intelligence/factory.py 顶部说明）
         intelligence_provider=_env("INTELLIGENCE_PROVIDER", "fallback-rules"),
+        deepseek_base_url=_env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        deepseek_api_key=_env("DEEPSEEK_API_KEY", ""),
+        deepseek_model=_env("DEEPSEEK_MODEL", "deepseek-chat"),
+        ocr_provider=_env("OCR_PROVIDER", "rapidocr"),
         # 契约 docs/11 createImport：文件 10MiB、图片 5MiB
         upload_max_file_bytes=_env_int("UPLOAD_MAX_FILE_BYTES", 10 * 1024 * 1024),
         upload_max_image_bytes=_env_int("UPLOAD_MAX_IMAGE_BYTES", 5 * 1024 * 1024),

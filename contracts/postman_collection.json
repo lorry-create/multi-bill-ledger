@@ -300,6 +300,82 @@
       ]
     },
     {
+      "name": "POST /api/imports/{id}/resolve-missing [resolveImportMissing]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/imports/{{batchId}}/resolve-missing",
+        "description": "仅pending_review且未过期、版本相符的批次可用。接收default_year或自然语言instruction交由智能体补全缺失时间、类别或流向，并重跑确定性判重返回最新Batch；绝不擅自猜测未确认日期。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": 2,\n  \"default_year\": 2026,\n  \"instruction\": \"前7笔是2026年，第8笔是2026年11月1日 12:00\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/imports/{id}/check-duplicates [checkImportDuplicates]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/imports/{{batchId}}/check-duplicates",
+        "description": "仅pending_review且未过期、版本相符的批次可用。按用户当前在确认页编辑后的交易字段执行只读判重（精确指纹 + 跨形式容错匹配），不修改批次版本号或草稿持久化内容，供确认入账前向用户弹窗预警。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expected_version\": 2,\n  \"rows\": [\n    {\n      \"row_id\": \"row_demo_01\",\n      \"source_transaction_id\": \"SYN-HTTP-001\",\n      \"occurred_at\": \"2026-11-08T12:00:00+08:00\",\n      \"amount_fen\": 2300,\n      \"flow_type\": \"expense\",\n      \"merchant\": \"示例餐馆\",\n      \"description\": \"合成午餐账单\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "GET /api/transactions [listTransactions]",
       "request": {
         "method": "GET",

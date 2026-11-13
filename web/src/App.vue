@@ -118,7 +118,9 @@ async function leave() {
         <div class="topbar-leading"><button class="icon-btn sidebar-toggle" type="button" :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" :aria-expanded="!sidebarCollapsed" @click="toggleSidebar"><PanelLeftOpen v-if="sidebarCollapsed" :size="20" /><PanelLeftClose v-else :size="20" /></button><span class="breadcrumb"
           >归账 <ChevronRight :size="14" />
           {{
-            nav.find((x) => route.path.startsWith(x.to))?.label ?? "导入确认"
+            route.path.startsWith("/import/")
+              ? "导入确认"
+              : (nav.find((x) => route.path.startsWith(x.to))?.label ?? "导入确认")
           }}</span></div>
         <div class="top-actions">
           <span v-if="isDemo" class="demo-badge">合成数据演示</span

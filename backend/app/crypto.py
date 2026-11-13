@@ -89,3 +89,9 @@ def dedupe_digest(master: str, *parts: str) -> str:
     key = _derive(master, b"dedupe-digest")
     joined = "\x1f".join(parts).encode("utf-8")
     return hmac.new(key, joined, hashlib.sha256).hexdigest()
+
+
+def file_digest(master: str, data: bytes) -> str:
+    """原始上传文件字节摘要：仅用于同用户重复上传检测，不可逆推出原文件。"""
+    key = _derive(master, b"file-digest")
+    return hmac.new(key, data, hashlib.sha256).hexdigest()

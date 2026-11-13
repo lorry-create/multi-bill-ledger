@@ -25,14 +25,16 @@
 | API07 | `GET /api/imports/{id}/original` | `getImportOriginal` | 导入确认页：查看原图或原文件 | T02/T07 |
 | API08 | `POST /api/imports/{id}/retry` | `retryImport` | 导入失败页：点击重试 | T02/T07 |
 | API09 | `POST /api/imports/{id}/confirm` | `confirmImport` | 导入确认页：点击确认入账 | T02/T03/T07 |
-| API10 | `GET /api/transactions` | `listTransactions` | 账单页：列表初始化和筛选翻页 | T02/T03 |
-| API11 | `PATCH /api/transactions/{id}` | `patchTransaction` | 账单编辑弹窗：保存修改或记住分类 | T05/T07 |
-| API12 | `GET /api/classification-rules` | `listRules` | 个人规则页：读取本人规则 | T05/T07 |
-| API13 | `PATCH /api/classification-rules/{id}` | `patchRule` | 个人规则页：修改类别或停用 | T05/T07 |
-| API14 | `GET /api/reports/monthly` | `getMonthlyReport` | 月报页：选月份、修改后刷新 | T08/T09 |
-| API15 | `PUT /api/budgets` | `putBudget` | 预算弹窗：保存分类月预算 | T08/T09 |
-| API16 | `GET /api/exports/transactions.csv` | `exportTransactions` | 账单页：导出当前筛选结果 | T08/T09 |
-| API17 | `GET /api/exports/monthly.pdf` | `exportMonthlyPdf` | 月报页：导出当前月报 | T08/T09 |
+| API10 | `POST /api/imports/{id}/resolve-missing` | `resolveImportMissing` | 导入确认页：通过弹窗补充缺失年份或自然语言说明 | T02/T05/T07 |
+| API11 | `POST /api/imports/{id}/check-duplicates` | `checkImportDuplicates` | 导入确认页：编辑草稿后实时预检或点击确认入账前二次判重 | T02/T03 |
+| API12 | `GET /api/transactions` | `listTransactions` | 账单页：列表初始化和筛选翻页 | T02/T03 |
+| API13 | `PATCH /api/transactions/{id}` | `patchTransaction` | 账单编辑弹窗：保存修改或记住分类 | T05/T07 |
+| API14 | `GET /api/classification-rules` | `listRules` | 个人规则页：读取本人规则 | T05/T07 |
+| API15 | `PATCH /api/classification-rules/{id}` | `patchRule` | 个人规则页：修改类别或停用 | T05/T07 |
+| API16 | `GET /api/reports/monthly` | `getMonthlyReport` | 月报页：选月份、修改后刷新 | T08/T09 |
+| API17 | `PUT /api/budgets` | `putBudget` | 预算弹窗：保存分类月预算 | T08/T09 |
+| API18 | `GET /api/exports/transactions.csv` | `exportTransactions` | 账单页：导出当前筛选结果 | T08/T09 |
+| API19 | `GET /api/exports/monthly.pdf` | `exportMonthlyPdf` | 月报页：导出当前月报 | T08/T09 |
 
 ## API01 必要依赖健康检查
 
@@ -749,7 +751,208 @@ Content-Type: application/json
 }
 ```
 
-## API10 筛选并分页读取本人已确认交易
+## API10 根据用户确认的年份或自然语言补充说明，由智能体批量补全缺失字段并重跑判重
+
+`POST /api/imports/{id}/resolve-missing`
+
+仅pending_review且未过期、版本相符的批次可用。接收default_year或自然语言instruction交由智能体补全缺失时间、类别或流向，并重跑确定性判重返回最新Batch；绝不擅自猜测未确认日期。
+
+前端导出函数：`resolveImportMissing`。后端负责人H；智能处理由D模块提供，前端负责人F。对应任务：T02/T05/T07。
+
+认证：本人会话Cookie。写请求必须CSRF。
+
+### 路径和查询参数
+
+| 参数 | 位置 | 类型 | 必填 | 含义 |
+| --- | --- | --- | --- | --- |
+| `id` | path | `string` | 是 | 从列表或创建结果取得的资源ID。 |
+
+### 请求体
+
+媒体类型：`application/json`。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `expected_version` | `integer` | 是 | minimum=1。提交编辑前最后读取的资源版本，冲突返回409和最新版本。 |
+| `default_year` | `integer / null` | 否 | minimum=2000; maximum=2100。快捷确认的默认年份（如2026）；配合截图月日时间自动补全。 |
+| `instruction` | `string / null` | 否 | maxLength=2000。用户的自然语言补充说明，交由DeepSeek智能体逐行核对补全。 |
+
+### 请求示例
+
+```http
+POST /api/imports/batch_demo_01/resolve-missing HTTP/1.1
+Host: 127.0.0.1:8000
+Cookie: bill_session=<浏览器自动携带的会话>
+X-CSRF-Token: synthetic-csrf-token
+Content-Type: application/json
+```
+
+JSON请求正文：
+
+```json
+{
+  "expected_version": 2,
+  "default_year": 2026,
+  "instruction": "前7笔是2026年，第8笔是2026年11月1日 12:00"
+}
+```
+
+### 成功响应
+
+HTTP状态：`200`。
+
+```http
+X-Contract-Version: 0.2.0
+Content-Type: application/json
+```
+
+```json
+{
+  "id": "batch_demo_01",
+  "version": 3,
+  "source": "wechat",
+  "ingestion_method": "screenshot",
+  "status": "pending_review",
+  "rows": [
+    {
+      "source_transaction_id": null,
+      "occurred_at": "2026-11-06T16:53:00+08:00",
+      "amount_fen": 98057,
+      "currency": "CNY",
+      "flow_type": "expense",
+      "merchant": "示例医院",
+      "description": "合成截图补充年份示例",
+      "category": "health",
+      "row_id": "row_demo_01",
+      "classification_source": "deepseek",
+      "classification_reason": "医院医疗消费分类",
+      "duplicate_status": "unique",
+      "issues": []
+    }
+  ],
+  "issues": [],
+  "progress": {
+    "current": 1,
+    "total": 1
+  },
+  "file_name": "synthetic_bill.png",
+  "created_at": "2026-11-08T12:00:00+08:00",
+  "updated_at": "2026-11-08T12:05:00+08:00"
+}
+```
+
+响应模型：`Batch`。逐字段见文末共享模型。
+
+### 失败和前端处理
+
+| HTTP | 错误代码或含义 | 前端动作 |
+| --- | --- | --- |
+| 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
+| 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
+| 404 | RESOURCE_NOT_FOUND | 提示资源不可用，不泄露别的用户资源。 |
+| 409 | VERSION_CONFLICT, BATCH_STATE_CONFLICT | 按error.code区分版本、幂等或状态冲突；重新读取后由用户确认。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
+| 503 | SERVICE_UNAVAILABLE | 保留用户输入并提示稍后手动重试。 |
+
+## API11 对用户编辑中的草稿行执行只读实时判重预检
+
+`POST /api/imports/{id}/check-duplicates`
+
+仅pending_review且未过期、版本相符的批次可用。按用户当前在确认页编辑后的交易字段执行只读判重（精确指纹 + 跨形式容错匹配），不修改批次版本号或草稿持久化内容，供确认入账前向用户弹窗预警。
+
+前端导出函数：`checkImportDuplicates`。后端负责人H；智能处理由D模块提供，前端负责人F。对应任务：T02/T03。
+
+认证：本人会话Cookie。写请求必须CSRF。
+
+### 路径和查询参数
+
+| 参数 | 位置 | 类型 | 必填 | 含义 |
+| --- | --- | --- | --- | --- |
+| `id` | path | `string` | 是 | 从列表或创建结果取得的资源ID。 |
+
+### 请求体
+
+媒体类型：`application/json`。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `expected_version` | `integer` | 是 | minimum=1。提交预检前最后读取的批次版本，冲突返回409。 |
+| `rows` | `array[DuplicateCheckRowInput]` | 是 | minItems=1。待实时判重的草稿行列表。 |
+
+### 请求示例
+
+```http
+POST /api/imports/batch_demo_01/check-duplicates HTTP/1.1
+Host: 127.0.0.1:8000
+Cookie: bill_session=<浏览器自动携带的会话>
+X-CSRF-Token: synthetic-csrf-token
+Content-Type: application/json
+```
+
+JSON请求正文：
+
+```json
+{
+  "expected_version": 2,
+  "rows": [
+    {
+      "row_id": "row_demo_01",
+      "source_transaction_id": "SYN-HTTP-001",
+      "occurred_at": "2026-11-08T12:00:00+08:00",
+      "amount_fen": 2300,
+      "flow_type": "expense",
+      "merchant": "示例餐馆",
+      "description": "合成午餐账单"
+    }
+  ]
+}
+```
+
+### 成功响应
+
+HTTP状态：`200`。
+
+```http
+X-Contract-Version: 0.2.0
+Content-Type: application/json
+```
+
+```json
+{
+  "batch_id": "batch_demo_01",
+  "version": 2,
+  "file_match": {
+    "batch_id": "batch_prev_01",
+    "file_name": "wechat_nov.png",
+    "created_at": "2026-11-08T10:00:00+08:00",
+    "status": "completed",
+    "created_count": 2,
+    "match_type": "exact_file"
+  },
+  "rows": [
+    {
+      "row_id": "row_demo_01",
+      "duplicate_status": "duplicate",
+      "reason": "与已入账记录精确匹配（同平台同日期同金额同交易单号）",
+      "matched_summary": "2026-11-08 12:00 示例餐馆 ¥23.00"
+    }
+  ]
+}
+```
+
+响应模型：`DuplicateCheckResult`。逐字段见文末共享模型。
+
+### 失败和前端处理
+
+| HTTP | 错误代码或含义 | 前端动作 |
+| --- | --- | --- |
+| 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
+| 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
+| 404 | RESOURCE_NOT_FOUND | 提示资源不可用，不泄露别的用户资源。 |
+| 409 | VERSION_CONFLICT, BATCH_STATE_CONFLICT | 按error.code区分版本、幂等或状态冲突；重新读取后由用户确认。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
+
+## API12 筛选并分页读取本人已确认交易
 
 `GET /api/transactions`
 
@@ -827,7 +1030,7 @@ Content-Type: application/json
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API11 修改交易并可选择建立个人商户规则
+## API13 修改交易并可选择建立个人商户规则
 
 `PATCH /api/transactions/{id}`
 
@@ -931,7 +1134,7 @@ Content-Type: application/json
 }
 ```
 
-## API12 读取本人规则
+## API14 读取本人规则
 
 `GET /api/classification-rules`
 
@@ -983,7 +1186,7 @@ Content-Type: application/json
 | --- | --- | --- |
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 
-## API13 修改或停用规则，不改写历史账单
+## API15 修改或停用规则，不改写历史账单
 
 `PATCH /api/classification-rules/{id}`
 
@@ -1060,7 +1263,7 @@ Content-Type: application/json
 | 409 | VERSION_CONFLICT | 按error.code区分版本、幂等或状态冲突；重新读取后由用户确认。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API14 按上海时区汇总月份并返回预算情况
+## API16 按上海时区汇总月份并返回预算情况
 
 `GET /api/reports/monthly`
 
@@ -1355,7 +1558,7 @@ Content-Type: application/json
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API15 按本人月份类别设置或更新预算
+## API17 按本人月份类别设置或更新预算
 
 `PUT /api/budgets`
 
@@ -1423,7 +1626,7 @@ Content-Type: application/json
 | 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API16 导出与筛选范围一致的本人账单CSV
+## API18 导出与筛选范围一致的本人账单CSV
 
 `GET /api/exports/transactions.csv`
 
@@ -1480,7 +1683,7 @@ wechat,2300,expense,dining
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 | 503 | SERVICE_UNAVAILABLE | 保留用户输入并提示稍后手动重试。 |
 
-## API17 导出与月报同口径的中文PDF
+## API19 导出与月报同口径的中文PDF
 
 `GET /api/exports/monthly.pdf`
 
@@ -1741,6 +1944,70 @@ Content-Disposition: attachment; filename="ledger-2026-11.pdf"
 | `file_name` | `string` | 是 | 经过鉴权后展示的原文件名，不能当作服务器磁盘路径。 |
 | `created_at` | `string` | 是 | format=date-time。资源创建时间，带时区ISO 8601。 |
 | `updated_at` | `string` | 是 | format=date-time。最后状态更新时间，带时区ISO 8601。 |
+| `duplicate_match` | `DuplicateBatchMatch` | 否 | 命中相同文件或高度相似历史截图时返回来源批次摘要，未命中时省略。 |
+
+
+### DuplicateBatchMatch
+
+共享模型 DuplicateBatchMatch；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `batch_id` | `string` | 是 | 匹配到的历史导入批次ID。 |
+| `file_name` | `string` | 是 | 历史批次原始文件名。 |
+| `created_at` | `string` | 是 | format=date-time。历史批次上传时间，带时区ISO 8601。 |
+| `status` | `BatchStatus` | 是 | 历史批次当前状态。 |
+| `created_count` | `integer` | 是 | minimum=0。历史批次已确认入账的交易笔数；尚未确认时为0。 |
+| `match_type` | `exact_file / similar_image` | 是 | exact_file表示文件内容完全一致，similar_image表示截图画面高度相似。 |
+
+
+### DuplicateCheckRowInput
+
+共享模型 DuplicateCheckRowInput；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `row_id` | `string` | 是 | 本批次内稳定的草稿行标识。 |
+| `source_transaction_id` | `string / null` | 是 | 可靠的源交易或退款事件标识。 |
+| `occurred_at` | `string / null` | 是 | format=date-time。用户编辑后的交易时间；尚未填写完整时为null。 |
+| `amount_fen` | `integer / null` | 是 | minimum=1。CNY整数分；尚未填写完整时为null。 |
+| `flow_type` | `income / expense / refund / transfer / repayment / None` | 是 | 收支方向；尚未选择时为null。 |
+| `merchant` | `string` | 是 | maxLength=500。用户编辑后的商户展示名称。 |
+| `description` | `string` | 是 | maxLength=2000。用户编辑后的交易摘要/备注。 |
+
+
+### CheckDuplicatesInput
+
+共享模型 CheckDuplicatesInput；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `expected_version` | `integer` | 是 | minimum=1。提交预检前最后读取的批次版本，冲突返回409。 |
+| `rows` | `array[DuplicateCheckRowInput]` | 是 | minItems=1。待实时判重的草稿行列表。 |
+
+
+### DuplicateRowMatch
+
+共享模型 DuplicateRowMatch；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `row_id` | `string` | 是 | 草稿行标识。 |
+| `duplicate_status` | `unique / duplicate / suspected` | 是 | 实时判重结果：unique未重复，duplicate已明确存在，suspected疑似已录入。 |
+| `reason` | `string` | 是 | 判重依据说明，未命中时为空字符串。 |
+| `matched_summary` | `string` | 是 | 命中的已入账交易摘要（时间、商户、金额），未命中时为空字符串。 |
+
+
+### DuplicateCheckResult
+
+共享模型 DuplicateCheckResult；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `batch_id` | `string` | 是 | 被预检的导入批次ID。 |
+| `version` | `integer` | 是 | minimum=1。当前批次版本号（只读预检，不自增版本）。 |
+| `file_match` | `DuplicateBatchMatch` | 否 | 若当前批次命中相同文件或高度相似历史截图则返回来源摘要，未命中时省略。 |
+| `rows` | `array[DuplicateRowMatch]` | 是 | 与输入对应的逐行实时判重结果。 |
 
 
 ### ConfirmRow
@@ -1785,6 +2052,17 @@ Content-Disposition: attachment; filename="ledger-2026-11.pdf"
 | 字段 | 类型 | 必填 | 约束和含义 |
 | --- | --- | --- | --- |
 | `expected_version` | `integer` | 是 | minimum=1。提交编辑前最后读取的资源版本，冲突返回409和最新版本。 |
+
+
+### ResolveMissingInput
+
+共享模型 ResolveMissingInput；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `expected_version` | `integer` | 是 | minimum=1。提交编辑前最后读取的资源版本，冲突返回409和最新版本。 |
+| `default_year` | `integer / null` | 否 | minimum=2000; maximum=2100。快捷确认的默认年份（如2026）；配合截图月日时间自动补全。 |
+| `instruction` | `string / null` | 否 | maxLength=2000。用户的自然语言补充说明，交由DeepSeek智能体逐行核对补全。 |
 
 
 ### TransactionPatch

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowRight, ShieldCheck } from "@lucide/vue";
 import { errorText, signIn } from "../session";
@@ -9,14 +9,37 @@ const router = useRouter(),
   username = ref(""),
   password = ref(""),
   busy = ref(false),
-  error = ref("");
+  error = ref(""),
+  lockRemaining = ref(0);
+let lockTimer: ReturnType<typeof setInterval> | undefined;
 const showLocalDemo = import.meta.env.DEV && !isDemo && ["localhost", "127.0.0.1"].includes(location.hostname);
+function startLockCountdown(seconds: number) {
+  if (lockTimer) clearInterval(lockTimer);
+  lockRemaining.value = Math.max(1, Math.ceil(seconds));
+  error.value = `登录失败次数过多，请在 ${lockRemaining.value} 秒后再试。`;
+  lockTimer = setInterval(() => {
+    lockRemaining.value -= 1;
+    if (lockRemaining.value <= 0) {
+      lockRemaining.value = 0;
+      clearInterval(lockTimer);
+      lockTimer = undefined;
+      error.value = "";
+    } else {
+      error.value = `登录失败次数过多，请在 ${lockRemaining.value} 秒后再试。`;
+    }
+  }, 1000);
+}
+onUnmounted(() => {
+  if (lockTimer) clearInterval(lockTimer);
+});
 async function enterDemo() {
+  if (busy.value || lockRemaining.value > 0) return;
   username.value = "demo_a";
   password.value = "DemoA@2026";
   await submit();
 }
 async function submit() {
+  if (lockRemaining.value > 0) return;
   if (!username.value || !password.value) {
     error.value = "请输入账号和密码。";
     return;
@@ -27,6 +50,11 @@ async function submit() {
     await signIn(username.value, password.value);
     router.push("/report");
   } catch (e) {
+    if (e instanceof ApiError && (e.status === 429 || e.payload?.error?.code === "LOGIN_LOCKED")) {
+      const wait = e.payload?.error?.details?.retry_after_seconds;
+      startLockCountdown(typeof wait === "number" && wait > 0 ? wait : 60);
+      return;
+    }
     const message = errorText(e);
     error.value = showLocalDemo && e instanceof ApiError && e.payload?.error?.code === "AUTH_INVALID"
       ? `${message} 本地预览请点击上方「进入演示账本」。`
@@ -64,7 +92,7 @@ async function submit() {
         </div>
         <div v-if="showLocalDemo" class="local-demo-entry">
           <span>本地预览 · 合成数据</span>
-          <button type="button" :disabled="busy" @click="enterDemo">进入演示账本 <ArrowRight :size="18" /></button>
+          <button type="button" :disabled="busy || lockRemaining > 0" @click="enterDemo">进入演示账本 <ArrowRight :size="18" /></button>
           <small>一键使用项目提供的演示账号，无需手动输入</small>
         </div>
         <div v-if="showLocalDemo" class="login-method-divider">已有账号登录</div>
@@ -88,10 +116,10 @@ async function submit() {
           <p v-if="error" class="form-error" role="alert">{{ error }}</p>
           <button
             class="primary-btn login-submit"
-            :disabled="busy"
+            :disabled="busy || lockRemaining > 0"
             type="submit"
           >
-            {{ busy ? "正在登录…" : "进入账本" }} <ArrowRight :size="18" />
+            {{ lockRemaining > 0 ? `请等待 ${lockRemaining} 秒` : busy ? "正在登录…" : "进入账本" }} <ArrowRight :size="18" />
           </button>
         </form>
         <p v-if="isDemo" class="demo-help">
