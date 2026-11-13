@@ -10,8 +10,39 @@
 > `X-Contract-Version` 中间件（`app/middleware.py`，四种状态码实测带）、
 > 智能模块接口层（`app/intelligence/`，含纯规则 fallback）、
 > 报表唯一口径（`app/services/reporting.py`，与 `seed_demo` 共用）。
-> 第二节的 13 个接口**仍未实现**，仍是 T02/T05/T08 范围。
 > 补齐细节与实测数据见 `docs/20_intelligence_contract.md` 与 `docs/10` 的 CHG-003。
+>
+> **进展更新（2026-11-10 深夜，CHG-004）**：第二节的 13 个接口里 **5 个已实现**——
+> `createImport` / `getImport` / `getImportOriginal` / `retryImport` / `confirmImport`
+> （T02 导入中心整条闭环，含状态机、幂等、去重、单事务确认）。后端已实现 4 → **9**，
+> 待实现 **8**：`listTransactions`、`patchTransaction`、`listRules`、`patchRule`、
+> `getMonthlyReport`、`putBudget`、`exportTransactions`、`exportMonthlyPdf`。
+> 实测：`unittest discover -s tests` 100 项通过；真实 uvicorn 走通「上传 202 → 轮询
+> pending_review → 回读原件字节一致 → 确认 6 笔 → 同 request_id 重放结果一致」；
+> 强杀进程重启后批次转 `failed(BATCH_INTERRUPTED)` 而非永久 processing。
+> 详见 `docs/10` CHG-004。
+>
+> **进展更新（2026-11-10 晚，CHG-005）**：又补 4 个——`listTransactions` /
+> `patchTransaction` / `getMonthlyReport` / `putBudget`（账单列表筛选分页、
+> 纠错与记住商户、月报、预算写入）。已实现 9 → **13**，待实现 **4**：
+> `listRules`、`patchRule`、`exportTransactions`、`exportMonthlyPdf`。
+>
+> 这一轮核对字段时修掉 5 个**真实偏差**，其中两个会直接阻塞前端：
+> ① 所有错误码与契约不一致（`UNAUTHENTICATED` vs `AUTH_REQUIRED` 等 4 组），
+> 前端按契约写的 `code` 分支永远不命中；② 422 的 OpenAPI 文档结构是 FastAPI 默认的
+> `{"detail": ...}`，与实现返回的 `{"error": ...}` 不符。另外补上了入账时漏存的
+> `classification_source`（契约必填但此前没落库），以及一处会把 `"Category.dining"`
+> 写进加密区的枚举序列化 bug。测试 100 → **138 项全过**，详见 `docs/10` CHG-005。
+
+> **进展更新（2026-11-10 夜，CHG-006）：剩下的 4 个也补完了，17/17 全实现。**
+> `listRules` / `patchRule`（个人规则读写，含停用与启用）、
+> `exportTransactions`（CSV）/ `exportMonthlyPdf`（中文 PDF）。
+> 闭环第五环「用户修正反馈」在此闭合——之前规则停不掉，A07 只能走三步。
+> 测试 138 → **162 项全过**，其中 `test_a07_full_loop` 走完
+> 改正→记住→新交易命中(user_rule)→停用→回落(general_rule) 四步全链路。
+> 导出侧两个安全点：CSV 文本单元格防公式注入（`=`/`+`/`-`/`@` 前置单引号）、
+> PDF 找不到中文字体时返回 503 而不是输出方块。
+> 详见 `docs/10` CHG-006。**后端功能面到此收口，该文第二、三节的缺口清单已完成使命。**
 
 
 ---
@@ -20,7 +51,7 @@
 
 | 维度 | 需求 | 已完成 | 缺口 |
 | --- | --- | --- | --- |
-| HTTP 接口 | 17 | 4 | **13** |
+| HTTP 接口 | 17 | **17** | **0**（CHG-006 收口） |
 | 逻辑表 | 7 + 会话表 1 | 8（全部建表） | 0（但 6 张表无任何读写代码） |
 | 响应头约定 | 全部响应带 `X-Contract-Version` | **0** | 全缺 |
 | 智能模块对接 | parse / classify / OCR / normalize | 0 | **全缺（adapter 层不存在）** |

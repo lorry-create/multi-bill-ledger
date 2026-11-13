@@ -69,7 +69,7 @@ def login(
 
     if user is None:
         verify_password(payload.password, _DUMMY_HASH)
-        raise ApiError("INVALID_CREDENTIALS", 401, "账号或密码不正确")
+        raise ApiError("AUTH_INVALID", 401, "账号或密码不正确")
 
     locked_until = as_utc(user.locked_until)
     if locked_until is not None and locked_until > now:
@@ -86,7 +86,7 @@ def login(
             db.commit()
             raise _locked(settings.login_lock_seconds)
         db.commit()
-        raise ApiError("INVALID_CREDENTIALS", 401, "账号或密码不正确")
+        raise ApiError("AUTH_INVALID", 401, "账号或密码不正确")
 
     # 成功：清空失败计数，顺手清掉该用户已过期的会话（避免表无限增长）
     user.failed_login_count = 0

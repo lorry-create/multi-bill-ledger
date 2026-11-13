@@ -54,6 +54,11 @@ ISSUE_DUPLICATE_SUSPECTED = "DUPLICATE_SUSPECTED"
 # 说明行/关闭交易被跳过时，用一条 row_id 为 null 的 Issue 告知用户"少了哪些"，
 # 避免"文件里 30 条、界面 27 条"这种说不清的数量差
 ISSUE_ROWS_SKIPPED = "ROWS_SKIPPED"
+# 下面三个由后端（导入服务）产生，不是解析器产生，但同属"给前端做判断的稳定码"，
+# 统一登记在这里，避免前后端各自硬编码字符串
+ISSUE_DUPLICATE_EXISTING = "DUPLICATE_EXISTING"
+ISSUE_DRAFT_UNREADABLE = "DRAFT_UNREADABLE"
+ISSUE_NO_ROWS_PARSED = "NO_ROWS_PARSED"
 
 
 class IntelligenceFailure(RuntimeError):

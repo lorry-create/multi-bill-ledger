@@ -105,7 +105,7 @@ class T00SmokeTest(unittest.TestCase):
         body = response.json()
         self.assertEqual({"error"}, set(body))
         self.assertEqual({"code", "message", "details"}, set(body["error"]))
-        self.assertEqual("UNAUTHENTICATED", body["error"]["code"])
+        self.assertEqual("AUTH_REQUIRED", body["error"]["code"])
 
     # ---------- 登录 ----------
     def test_login_wrong_password(self) -> None:
@@ -113,7 +113,7 @@ class T00SmokeTest(unittest.TestCase):
             "/api/auth/login", json={"username": "demo_a", "password": "wrong"}
         )
         self.assertEqual(401, response.status_code)
-        self.assertEqual("INVALID_CREDENTIALS", response.json()["error"]["code"])
+        self.assertEqual("AUTH_INVALID", response.json()["error"]["code"])
 
     def test_login_unknown_user_same_code(self) -> None:
         """不泄露账号是否存在：不存在的账号与密码错误返回同一 code。"""
@@ -121,13 +121,13 @@ class T00SmokeTest(unittest.TestCase):
             "/api/auth/login", json={"username": "ghost-user", "password": "x"}
         )
         self.assertEqual(401, response.status_code)
-        self.assertEqual("INVALID_CREDENTIALS", response.json()["error"]["code"])
+        self.assertEqual("AUTH_INVALID", response.json()["error"]["code"])
 
     def test_login_validation_uses_contract_error_shape(self) -> None:
         response = self.client.post("/api/auth/login", json={"username": "", "password": ""})
         self.assertEqual(422, response.status_code)
         body = response.json()
-        self.assertEqual("VALIDATION_FAILED", body["error"]["code"])
+        self.assertEqual("VALIDATION_ERROR", body["error"]["code"])
         fields = body["error"]["details"]["fields"]
         self.assertGreaterEqual(len(fields), 1)
         self.assertIn("username", {item["field"] for item in fields})
@@ -162,7 +162,7 @@ class T00SmokeTest(unittest.TestCase):
 
         missing = self.client.post("/api/auth/logout")
         self.assertEqual(403, missing.status_code)
-        self.assertEqual("CSRF_TOKEN_INVALID", missing.json()["error"]["code"])
+        self.assertEqual("CSRF_INVALID", missing.json()["error"]["code"])
 
         wrong = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": "nope"})
         self.assertEqual(403, wrong.status_code)

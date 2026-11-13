@@ -51,3 +51,56 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 使用捆绑Python 3.12.14、项目临时目录中的Schema校验库和TypeScript编译器，未替换系统Python。T00仍需落实三人解释器、应用依赖锁和启动命令。生成SDK和检查工具是交接辅助，不是账单业务实现。
 
 注：上述 3.12.14 是 0.2.0 文档校验当时的解释器，属历史记录不追溯。自 T00 起团队统一 Python 3.13 系列（CHG-001，见 docs/10_change_delivery.md）：共用模型生成器已在 3.13.14 实测通过，含 463 行/39 符号生成、7 项负向用例与 --check 幂等。
+
+## 2026 年 11 月 10 日补充：T02 导入中心实测（CHG-004）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **100 项通过**（`test_imports_api` 26 + `test_intelligence` 43 + `test_reporting` 18 + `test_t00_smoke` 13） |
+| `python tools/check_implemented_contract.py` | 已实现 **9** 个接口，字段与契约一致；待实现 8；1 条 `[注意]`：`retryImport` 的 422 为契约漏写（见 docs/10 CHG-004「契约待补」） |
+| 真实 uvicorn（127.0.0.1:8011，临时 SQLite） | 上传微信样例 1577 字节 → `202` + `Location` + `Retry-After: 1`；第 3 次轮询 `pending_review`，6 条草稿，首行为「星巴克咖啡 3500 分 dining / general_rule」；`original` 回读 1577 字节、字节完全一致、`text/csv`；`confirm` 建 6 笔并返回 6 个 ID；同 `request_id` 重放响应逐字段相同；批次 `completed`、version 4 |
+| 真实进程重启恢复 | 人为置 `processing` → `taskkill /F` → 重启 → 同一批次返回 `failed`（version 3）+ `BATCH_INTERRUPTED`，重试通道可用；不存在永久 processing |
+| 上传边界（用例内） | 513KiB → 413 `UPLOAD_TOO_LARGE`；`.pdf` → 415；PDF 改名 `.csv` → 415；0 字节 → 422 `EMPTY_FILE`；`.png` 以 file 方式上传 → 415；`source=paypal` → 422 `VALIDATION_FAILED` |
+| 批次边界（用例内） | 他人批次 → 404 `RESOURCE_NOT_FOUND`；`pending_review` 批次 retry → 409 `BATCH_STATE_CONFLICT`；旧 `expected_version` → 409 `VERSION_CONFLICT` 并回带 `current_version`；未知 `row_id` → 422 `UNKNOWN_ROW`；无时区时间 → 422 `TIME_WITHOUT_TIMEZONE`；过期草稿 → 409 |
+| 幂等与去重（用例内） | 同 ID 同体重放 → 返回原结果且库内交易数不变；同 ID 改金额 → 409 `IDEMPOTENCY_CONFLICT`；已完成批次 + 新 ID → 409 `BATCH_STATE_CONFLICT`；同一文件重传 → 6 行全 `duplicate`，确认 `created_count=0` |
+
+本轮未验证：真实平台账单（仍为零）、OCR、Docker/PostgreSQL 实跑、备份恢复、浏览器端页面交互。
+`tests` 全部在临时 SQLite 上跑，不触碰 `backend/local-data/app.db`。
+
+## 2026 年 11 月 10 日补充：账单列表/纠错、月报、预算（CHG-005）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **138 项通过**（`test_ledger_api` 38 + `test_imports_api` 26 + `test_intelligence` 43 + `test_reporting` 18 + `test_t00_smoke` 13） |
+| `python tools/check_implemented_contract.py` | 已实现 **13** 个接口，字段与契约一致；待实现 4（`listRules`/`patchRule`/`exportTransactions`/`exportMonthlyPdf`）；1 条 `[注意]`：`retryImport` 的 422 仍是契约漏写 |
+| 真实 uvicorn（127.0.0.1:8021，临时 SQLite + `seed_demo` 6 笔） | 列表 6 条按 `occurred_at` 倒序（16:00→09:00）；`category=dining`→2、`source=alipay`→3、单日 11-08→6、`page=2&page_size=2`→total 仍 6；`date_from>date_to`→422 `DATE_RANGE_REVERSED` |
+| 月报口径（真实进程） | 收入 100.00 / 毛支出 42.00 / 退款 5.00 / 净支出 37.00 / 差额 63.00，与 `seed_demo` 独立核对逐项一致；`daily_trend` 30 天完整，仅 11-08 非零；`expense_by_category` 只含毛支出 >0 的类别 |
+| 纠错联动（真实进程） | `dining 30.00` → 改 `transport` + `remember_rule` → 200、`manual`、v1→v2；月报分类构成立即变 `[transport 30, other 12]`，毛支出仍 42.00；`?category=transport` 立即命中；旧 `expected_version` 再改 → 409 `VERSION_CONFLICT` + `current_version=2` |
+| 预算（真实进程） | 同一（用户/月/类别）覆盖不新建（ID 不变）；`category=pending`→422；`amount_fen=0` 允许、负数→422；无 CSRF→403 `CSRF_INVALID`；当月只剩退款 5 元时 `spent_fen=-5.00`、`remaining=55.00` |
+| 错误码契约一致性（用例内） | 401→`AUTH_REQUIRED`、403→`CSRF_INVALID`、422→`VALIDATION_ERROR`、登录失败→`AUTH_INVALID`，全部与 `contracts/openapi.json` 的 `x-error-codes` 一致 |
+| 租户隔离（用例内） | 他人交易 PATCH→404 `RESOURCE_NOT_FOUND`；他人交易不出现在列表；他人预算不出现在月报 |
+
+本轮未验证：真实平台账单（仍为零）、OCR、CSV/PDF 导出、分类规则读写接口、Docker/PostgreSQL 实跑、前端页面。
+`tests` 全部在临时 SQLite 上跑，不触碰 `backend/local-data/app.db`。
+
+## 2026 年 11 月 10 日夜补充：个人规则与导出（CHG-006，契约 17/17）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **162 项通过**（`test_rules_and_exports` 24 + 此前 138） |
+| `python tools/check_implemented_contract.py` | 已实现 **17** 个接口，字段与契约一致；**待实现 0**；1 条 `[注意]`：`retryImport` 的 422 仍是契约漏写 |
+| 规则列表（用例内） | 空库 `{"items": []}`；含停用项时按 `(source, merchant_normalized)` 升序；他人规则不出现 |
+| 规则修改（用例内 + 真实进程） | 停用 200、`version` 1→2；重新启用 →3；改类别 200；空 patch → 422 `RULE_PATCH_EMPTY`；`category=pending` → 422；旧版本 → 409 + `current_version`；他人规则 → 404；无 CSRF → 403 `CSRF_INVALID` |
+| **A07 四步闭环（真实 HTTP 全链路）** | 导入「瑞幸咖啡」→ `dining`/`general_rule` → 改 `transport` + 记住商户（`manual`，规则落库）→ 再导入同商户新交易 → `transport`/`user_rule` → 停用规则 → 第三笔回落 `dining`/`general_rule`；已入账前两笔类别不变 |
+| CSV 导出（真实 uvicorn） | 200、`text/csv; charset=utf-8`、`Content-Disposition` 含 `filename*=UTF-8''`；819 字节；**UTF-8 BOM**；表头 10 列含 `amount_fen`；6 行数据 |
+| CSV 范围一致性 | `category=dining`：列表 `total=1`、CSV 数据行 1，逐数一致；`page=1&page_size=1` 仍导出 3 行（不被分页截断） |
+| CSV 防公式注入 | `=1+1`/`+SUM(A1)`/`-2+3`/`@SUM(1)` 四种商户名均被前置单引号；`永辉超市` 未被误加 |
+| PDF 导出（真实 uvicorn） | 200、`application/pdf`、19,681 字节、`%PDF-`；含 `FontFile2` + `ToUnicode`，字体 `AAAAAA+SimHei` 子集 |
+| PDF 内容（pymupdf 提取 + 渲染成图核对） | 中文完整：「收支合计」「支出分类构成」「每日支出趋势」「预算执行」；数字 100.00/42.00/5.00/37.00/63.00 与 `GET /api/reports/monthly` 逐项相同；分类显示「交通/购物/餐饮」；渲染图无重叠无方块 |
+| PDF 降级 | 清空字体候选 → 503 `EXPORT_UNAVAILABLE`，日志说明原因，不输出方块 PDF |
+| 未登录导出 | CSV / PDF 均 401 `AUTH_REQUIRED` |
+
+部署侧同步：`backend/Dockerfile` 增装 `fonts-wqy-zenhei` 并设 `PDF_FONT_PATH`
+（reportlab 只能嵌 TrueType 轮廓，Noto CJK 是 CFF/OTF 会加载失败）；
+`requirements.txt` 增 `reportlab>=4.0,<5`；`.env.example` 增 `EXPORT_MAX_ROWS` 与 `PDF_FONT_PATH`。
+**Docker 本身仍未实跑验证**（A14）。

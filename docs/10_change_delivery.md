@@ -192,3 +192,334 @@ fallback **不做 OCR**（抛 `OCR_UNAVAILABLE`，不返回空结果假装成功
 标成 `deepseek`。真实账单样本仍为零，`fixtures/real_format_samples` 是格式仿真件，不能代替
 A02 的真实文件核对。
 
+
+---
+
+## CHG-004（2026-11-10 晚）：T02 导入中心 5 个接口 + 批次状态机
+
+契约版本不变（0.2.0），**不改任何字段与状态码语义**，只是把契约里已声明的
+5 个操作真正实现出来。后端已实现接口从 4 个升到 9 个，待实现 8 个。
+
+### 改了什么
+
+1. `app/routers/imports.py`：`POST /api/imports`、`GET /api/imports/{id}`、
+   `GET /api/imports/{id}/original`、`POST /api/imports/{id}/retry`、
+   `POST /api/imports/{id}/confirm`。
+2. `app/services/imports.py`：批次状态机、幂等、去重、确认入账的单事务实现。
+3. `app/services/worker.py`：后台批次执行器（线程 + 条件 UPDATE 原子认领 + 超时巡检 + 重启恢复）。
+4. `app/services/dedupe.py`：去重摘要与月份归属的唯一口径（处理阶段与确认阶段共用同一算法）。
+5. `app/config.py` 新增 6 个可调项（全部有安全默认值，不设也能跑）：
+   `UPLOAD_MAX_FILE_BYTES`(10MiB) / `UPLOAD_MAX_IMAGE_BYTES`(5MiB) /
+   `BATCH_DEADLINE_SECONDS`(300) / `BATCH_DRAFT_TTL_HOURS`(24) /
+   `IMPORT_WORKER_ENABLED`(true) / `IMPORT_WORKER_POLL_SECONDS`(0.5)。
+6. `app/main.py`：注册路由；lifespan 里启动/停止 worker（取不到智能实现则**启动即失败**，
+   不自动降级）；`strip_unreachable_422` 摘掉纯字符串路径参数端点里"永不可能发生"的 422 声明。
+7. `tools/check_implemented_contract.py`：带请求体的端点若多出契约未写的 422，记 `[注意]`
+   而不是失败（见下方"契约待补"）。
+
+### 状态机与事务（照 docs/13 实现，逐条对应）
+
+```
+uploaded → processing → pending_review → completed
+                ↓              ↓
+              failed ←─────────┘（failed 可 retry 回到 uploaded）
+```
+
+- **认领**用条件 UPDATE（`WHERE status='uploaded'`，`rowcount==1` 才算抢到），不是读后改，
+  多进程下不会重复处理同一批次。
+- **确认入账**顺序固定：① 查幂等（同 `request_id` 同体 → 解密返回当时快照；同 ID 异体 → 409
+  `IDEMPOTENCY_CONFLICT`）② 校验 `pending_review` + 未过期 ③ 校验 `expected_version`
+  ④ 逐行重校验（未知 `row_id`、无时区时间、空商户、疑似重复未显式允许 → 422 且整体回滚）
+  ⑤ 算去重摘要、撞唯一约束的行跳过计数 ⑥ 写 `transactions` ⑦ 批次转 `completed` + version+1
+  ⑧ 存加密响应快照供重放。
+- 去重摘要**包含事件性质**（`flow_type`）：`SYN-ORDER-1` 那种"同订单一笔支出 + 一笔退款"
+  不会被误合并。没有可靠事件号时退化为内容指纹（平台 + 方向 + 上海时区自然日 + 金额 +
+  标准化商户 + 说明），不冒充唯一事件号。
+- `SELECT FOR UPDATE` 只在 PostgreSQL 生效；SQLite 下 SQLAlchemy 自动省略该子句（本地开发库），
+  已写进代码注释。
+
+### 实测证据（本机 Python 3.13.14）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **100 项全部通过**（新增 `tests/test_imports_api.py` 26 项） |
+| 真实 uvicorn 全链路（127.0.0.1:8011） | 登录 200 → 上传 `202` + `Location: /api/imports/<id>` + `Retry-After: 1` → 第 3 次轮询转 `pending_review`（6 条草稿）→ 原文件回读 1577 字节、`text/csv`、与上传字节完全一致 → 确认 `created_count=6` → 同 `request_id` 重放响应逐字段相同 → 批次 `completed` v4 |
+| 重启恢复（真实进程） | 人为把批次置 `processing` → 强杀进程 → 重启 → `GET` 返回 `failed` v3 + `BATCH_INTERRUPTED`「服务重启中断了本次处理，请点击重试」，retry 通道打开 |
+| `python tools/check_implemented_contract.py` | 已实现 **9** 个接口，字段与契约一致；待实现 8 个；1 条 `[注意]`（retry 的 422，见下） |
+| 边界 | 超限 → 413；`.pdf` → 415；PDF 改名 `.csv`（魔数不符）→ 415；0 字节 → 422 `EMPTY_FILE`；别人的批次 → 404；`pending_review` 批次 retry → 409 `BATCH_STATE_CONFLICT`；旧版本 confirm → 409 `VERSION_CONFLICT` 且回带 `current_version` |
+
+### 三条需要全员知道的约定
+
+1. **草稿有效期 24 小时**（`BATCH_DRAFT_TTL_HOURS`）。契约里有 `Batch.expires_at` 但没写时长，
+   这里定为 24h：过期后 `confirm` 返回 409 `BATCH_STATE_CONFLICT`「批次草稿已过期，请重新上传」，
+   `GET` 仍可读，不会突然消失。要改时长请一起调这个环境变量，别在代码里另写一份。
+2. **疑似重复必须显式允许**。草稿 `duplicate_status=suspected` 若 `allow_suspected_duplicate=false`，
+   确认返回 422 且 `details.fields[].code=SUSPECTED_DUPLICATE_NOT_ALLOWED`——不静默入账，
+   也不静默丢弃。F 需要在确认页对这类行弹二次确认再置 true。
+3. **新增 Issue 机器码**（后端产生，已补进 docs/20 第四节）：`DUPLICATE_EXISTING`、
+   `NO_ROWS_PARSED`、`DRAFT_UNREADABLE`；批次级失败码 `BATCH_TIMEOUT`、`BATCH_INTERRUPTED`、
+   `BATCH_EXPIRED`、`CRYPTO_FAILED`。
+
+### 契约待补（不阻塞，但要一起定）
+
+`retryImport` 的请求体 `RetryInput.expected_version` 是必填正整数，格式非法时后端确实返回 422，
+但契约的 retry 只列了 401/403/404/409。这是契约漏写，不是实现写错。为不改版本号、不逼 F 重新
+生成 SDK，本次在检查工具里记 `[注意]`。**建议 0.2.x 补上这一个响应码**，由 H 与 F 一起拍板，
+走共同变更流程后再改 `contracts/openapi.json` 并重新生成 SDK。
+
+### 已知限制（写清楚，别当成已完成）
+
+- **重启恢复假设单进程**。启动时会把所有 `processing` 批次判 `failed(BATCH_INTERRUPTED)`。
+  如果以后要跑多个后端副本，必须改成"按 `started_at` 超时"（`worker.sweep()` 已经是这种写法，
+  复用它即可），否则副本 A 启动会杀掉副本 B 正在跑的批次。
+- **平台错标不回写**。用户把支付宝文件标成微信时，解析器能按表头认出来并照常解析，
+  但 `Batch.source` 仍以用户声明为准，去重也按声明平台计算。是否需要回写成真实平台，
+  等真实账单样本到了再定（真实样本目前仍为零，这是全队最大外部依赖）。
+- **截图链路未通**。`ingestion_method=screenshot` 走的是 `recognize_bill_image`，
+  当前 fallback 抛 `OCR_UNAVAILABLE` → 批次 `failed`，原因如实回显。上传、限额、魔数校验已就绪，
+  D 的 OCR 一到位即可用。
+- **原件存在库里**（`encrypted_original`，AES-GCM）。10MiB 上限下可接受，PostgreSQL 靠 TOAST 消化；
+  若以后放宽限额，要改成对象存储 + 独立密钥，别继续往行里塞。
+
+---
+
+## CHG-005（2026-11-10 晚）：账单列表/纠错、月报、预算 4 个接口 + 5 处契约偏差修正
+
+契约版本不变（0.2.0），**没有改任何字段名或状态码语义**。已实现接口从 9 个升到
+**13 个**，待实现 4 个（分类规则 2 个、导出 2 个）。
+
+### 一、新增的 4 个接口
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/transactions` | 按日期/类别/平台/流向筛选 + 分页，只返回本人已确认交易 |
+| `PATCH /api/transactions/{id}` | 改字段；显式改类别标 manual；`remember_rule` 同时沉淀个人规则 |
+| `GET /api/reports/monthly` | 月报，直接调 `services/reporting`，不重复计算 |
+| `PUT /api/budgets` | 按（用户, 月份, 类别）覆盖写入，始终 200 |
+
+新增文件：`services/transactions.py`、`services/budgets.py`、`routers/transactions.py`、
+`routers/reports.py`、`routers/budgets.py`、`tests/test_ledger_api.py`（38 项）。
+
+### 二、核对字段时发现的 5 个真实偏差（这才是本轮最该记的部分）
+
+**1. 错误码名字和契约不一致 —— 前端所有错误分支都会失效。**
+
+| 位置 | 原来写 | 契约要求 | 后果 |
+| --- | --- | --- | --- |
+| 所有 401 | `UNAUTHENTICATED` / `SESSION_EXPIRED` | `AUTH_REQUIRED` | 前端 `if (code === 'AUTH_REQUIRED') 跳登录` 永远不命中，401 时页面卡住 |
+| 所有 403 | `CSRF_TOKEN_INVALID` | `CSRF_INVALID` | CSRF 失效时的重取令牌逻辑不触发 |
+| 所有 422 | `VALIDATION_FAILED` | `VALIDATION_ERROR` | 表单标红逻辑不触发，用户只看到"提交失败" |
+| 登录失败 | `INVALID_CREDENTIALS` | `AUTH_INVALID` | 登录页无法区分"密码错"与其他错误 |
+
+已全部改为契约值（`app/deps.py`、`app/errors.py`、`app/routers/auth.py`），并同步
+7 处测试断言。`docs/16` 第 53 行原文写的 `CSRF_TOKEN_INVALID` 是笔误，一并修正。
+**这是 T00 遗留问题，不影响已有数据的正确性，但会让 F 的页面调试多绕好几天。**
+
+**2. 422 的 OpenAPI 文档结构与实际返回不一致。**
+实现层早就把 `RequestValidationError` 转成了 `{"error": {...}}`，但 FastAPI 生成的
+OpenAPI 仍在按默认的 `{"detail": [...]}` 描述 422。F 如果按文档生成类型，422 分支
+拿到的字段全是 `undefined`。已在 `main.py` 加 `normalize_error_schema()` 统一指向
+`Error`，检查工具不再报 `缺字段 ['error']，多字段 ['detail']`。
+
+**3. 新路由必须显式声明非 2xx 响应，否则生成的 SDK 里没有错误分支。**
+`responses={401: _ERR, 403: _ERR, ...}` 逐个补上。契约声明了但实现没声明时，检查
+工具会报 `[注意] 契约声明但暂未实现的响应码`——那不是"没实现"，而是"文档没写"，
+两者都要改。
+
+**4. 入账时没保存分类来源，列表接口无法如实返回。**
+契约里 `Transaction.classification_source` 和 `classification_reason` 都是必填，但 T02
+入账时只存了 `TransactionInput`（8 个字段），这两项根本没落库。补齐方式：
+- 确认入账时把草稿的分类来源一并写入加密区；
+- 用户确认时改了类别的，标 `manual` + "用户确认时修正分类"；
+- 同时存入 `ingestion_method`，避免列表为了一个字段去 join 批次表。
+
+存量记录（CHG-004 之前入账的）没有这两项，接口**如实返回 `pending` + "该记录入账时
+未保存分类来源"**，不拿当前规则补记一个当时并不存在的来源。目前真实数据为零，
+这条影响范围就是 `seed_demo` 的历史副本。
+
+**5. 合并 patch 时枚举没转字符串，会把 `"Category.dining"` 写进加密区。**
+`_merge_changes()` 原来只处理 `datetime`，`Category`/`FlowType` 枚举原样塞回载荷。
+结果：分类统计整块归到"未知类别"，而且因为脏值在加密区里，SQL 也查不出来——
+属于"不报错但数据悄悄坏掉"的那类 bug。已统一取 `.value`（`tests` 里
+`test_patch_remember_rule_creates_personal_rule` 抓到了它）。
+
+### 三、三个有意为之的设计决定（别当成漏了）
+
+1. **编辑后不重算 `dedupe_digest`。** 它标识的是"这次导入的哪一行"，不是内容哈希。
+   用户改完金额就重算，等于把原记录的去重身份换掉，同一份账单再导入一次会重新
+   进账——比"改错了改回来"危险得多。
+2. **`spent_fen` 用净支出，可以为负。** 某类别只发生退款时 `spent_fen = -5`，
+   符合契约"退款跨月时可以为负"和"这个月还能花多少"的直觉（A10）。
+3. **提交内容与原值完全相同时 `version` 不递增。** 改了又改回原值不该让前端手里的
+   `expected_version` 失效。但 `remember_rule=true` 时即使交易字段没变，规则照建
+   ——用户点的就是"记住商户"，不能因为类别本来就对而静默吞掉。
+
+### 四、实测证据（本机 Python 3.13.14）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **138 项全部通过**（100 + 新增 38） |
+| `python tools/check_implemented_contract.py` | 已实现 **13** 个，字段与契约一致；待实现 4 个；1 条 `[注意]`（retryImport 的 422，仍待 0.2.x 补） |
+| 真实 uvicorn（127.0.0.1:8021，seed_demo 6 笔） | 列表 6 条倒序正确（16:00→09:00）；`category=dining`→2、`source=alipay`→3、单日 11-08→6；`page=2&page_size=2`→total 仍 6；反向区间→422 `DATE_RANGE_REVERSED` |
+| 月报口径 | 收入 100.00 / 毛支出 42.00 / 退款 5.00 / 净支出 37.00 / 差额 63.00，与 `seed_demo` 独立核对结果逐项一致；日趋势 30 天全给出，仅 11-08 有值 |
+| 纠错联动 | 把 `dining 30.00` 改为 `transport` 并记住商户 → 200、`manual`、v1→v2；月报分类构成立刻变 `[transport 30, other 12]`，毛支出仍 42.00（改类别不改金额）；`?category=transport` 立即查得到 |
+| 乐观锁 | 用旧 `expected_version=1` 再改 → 409 `VERSION_CONFLICT`，`details.current_version=2` |
+| 预算 | `PUT` 覆盖同一 ID 不新建；`pending` 类别 → 422；`amount_fen=0` 允许；`dining` 预算 50 元、当月只剩 5 元退款 → `spent_fen=-5.00`、`remaining=55.00` |
+
+### 五、已知限制（写清楚，不当成已完成）
+
+- **列表和月报是全量解密后在内存里过滤、排序、分页。** 因为日期、金额、商户都在
+  加密区，SQL 层只能过滤月份/类别/流向/平台这些明文索引列。个人规模（万级以内）
+  没问题；数据量再涨要改成独立存储或加明文日期索引，**不能**假装能在加密列上
+  SQL 排序。这是任务书第四节「接口字段和数据库的加密存储表示不同」里明确的取舍。
+- **个人规则匹配是 O(规则数) 次解密。** 规则表没有明文商户列（匹配条件本身是敏感
+  信息，docs/13 要求保护）。规则通常几十条，可接受；上千条要另想办法。
+- **`import_batch_id` 在批次被删除后返回空串。** 契约该字段不可空，又没有"未知"的
+  表示法，只能给空串。F 不要拿它做"是否来自导入"的判断。
+- **金额精度只到分，不接受更多小数位**，这是契约 0.2.0 的既定口径，本轮没动。
+
+---
+
+## CHG-006（2026-11-10 夜）：规则读写 + 两个导出，契约 17/17 全部落地
+
+**契约版本不变（0.2.0），没有改任何字段名、状态码或错误码语义。**
+后端已实现接口从 13 个升到 **17 个，待实现 0 个**。这是后端功能面的收口提交。
+
+### 一、新增的 4 个接口
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/classification-rules` | 本人全部规则（**含已停用**），按 `source` 再 `merchant_normalized` 升序 |
+| `PATCH /api/classification-rules/{id}` | 改类别或停用/启用；停用**不重写**历史交易 |
+| `GET /api/exports/transactions.csv` | 与筛选范围一致的账单 CSV，不限分页，防公式注入 |
+| `GET /api/exports/monthly.pdf` | 与月报同口径的中文 PDF，字体真嵌入 |
+
+新增文件：`app/services/rules.py`、`app/services/exporting.py`、`app/routers/rules.py`、
+`app/routers/exports.py`、`app/http_utils.py`、`backend/tests/test_rules_and_exports.py`（24 项）。
+
+### 二、闭环第五环终于闭合（这是本轮真正的目的）
+
+之前的状态：用户能"记住商户"，新交易也能命中规则，但**规则停不掉**——
+`patchRule` 不存在，docs/08 A07 四步只能走三步，等于反馈闭环是假闭合。
+
+现在 A07 四步在真实 HTTP 全链路下逐条验证通过（`test_a07_full_loop`）：
+
+```
+导入「瑞幸咖啡」→ 通用规则判 dining (general_rule)
+  → 用户改成 transport + 记住商户 → manual，规则落库 (wechat / 瑞幸咖啡 / transport)
+  → 再导入同商户新交易 → transport (user_rule)   ← 个人规则优先
+  → 停用规则 → 第三笔回落 dining (general_rule)   ← 停用真的生效
+  → 已入账的前两笔类别不变                        ← 停用不重写历史
+```
+
+### 三、五个值得记下的实现决定
+
+**1. `enabled` 以明文列为唯一真相，加密区只做同步。**
+`classification_rules.enabled` 是明文布尔列——导入时要在 SQL 层筛 `enabled IS TRUE`，
+不可能为它解密整张表。加密区里也存了一份 `enabled`（历史遗留），写入时同步，
+但**读取一律以明文列为准**，避免两处水位漂移时不知道该信谁。
+
+**2. 空 patch 必须由服务层拦。**
+契约用 `anyOf` 要求"至少提供 enabled 或 category"，但 Pydantic 模型两个字段都是
+`Optional`，空请求能过模型校验。不补这条检查，`{"expected_version": 1}` 会被当成
+"什么都没改"悄悄返回 200。现在返回 422 `VALIDATION_ERROR` + 字段码 `RULE_PATCH_EMPTY`。
+
+**3. CSV 导出的筛选与列表**共用同一份实现**。**
+`filtered_rows()` 从 `list_transactions` 里抽出来，导出调它、列表也调它。
+导出若自己再写一套筛选，迟早出现"页面 12 条、CSV 15 条"这种谁也说不清的问题
+（docs/08 A11 明确要求两者一致）。导出只是"不分页地取全量"，筛选逻辑零复制。
+
+**4. CSV 防公式注入不是可选项。**
+以 `=` `+` `-` `@` `\t` `\r` 开头的文本单元格，Excel 打开时当公式执行——
+商户名里塞一句 `=cmd|'/c calc'!A1` 就能在别人机器上跑命令。导出时统一前置单引号，
+`=1+1` 变成 `'=1+1`。金额列是整数分，不是文本，不加引号也不受影响。
+已用四个恶意商户名逐条验证，同时验证正常商户（"永辉超市"）不会被误加引号。
+
+**5. PDF 找不到中文字体就 503，不输出方块。**
+契约本来就声明了 503 `EXPORT_UNAVAILABLE` 这个分支，这不是"没做完"的借口，
+而是"渲染依赖缺失时的正确行为"。所以：
+- `pdf_font_path` 留空时按内置候选列表搜索（Windows 找 simhei/msyh，Linux 找文泉驿）；
+- 全部找不到 → 503，日志说明原因；
+- 找到就**真嵌入**（PDF 里能查到 `FontFile2` 与 `ToUnicode`，不是只设了个字体名）。
+
+容器里特意装 `fonts-wqy-zenhei` 而不是 `fonts-noto-cjk`：**reportlab 只能嵌
+TrueType 轮廓，Noto CJK 是 CFF/OTF，加载会直接失败**。这个坑不写下来下一个人一定踩。
+
+### 四、实测证据（本机 Python 3.13.14，真实 uvicorn，非只有 TestClient）
+
+| 命令/场景 | 实测结果 |
+| --- | --- |
+| `python -m unittest discover -s tests` | **162 项全部通过**（138 + 新增 24） |
+| `python tools/check_implemented_contract.py` | 已实现 **17** 个，字段与契约一致；**待实现 0**；1 条 `[注意]`（retryImport 的 422，仍待 0.2.x 补） |
+| 规则列表 | 空库返回 `{"items": []}`；含停用项时按 `(source, merchant_normalized)` 升序；他人规则不出现 |
+| 规则修改 | 停用 200 且 `version` 1→2；重新启用 200 且 →3；改类别 200；空 patch 422 `RULE_PATCH_EMPTY`；`category=pending` 422；旧版本 409 `VERSION_CONFLICT` + `current_version: 2`；他人规则 404；无 CSRF 403 `CSRF_INVALID` |
+| CSV 导出（真实进程） | 200、`text/csv; charset=utf-8`、`Content-Disposition` 含 RFC5987 中文名；819 字节；**首 3 字节为 UTF-8 BOM**；表头 10 列含 `amount_fen`；6 条数据行 |
+| CSV 范围一致性 | `category=dining` 时列表 `total=1`、CSV 数据行 1，**逐数一致**；`page=1&page_size=1` 仍导出 3 行（不被分页截断） |
+| CSV 防注入 | `=1+1`/`+SUM(A1)`/`-2+3`/`@SUM(1)` 四种商户名全部被前置单引号；`永辉超市` 未被误加 |
+| PDF 导出（真实进程） | 200、`application/pdf`、19,681 字节；`%PDF-` 开头；含 `FontFile2` 与 `ToUnicode`；字体为 `AAAAAA+SimHei` 子集 |
+| PDF 内容（pymupdf 提取 + 渲染核对） | 中文完整可读：「2026 年 11 月收支月报」「收支合计」「支出分类构成」「每日支出趋势」「预算执行」；数字 100.00 / 42.00 / 5.00 / 37.00 / 63.00 与 `GET /api/reports/monthly` 逐项相同；分类名显示「交通/购物/餐饮」而不是 `transport/shopping/dining` |
+| PDF 字体缺失 | 清空候选列表 → 503 `EXPORT_UNAVAILABLE`，日志写明"找不到可嵌入的中文字体" |
+| 未登录 | CSV 与 PDF 都是 401 `AUTH_REQUIRED` |
+
+### 五、CSV 列定义（给 F 与后续导出）
+
+```
+occurred_at, source, flow_type, category, amount_fen, currency,
+merchant, description, classification_source, source_transaction_id
+```
+
+- `amount_fen` 是**整数分**，不是元；列名带 `_fen` 就是为了让下游不用猜。
+- 文件编码是 **UTF-8 带 BOM**：不加 BOM 时 Excel 双击打开中文商户名会乱码。
+  **程序化解析请用 `utf-8-sig` 解码**，否则第一列名会带一个不可见字符。
+- 时间列是 ISO 8601 带偏移（`2026-11-08T16:00:00+08:00`），不是本地化字符串。
+- 导出不按 `page/page_size` 截断，传了也忽略。
+
+### 六、已知限制（写清楚，别当成已完成）
+
+- **CSV 导出是全量解密后在内存里筛**。个人规模（万级以内）没问题；`EXPORT_MAX_ROWS`
+  默认 5 万行，超限返回 422 并提示缩小日期范围，**不悄悄截断**。数据量再涨要改成
+  流式解密或独立存储，不能在加密列上假装能 SQL 排序。
+- **PDF 只有单页、不分页**。分类/预算/趋势条目多时会挤在一页里；真实数据若类别很多
+  要加分页逻辑。目前 `reportlab` 没有做 platypus 流式排版，是刻意选简单方案。
+- **PDF 的"可视化"只有分类横向条形图**，没有饼图。任务书要求饼图/柱状图主要在
+  **页面端**（`expense_by_category` / `daily_trend` 都已提供数据，F 用 ECharts 画即可）；
+  PDF 作为纸质附件，条形图已够表达构成。
+- **规则排序需要解密全部规则**（商户名在加密区）。几十条无感，上千条要另想办法。
+- **`_upsert_rule` 重新"记住"会把已停用规则重新启用并 `version+1`**。这是用户主动
+  操作，语义上正确（"记住商户"就是要求它生效），但 F 的规则页如果正开着同一规则，
+  会拿到 409，应刷新而不是重试。
+
+---
+
+## CHG-007（2026-11-10 夜）：补 `reportlab` 依赖声明 + 交付文档 22/23
+
+**契约版本不变（0.2.0），不改任何接口、字段、状态码。** 这是"后端收尾文档化"时
+发现的依赖缺口修复，加上给评审与 F 的两份交付文档。
+
+### 一、修了什么
+
+`services/exporting.py` 依赖 `reportlab` 生成月报 PDF，但 `backend/requirements.txt`
+**漏了这一行**。后果很具体：干净环境（尤其 `Dockerfile` 只 `pip install -r requirements.txt`）
+里 `GET /api/exports/monthly.pdf` 会永久返回 503 `EXPORT_UNAVAILABLE`——
+本该是"字体/渲染依赖临时缺失"的诚实失败，变成"部署包少一个依赖"的常态故障。
+
+- 已在 `backend/requirements.txt` 补 `reportlab>=4.0,<5`（放在 `openpyxl` 之后，带注释说明用途）。
+- 本机安装 `reportlab 4.5.1` 后重跑全量测试：**162 项 OK**（此前 159 通过 3 失败，失败项正是 PDF 三例）。
+- `Dockerfile` 无需改动：它本来就 `COPY requirements.txt` 后整体安装，补了声明即生效。
+
+### 二、新增文档
+
+| 文件 | 用途 |
+| --- | --- |
+| `docs/22_backend_delivery_summary.md` | 后端交付总结：17 个接口的请求/返回字段、枚举字典、错误码总表、业务不变量、测试证据、已知边界 |
+| `docs/23_frontend_development_guide.md` | 前端开发文档 + 任务单：工程搭建、接口层封装、六个页面规格、A07 演示链路、F-01~F-12 任务与验收 |
+
+两份文档的字段与错误码均按 `contracts/openapi.json` 0.2.0 与 `backend/app` 实现逐条核对，
+"契约声明但实现未触发"的分支（如 `login` 的 403）已在文中标注，不做修饰。
+
+### 三、给 F 的三条硬约束（写进 23，这里再强调一次）
+
+1. **必须走 Vite 代理**。会话 Cookie 是 `HttpOnly + SameSite=Lax`，直连 8000 端口会出现
+   "登录成功、下一请求 401"。
+2. **错误只能按 `error.code` 分支**，不许匹配中文 `message`。
+3. **金额全程整数分**：`Number(x) * 100` 会差 1 分，必须用字符串解析转换。

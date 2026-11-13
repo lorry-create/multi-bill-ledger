@@ -32,6 +32,11 @@ jobs:
         run: |
           node "$RUNNER_TEMP/ledger-contract-tools/node_modules/typescript/bin/tsc" --strict --target ES2022 --module commonjs --lib ES2022,DOM --outDir .contract-sdk-build contracts/client.generated.ts
           node --test tools/test_browser_client.cjs
+      - name: Install CJK font for PDF export
+        # ubuntu-latest 默认不带任何中日韩字体。services/exporting.py 找不到可嵌入字体时
+        # 如实返回 503 EXPORT_UNAVAILABLE（这是设计，不是 bug），于是 3 个 PDF 用例在
+        # CI 上必挂、在本机 Windows 上必过。这里装的字体与 backend/Dockerfile 保持一致。
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fonts-wqy-zenhei
       - name: Install backend dependencies
         run: python -m pip install -r backend/requirements-dev.txt
       - name: Reject contract drift in implemented endpoints
