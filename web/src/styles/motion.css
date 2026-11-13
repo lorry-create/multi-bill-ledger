@@ -138,6 +138,14 @@ input[type="checkbox"] { accent-color: var(--teal); }
 .batch-source, .status-pill.pending_review, .small-tag { color: #0a6b65; background: #e5f5f0; }
 .money.income, .money.refund { color: var(--teal); }
 .table-action:hover { color: var(--teal); background: #eaf7f2; }
+.table-scroll table { font-size: 13px; }
+.table-scroll th { color: #596e70; font-size: 12px; }
+.table-scroll td { color: #425b60; line-height: 1.45; }
+.table-scroll td:first-child strong { color: var(--ink); font-size: 14px; }
+.table-scroll td:first-child small, .table-scroll .source-note { color: #64787b; font-size: 12px; }
+.table-scroll tbody tr { transition: background-color .18s ease; }
+.table-scroll tbody tr:hover { background: #f5faf7; }
+.table-scroll .table-action { min-width: 38px; min-height: 38px; display: inline-grid; place-items: center; }
 .rule-avatar { background: #e6f5f0; color: var(--teal); }
 .switch input:checked + span { background: var(--teal); }
 .switch input:focus-visible + span { outline: 3px solid #29b9a5; outline-offset: 2px; }
@@ -170,6 +178,18 @@ input[type="checkbox"] { accent-color: var(--teal); }
   .hero-decoration { right: -220px; top: -260px; }
   .mobile-nav { background: rgba(246,250,247,.97); border-top-color: #dbe8e1; }
   .mobile-nav-link.router-link-active { color: var(--teal); }
+  .table-scroll { overflow: visible; }
+  .table-scroll table, .table-scroll tbody { display: block; width: 100%; }
+  .table-scroll thead { display: none; }
+  .table-scroll tbody tr { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px 12px; padding: 17px 18px; border-top: 1px solid #e8eeeb; }
+  .table-scroll td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  .table-scroll td:first-child { grid-column: 1; grid-row: 1; overflow-wrap: anywhere; }
+  .table-scroll td:nth-child(2) { grid-column: 1; grid-row: 2; color: #64787b; font-size: 12px; }
+  .table-scroll td:nth-child(3) { grid-column: 1; grid-row: 3; color: #64787b; font-size: 12px; }
+  .table-scroll td:nth-child(4) { grid-column: 2; grid-row: 3; text-align: right; }
+  .table-scroll td:nth-child(5) { grid-column: 2; grid-row: 1; align-self: start; font-size: 14px; white-space: nowrap; }
+  .table-scroll td:nth-child(6) { grid-column: 2; grid-row: 2; justify-self: end; }
+  .table-scroll .source-note { display: block; margin-top: 3px; font-size: 11px; }
 }
 @media (max-width: 460px) {
   .balance-hero { padding: 27px 25px; min-height: 280px; }
