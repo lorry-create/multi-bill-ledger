@@ -31,7 +31,7 @@ const router = useRouter(),
   budgetOpen = ref(false),
   saving = ref(false);
 const activeCategory = ref<Category | null>(null);
-const trendMode = ref<"daily" | "weekly">("daily");
+const trendMode = ref<"daily" | "weekly">("weekly");
 const activeTrendIndex = ref<number | null>(null);
 type Tooltip = { x: number; y: number; title: string; color: string; rows: { label: string; value: string }[] };
 const tooltip = ref<Tooltip | null>(null);
@@ -141,6 +141,7 @@ const exceededBudgets = computed(() => (report.value?.budgets ?? []).filter((x) 
 function changeTrendMode(mode: "daily" | "weekly") {
   trendMode.value = mode;
   activeTrendIndex.value = null;
+  hideTooltip();
 }
 async function load() {
   loading.value = true;
@@ -329,8 +330,8 @@ function goCategory(category: string) {
       <section class="content-panel trend-panel">
         <div class="panel-heading">
           <div>
-            <h2>每日收支</h2>
-            <p>每一天的收入与毛支出</p>
+            <h2>收支走势</h2>
+            <p>{{ trendMode === 'weekly' ? '先看全月节奏，再按日查看细节' : '逐日查看收入与毛支出' }}</p>
           </div>
           <div class="chart-switch" role="group" aria-label="趋势时间范围">
             <button :class="{ active: trendMode === 'daily' }" :aria-pressed="trendMode === 'daily'" @click="changeTrendMode('daily')">按日</button>
@@ -361,13 +362,13 @@ function goCategory(category: string) {
               ><i
                 class="income-bar"
                 :style="{
-                  height: `${Math.max(2, (day.income_fen / maxTrend) * 100)}%`,
+                  height: `${(day.income_fen / maxTrend) * 100}%`,
                 }"
               ></i
               ><i
                 class="expense-bar"
                 :style="{
-                  height: `${Math.max(2, (day.gross_expense_fen / maxTrend) * 100)}%`,
+                  height: `${(day.gross_expense_fen / maxTrend) * 100}%`,
                 }"
               ></i></span
             ><small

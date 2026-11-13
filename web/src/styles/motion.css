@@ -67,6 +67,12 @@ body { background: var(--paper); }
 .hero-decoration { display: block; z-index: 1; width: 420px; height: 420px; right: 13%; top: -72%; border-color: rgba(138,226,209,.12); box-shadow: 0 0 0 80px rgba(118,226,209,.018), 0 0 0 160px rgba(118,226,209,.012); pointer-events: none; }
 
 .donut-track { stroke: #e6f0ec; }
+.category-panel .category-content { min-height: 315px; gap: 26px; }
+.category-panel .donut { width: 224px; height: 224px; filter: drop-shadow(0 15px 20px rgba(18,150,128,.1)); }
+.category-panel .donut-hole { width: 132px; height: 132px; }
+.category-panel .category-legend button { padding: 10px 8px; font-size: 13px; border-radius: 10px; }
+.category-panel .category-legend button strong { margin-left: auto; font-size: 13px; }
+.category-panel .category-legend button small { font-size: 11px; }
 .donut-hole strong { color: var(--ink); }
 .donut-hole small, .category-legend button.active, .insight-item > span:last-child, .insight-intro span { color: var(--teal); }
 .category-legend button.active { background: #e7f7f0; }
@@ -77,6 +83,10 @@ body { background: var(--paper); }
 .expense-bar, .chart-key .expense-key { background: #f4ad69; }
 .trend-inspector { background: #eaf5f0; }
 .trend-chart { background: repeating-linear-gradient(to top, transparent 0, transparent 43px, #ecf1ee 44px); }
+.trend-chart.weekly { gap: 10px; }
+.trend-chart.weekly .trend-day { border-radius: 10px; }
+.trend-chart.weekly .trend-bars { left: 24%; right: 24%; gap: 7px; }
+.trend-chart.weekly .trend-bars i { border-radius: 6px 6px 0 0; }
 .chart-cursor-tooltip { background: rgba(13,36,43,.96); border-color: rgba(157,237,215,.19); box-shadow: 0 18px 42px rgba(9,38,43,.23); }
 .budget-track { background: #e5f2ed; }
 .budget-track span, .income-track i { background: #1aa991; }
@@ -98,6 +108,8 @@ body { background: var(--paper); }
   .mobile-menu-toggle { color: #d8f1e9; background: #29434a; }
   .page-wrap { padding-top: 30px; }
   .balance-hero { min-height: 290px; padding: 30px 28px; border-radius: 22px; }
+  .category-panel .category-content { min-height: 0; gap: 18px; }
+  .category-panel .donut { width: 205px; height: 205px; }
   .balance-main strong { font-size: clamp(48px,10vw,68px); margin: 10px 0 14px; }
   .balance-main p { font-size: 11px; }
   .balance-side { width: 100%; flex-direction: row; margin: 26px 0 0; border-left: 0; border-top: 1px solid rgba(187,244,226,.18); }
@@ -111,6 +123,7 @@ body { background: var(--paper); }
   .balance-hero { padding: 27px 25px; min-height: 280px; }
   .balance-main strong { font-size: 52px; }
   .balance-side { margin-top: 22px; }
+  .category-panel .category-legend button { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .particle-field { opacity: .5; }
