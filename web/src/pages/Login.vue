@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { ArrowRight, ShieldCheck } from "@lucide/vue";
 import { errorText, signIn } from "../session";
 import { ApiError, isDemo } from "../api";
+import ParticleField from "../components/ParticleField.vue";
 
 const router = useRouter(),
   username = ref(""),
@@ -67,6 +68,7 @@ async function submit() {
 <template>
   <div class="login-page">
     <section class="login-story">
+      <ParticleField />
       <div class="login-brand">
         <span class="brand-mark"><img src="/brand.svg" alt="" /></span> 归账
       </div>

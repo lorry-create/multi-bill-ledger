@@ -1485,15 +1485,15 @@ async function submitResolveMissing(quickOnly = false) {
   display: block;
   width: 100%;
   padding: 6px;
-  background: #f4f8f7;
-  border: 1px solid #d7e5e1;
+  background: #f5f9ff;
+  border: 1px solid #d9e7f7;
   border-radius: 12px;
   overflow: hidden;
   cursor: zoom-in;
   transition: border-color 0.18s ease;
 }
 .original-preview-btn:hover {
-  border-color: #087f78;
+  border-color: #326fca;
 }
 .original-preview-btn img {
   display: block;
@@ -1505,7 +1505,7 @@ async function submitResolveMissing(quickOnly = false) {
 .original-caption {
   margin: 0;
   font-size: 11px;
-  color: #6b8180;
+  color: #6b809b;
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -1515,8 +1515,8 @@ async function submitResolveMissing(quickOnly = false) {
   overflow-y: auto;
 }
 .zoom-frame {
-  background: #f4f8f7;
-  border: 1px solid #d7e5e1;
+  background: #f5f9ff;
+  border: 1px solid #d9e7f7;
   border-radius: 12px;
   padding: 8px;
   text-align: center;
@@ -1552,7 +1552,7 @@ async function submitResolveMissing(quickOnly = false) {
 .row-reason {
   margin: 10px 0 0;
   font-size: 11px;
-  color: #5b7572;
+  color: #617991;
 }
 .row-field-error {
   margin: 6px 0 0;
@@ -1567,9 +1567,9 @@ async function submitResolveMissing(quickOnly = false) {
   white-space: nowrap;
 }
 .ai-trigger-btn.highlight {
-  border-color: #7cc9bb;
-  background: #edf8f4;
-  color: #087f78;
+  border-color: #9bc2ef;
+  background: #ecf5ff;
+  color: #326fca;
 }
 .resolve-banner {
   display: flex;
@@ -1578,19 +1578,19 @@ async function submitResolveMissing(quickOnly = false) {
   gap: 16px;
   margin-bottom: 16px;
   padding: 14px 16px;
-  background: #edf8f4;
-  border: 1px solid #b8e3d9;
+  background: #ecf5ff;
+  border: 1px solid #c7ddf6;
   border-radius: 14px;
 }
 .resolve-banner strong {
   display: block;
   margin-bottom: 4px;
-  color: #0f5c55;
+  color: #245c9e;
   font-size: 13px;
 }
 .resolve-banner p {
   margin: 0;
-  color: #3f6360;
+  color: #526f91;
   font-size: 12px;
 }
 .resolve-banner .primary-btn {
@@ -1616,8 +1616,8 @@ async function submitResolveMissing(quickOnly = false) {
   overflow-y: auto;
   margin: 14px 0;
   padding: 10px 12px;
-  background: #f6faf8;
-  border: 1px solid #e1ece8;
+  background: #f6faff;
+  border: 1px solid #e1eaf6;
   border-radius: 12px;
 }
 .resolve-preview-row {
@@ -1701,9 +1701,9 @@ async function submitResolveMissing(quickOnly = false) {
   font-weight: 500;
 }
 .chip-btn.active {
-  border-color: #087f78;
-  background: #e5f5f0;
-  color: #0a6b65;
+  border-color: #326fca;
+  background: #e8f2ff;
+  color: #285fae;
 }
 .instr-label {
   display: grid;
@@ -1723,8 +1723,8 @@ async function submitResolveMissing(quickOnly = false) {
   line-height: 1.5;
 }
 .instr-label textarea:focus {
-  border-color: #087f78;
-  box-shadow: 0 0 0 4px rgba(8, 127, 120, 0.14);
+  border-color: #326fca;
+  box-shadow: 0 0 0 4px rgba(50, 111, 202, 0.14);
   outline: none;
 }
 .quick-prompts {
@@ -1737,10 +1737,10 @@ async function submitResolveMissing(quickOnly = false) {
 }
 .link-chip {
   padding: 3px 9px;
-  border: 1px dashed #8ad4c7;
+  border: 1px dashed #9cc6f2;
   border-radius: 999px;
-  background: #f1faf7;
-  color: #087f78;
+  background: #f1f7ff;
+  color: #326fca;
   font-size: 11px;
 }
 @media (max-width: 640px) {
@@ -1889,7 +1889,7 @@ async function submitResolveMissing(quickOnly = false) {
   padding: 14px;
   margin: 12px 0;
   border-radius: 10px;
-  background: #f5f9f8;
+  background: #f5f9ff;
   font-size: 12px;
   color: #4a6368;
 }

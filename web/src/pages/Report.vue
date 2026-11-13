@@ -103,7 +103,7 @@ function showTrendTooltip(event: PointerEvent, index: number) {
   activeTrendIndex.value = index;
   const item = trendData.value[index];
   if (!item) return;
-  placeTooltip(event, item.range, "#19b59c", [
+  placeTooltip(event, item.range, "#397ed8", [
     { label: "收入", value: yuan(item.income_fen) },
     { label: "支出", value: yuan(item.gross_expense_fen) },
     { label: "退款", value: yuan(item.refund_fen) },
@@ -166,16 +166,16 @@ const categoryTotal = computed(
 const chartSegments = computed(() => {
   let offset = 0;
   const colors = [
-    "#19b59c",
-    "#74d4bb",
-    "#f4ad69",
-    "#6e9bac",
-    "#e88d67",
-    "#2e9d8f",
-    "#9cc97f",
-    "#d97c83",
-    "#5d7b93",
-    "#a8c6c6",
+    "#397ed8",
+    "#8bb8ee",
+    "#5e94d9",
+    "#b1cdf0",
+    "#6f83c9",
+    "#4cadd0",
+    "#a0aee0",
+    "#729fc8",
+    "#c1d9f6",
+    "#5f79b2",
   ];
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)

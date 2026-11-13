@@ -25,13 +25,13 @@ function resize() {
   element.width = Math.round(width * ratio);
   element.height = Math.round(height * ratio);
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const count = Math.min(76, Math.max(28, Math.round(width / 15)));
+  const count = Math.min(90, Math.max(34, Math.round(width / 13)));
   dots = Array.from({ length: count }, (_, index) => ({
     x: ((index * 83.73) % 100) / 100 * width,
     y: ((index * 57.19) % 100) / 100 * height,
-    vx: Math.sin(index * 2.7) * 0.13,
-    vy: Math.cos(index * 1.9) * 0.1,
-    size: index % 9 === 0 ? 2 : 1,
+    vx: Math.sin(index * 2.7) * 0.16,
+    vy: Math.cos(index * 1.9) * 0.12,
+    size: index % 9 === 0 ? 2.2 : 1.15,
     phase: index * 0.93,
   }));
   draw(false);
@@ -41,6 +41,26 @@ function draw(advance: boolean) {
   const context = canvas.value?.getContext("2d");
   if (!context || !width || !height) return;
   context.clearRect(0, 0, width, height);
+  if (pointer.x >= 0 && pointer.x <= width && pointer.y >= 0 && pointer.y <= height) {
+    const halo = context.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, 180);
+    halo.addColorStop(0, "rgba(98,164,245,.18)");
+    halo.addColorStop(1, "rgba(98,164,245,0)");
+    context.fillStyle = halo;
+    context.fillRect(pointer.x - 180, pointer.y - 180, 360, 360);
+  }
+  for (let i = 0; i < dots.length; i++) {
+    for (let j = i + 1; j < Math.min(i + 7, dots.length); j++) {
+      const first = dots[i], second = dots[j];
+      const distance = Math.hypot(first.x - second.x, first.y - second.y);
+      if (distance > 92) continue;
+      context.beginPath();
+      context.moveTo(first.x, first.y);
+      context.lineTo(second.x, second.y);
+      context.strokeStyle = `rgba(63,127,215,${((1 - distance / 92) * .14).toFixed(3)})`;
+      context.lineWidth = .7;
+      context.stroke();
+    }
+  }
   for (const dot of dots) {
     if (advance) {
       dot.x = (dot.x + dot.vx + width) % width;
@@ -49,17 +69,17 @@ function draw(advance: boolean) {
     }
     const distance = Math.hypot(dot.x - pointer.x, dot.y - pointer.y);
     if (distance < 135) {
-      const strength = (1 - distance / 135) * 0.32;
+      const strength = (1 - distance / 135) * 0.28;
       context.beginPath();
       context.moveTo(dot.x, dot.y);
       context.lineTo(pointer.x, pointer.y);
-      context.strokeStyle = `rgba(132, 234, 217, ${strength.toFixed(3)})`;
+      context.strokeStyle = `rgba(57, 118, 209, ${strength.toFixed(3)})`;
       context.lineWidth = 0.8;
       context.stroke();
     }
     context.beginPath();
     context.arc(dot.x, dot.y, dot.size + (distance < 90 ? 0.7 : 0), 0, Math.PI * 2);
-    context.fillStyle = `rgba(155, 236, 224, ${(0.25 + (Math.sin(dot.phase) + 1) * 0.19).toFixed(3)})`;
+    context.fillStyle = `rgba(52, 116, 207, ${(0.3 + (Math.sin(dot.phase) + 1) * 0.17).toFixed(3)})`;
     context.fill();
   }
 }
