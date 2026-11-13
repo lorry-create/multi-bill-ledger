@@ -35,17 +35,21 @@ from .base import (
     IntelligenceProvider,
     assert_one_result_per_row,
 )
+from .deepseek import DeepSeekIntelligence
 from .factory import ProviderNotAvailable, build_intelligence
 from .fallback import FallbackIntelligence
 from .normalize import normalize_merchant
+from .resolve import resolve_missing_deterministic
 
 __all__ = [
     "IntelligenceFailure",
     "IntelligenceProvider",
     "ProviderNotAvailable",
     "FallbackIntelligence",
+    "DeepSeekIntelligence",
     "build_intelligence",
     "normalize_merchant",
+    "resolve_missing_deterministic",
     "assert_one_result_per_row",
     "SAFE_MESSAGES",
     # 异常代码

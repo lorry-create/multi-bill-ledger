@@ -14,3 +14,6 @@ openpyxl>=3.1,<4
 reportlab>=4.0,<5
 # 仅 PostgreSQL 部署需要；本地 SQLite 开发不加载该驱动
 psycopg[binary]>=3.2,<4
+# 离线截图 OCR（T06）与图像处理
+Pillow>=10,<13
+rapidocr-onnxruntime>=1.2,<2

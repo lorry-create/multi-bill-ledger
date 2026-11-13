@@ -1393,6 +1393,245 @@
         }
       }
     },
+    "/api/imports/{id}/resolve-missing": {
+      "post": {
+        "operationId": "resolveImportMissing",
+        "summary": "根据用户确认的年份或自然语言补充说明，由智能体批量补全缺失字段并重跑判重",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                },
+                "example": {
+                  "id": "batch_demo_01",
+                  "version": 3,
+                  "source": "wechat",
+                  "ingestion_method": "screenshot",
+                  "status": "pending_review",
+                  "rows": [
+                    {
+                      "source_transaction_id": null,
+                      "occurred_at": "2026-11-06T16:53:00+08:00",
+                      "amount_fen": 98057,
+                      "currency": "CNY",
+                      "flow_type": "expense",
+                      "merchant": "示例医院",
+                      "description": "合成截图补充年份示例",
+                      "category": "health",
+                      "row_id": "row_demo_01",
+                      "classification_source": "deepseek",
+                      "classification_reason": "医院医疗消费分类",
+                      "duplicate_status": "unique",
+                      "issues": []
+                    }
+                  ],
+                  "issues": [],
+                  "progress": {
+                    "current": 1,
+                    "total": 1
+                  },
+                  "file_name": "synthetic_bill.png",
+                  "created_at": "2026-11-08T12:00:00+08:00",
+                  "updated_at": "2026-11-08T12:05:00+08:00"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "RESOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "从列表或创建结果取得的资源ID。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveMissingInput"
+              },
+              "example": {
+                "expected_version": 2,
+                "default_year": 2026,
+                "instruction": "前7笔都是2026年，第8笔是2026年11月1日 12:00"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "仅pending_review且未过期、版本相符的批次可用。接收default_year或自然语言instruction交由智能体补全缺失时间、类别或流向，并重跑确定性判重返回最新Batch；绝不擅自猜测未确认日期。",
+        "tags": [
+          "导入确认页"
+        ],
+        "x-page": "导入确认页",
+        "x-task": "T02/T05/T07",
+        "x-action": "通过弹窗补充缺失年份或自然语言说明",
+        "x-frontend-function": "resolveImportMissing",
+        "x-business-rules": [
+          "仅pending_review且未过期、版本相符的批次才能补全缺失字段。",
+          "default_year和instruction至少提供一项有效输入，否则返回422。",
+          "补全occurred_at后重跑确定性判重，不虚构用户未确认的数据。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "404": [
+            "RESOURCE_NOT_FOUND"
+          ],
+          "409": [
+            "VERSION_CONFLICT",
+            "BATCH_STATE_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ],
+          "503": [
+            "SERVICE_UNAVAILABLE"
+          ]
+        }
+      }
+    },
     "/api/transactions": {
       "get": {
         "operationId": "listTransactions",
@@ -3542,6 +3781,38 @@
         ],
         "additionalProperties": false,
         "description": "共享模型 RetryInput；HTTP请求与响应均遵守本定义。"
+      },
+      "ResolveMissingInput": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "提交编辑前最后读取的资源版本，冲突返回409和最新版本。"
+          },
+          "default_year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 2000,
+            "maximum": 2100,
+            "description": "快捷确认的默认年份（如2026）；配合截图月日时间自动补全。"
+          },
+          "instruction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "description": "用户的自然语言补充说明，交由DeepSeek智能体逐行核对补全。"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 ResolveMissingInput；HTTP请求与响应均遵守本定义。"
       },
       "TransactionPatch": {
         "type": "object",

@@ -29,7 +29,7 @@ def _flow(value: FlowType | None) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="解析账单文件并打印供人工核对")
-    parser.add_argument("path", type=Path, help="账单文件路径（.csv/.xlsx）")
+    parser.add_argument("path", type=Path, help="账单文件（.csv/.xlsx）或截图（.png/.jpg/.jpeg）路径")
     parser.add_argument(
         "--source",
         default="alipay",
@@ -37,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
         help="平台；标错也能按内容识别，但会给出提示",
     )
     parser.add_argument("--provider", default=None, help="智能模块实现，默认用配置值")
+    parser.add_argument("--use-llm", action="store_true", help="是否允许未命中规则的记录调用 DeepSeek")
     args = parser.parse_args(argv)
 
     if not args.path.exists():
@@ -45,16 +46,21 @@ def main(argv: list[str] | None = None) -> int:
 
     provider = build_intelligence(args.provider)
     data = args.path.read_bytes()
+    suffix = args.path.suffix.lower()
 
     try:
-        result = provider.parse_bill_file(data, args.path.name, args.source)
+        if suffix in (".png", ".jpg", ".jpeg"):
+            mime = "image/png" if suffix == ".png" else "image/jpeg"
+            result = provider.recognize_bill_image(data, mime, args.source)
+        else:
+            result = provider.parse_bill_file(data, args.path.name, args.source)
     except IntelligenceFailure as exc:
         print(f"[解析失败] {exc.code}: {exc.message}", file=sys.stderr)
         return 1
 
     classified = {
         item.row_id: item
-        for item in provider.classify_transactions(result.rows, [], use_llm=False)
+        for item in provider.classify_transactions(result.rows, [], use_llm=args.use_llm)
     }
 
     print(f"实现：{provider.name}    文件：{args.path.name}    平台声明：{args.source}")

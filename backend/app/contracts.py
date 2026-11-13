@@ -41,6 +41,7 @@ __all__ = [
     "ConfirmInput",
     "ConfirmResult",
     "RetryInput",
+    "ResolveMissingInput",
     "TransactionPatchChanges",
     "TransactionPatch",
     "TransactionPage",
@@ -294,6 +295,14 @@ class RetryInput(BaseModel):
 
     expected_version: int = Field(..., ge=1, description="提交编辑前最后读取的资源版本，冲突返回409和最新版本。")
 
+class ResolveMissingInput(BaseModel):
+    """共享模型 ResolveMissingInput；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1, description="提交编辑前最后读取的资源版本，冲突返回409和最新版本。")
+    default_year: Optional[int] = Field(default=None, ge=2000, le=2100, description="快捷确认的默认年份（如2026）；配合截图月日时间自动补全。")
+    instruction: Optional[str] = Field(default=None, max_length=2000, description="用户的自然语言补充说明，交由DeepSeek智能体逐行核对补全。")
+
 class TransactionPatchChanges(BaseModel):
     """需要修改的字段；未提交字段保持原值。显式null只允许在契约可空字段。"""
     model_config = ConfigDict(extra="forbid")
@@ -445,6 +454,7 @@ _MODELS = (
     ConfirmInput,
     ConfirmResult,
     RetryInput,
+    ResolveMissingInput,
     TransactionPatchChanges,
     TransactionPatch,
     TransactionPage,

@@ -13,7 +13,7 @@ WORKDIR /app
 # Noto CJK 是 CFF/OTF，加载会失败。装完用 PDF_FONT_PATH 明确指过去，
 # 不依赖字体搜索顺序（找不到字体时接口会如实返回 503 EXPORT_UNAVAILABLE）。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-wqy-zenhei \
+    && apt-get install -y --no-install-recommends fonts-wqy-zenhei libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 ENV PDF_FONT_PATH=/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc
 

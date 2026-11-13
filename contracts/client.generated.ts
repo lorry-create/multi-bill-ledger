@@ -23,6 +23,7 @@ export type ConfirmRow = { "row_id": string; "transaction": TransactionInput; "a
 export type ConfirmInput = { "request_id": string; "expected_version": number; "rows": Array<ConfirmRow> };
 export type ConfirmResult = { "batch_id": string; "created_count": number; "duplicate_count": number; "ignored_count": number; "transaction_ids": Array<string> };
 export type RetryInput = { "expected_version": number };
+export type ResolveMissingInput = { "expected_version": number; "default_year"?: number | null; "instruction"?: string | null };
 export type TransactionPatch = { "expected_version": number; "changes": { "source_transaction_id"?: string | null; "occurred_at"?: string; "amount_fen"?: number; "currency"?: "CNY"; "flow_type"?: FlowType; "merchant"?: string; "description"?: string; "category"?: Category }; "remember_rule"?: boolean };
 export type TransactionPage = { "items": Array<Transaction>; "total": number; "page": number; "page_size": number };
 export type ClassificationRule = { "id": string; "version": number; "source": Source; "merchant_normalized": string; "category": ResolvedCategory; "enabled": boolean };
@@ -48,6 +49,7 @@ export type OperationArgs = {
 "getImportOriginal": { path: { "id": string } };
 "retryImport": { path: { "id": string }; body: RetryInput };
 "confirmImport": { path: { "id": string }; body: ConfirmInput };
+"resolveImportMissing": { path: { "id": string }; body: ResolveMissingInput };
 "listTransactions": { query?: { "date_from"?: string; "date_to"?: string; "category"?: Category; "source"?: Source; "flow_type"?: FlowType; "page"?: number; "page_size"?: number } };
 "patchTransaction": { path: { "id": string }; body: TransactionPatch };
 "listRules": {  };
@@ -67,6 +69,7 @@ export type OperationResults = {
 "getImportOriginal": Blob;
 "retryImport": Batch;
 "confirmImport": ConfirmResult;
+"resolveImportMissing": Batch;
 "listTransactions": TransactionPage;
 "patchTransaction": Transaction;
 "listRules": RuleList;
@@ -144,6 +147,14 @@ const OPERATIONS = {
   },
   "confirmImport": {
     "path": "/api/imports/{id}/confirm",
+    "method": "POST",
+    "media": "application/json",
+    "status": 200,
+    "binary": false,
+    "csrf": true
+  },
+  "resolveImportMissing": {
+    "path": "/api/imports/{id}/resolve-missing",
     "method": "POST",
     "media": "application/json",
     "status": 200,
@@ -261,6 +272,7 @@ export function getImport(args: OperationArgs["getImport"], csrfToken?: string):
 export function getImportOriginal(args: OperationArgs["getImportOriginal"], csrfToken?: string): Promise<OperationResults["getImportOriginal"]> { return callApi("getImportOriginal", args, csrfToken); }
 export function retryImport(args: OperationArgs["retryImport"], csrfToken?: string): Promise<OperationResults["retryImport"]> { return callApi("retryImport", args, csrfToken); }
 export function confirmImport(args: OperationArgs["confirmImport"], csrfToken?: string): Promise<OperationResults["confirmImport"]> { return callApi("confirmImport", args, csrfToken); }
+export function resolveImportMissing(args: OperationArgs["resolveImportMissing"], csrfToken?: string): Promise<OperationResults["resolveImportMissing"]> { return callApi("resolveImportMissing", args, csrfToken); }
 export function listTransactions(args: OperationArgs["listTransactions"], csrfToken?: string): Promise<OperationResults["listTransactions"]> { return callApi("listTransactions", args, csrfToken); }
 export function patchTransaction(args: OperationArgs["patchTransaction"], csrfToken?: string): Promise<OperationResults["patchTransaction"]> { return callApi("patchTransaction", args, csrfToken); }
 export function listRules(args: OperationArgs["listRules"], csrfToken?: string): Promise<OperationResults["listRules"]> { return callApi("listRules", args, csrfToken); }

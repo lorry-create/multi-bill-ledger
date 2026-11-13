@@ -40,6 +40,7 @@ from .base import (
     IntelligenceFailure,
 )
 from .normalize import normalize_merchant
+from .resolve import resolve_missing_deterministic
 from .rules import classify_by_keywords
 from .tables import Table, find_header, index_of, load_table
 
@@ -365,3 +366,15 @@ class FallbackIntelligence:
                 )
             )
         return results
+
+    def resolve_missing_fields(
+        self,
+        rows: list[TransactionDraft],
+        *,
+        default_year: int | None = None,
+        instruction: str | None = None,
+    ) -> list[TransactionDraft]:
+        """确定性缺失字段补充（供 fallback-rules 模式及离线快捷年份使用）。"""
+        return resolve_missing_deterministic(
+            rows, default_year=default_year, instruction=instruction
+        )
