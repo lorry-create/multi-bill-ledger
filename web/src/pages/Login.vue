@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowRight, ShieldCheck } from "@lucide/vue";
 import { errorText, signIn } from "../session";
-import { isDemo } from "../api";
+import { ApiError, isDemo } from "../api";
 
 const router = useRouter(),
   username = ref(""),
@@ -27,7 +27,10 @@ async function submit() {
     await signIn(username.value, password.value);
     router.push("/report");
   } catch (e) {
-    error.value = errorText(e);
+    const message = errorText(e);
+    error.value = showLocalDemo && e instanceof ApiError && e.payload?.error?.code === "AUTH_INVALID"
+      ? `${message} 本地预览请点击上方「进入演示账本」。`
+      : message;
   } finally {
     busy.value = false;
   }
@@ -56,9 +59,15 @@ async function submit() {
       <div class="login-form">
         <div class="login-welcome">
           <span class="welcome-icon"><ShieldCheck :size="23" /></span>
-          <h2>欢迎回来</h2>
-          <p>登录后继续整理你的账本</p>
+          <h2>{{ showLocalDemo ? "开始使用归账" : "欢迎回来" }}</h2>
+          <p>{{ showLocalDemo ? "本地预览直接进入演示账本" : "登录后继续整理你的账本" }}</p>
         </div>
+        <div v-if="showLocalDemo" class="local-demo-entry">
+          <span>本地预览 · 合成数据</span>
+          <button type="button" :disabled="busy" @click="enterDemo">进入演示账本 <ArrowRight :size="18" /></button>
+          <small>一键使用项目提供的演示账号，无需手动输入</small>
+        </div>
+        <div v-if="showLocalDemo" class="login-method-divider">已有账号登录</div>
         <form @submit.prevent="submit">
           <label for="username">账号</label
           ><input
@@ -85,11 +94,6 @@ async function submit() {
             {{ busy ? "正在登录…" : "进入账本" }} <ArrowRight :size="18" />
           </button>
         </form>
-        <div v-if="showLocalDemo" class="local-demo-entry">
-          <span>本地预览</span>
-          <button type="button" :disabled="busy" @click="enterDemo">进入演示账本 <ArrowRight :size="16" /></button>
-          <small>使用项目提供的合成账本账号</small>
-        </div>
         <p v-if="isDemo" class="demo-help">
           当前为合成数据演示模式，输入任意账号密码即可预览界面。
         </p>
