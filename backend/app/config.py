@@ -192,9 +192,11 @@ def load_settings() -> Settings:
         login_lock_seconds=_env_int("LOGIN_LOCK_SECONDS", 60),
         allow_test_doubles=_env_bool("ALLOW_TEST_DOUBLES", False),
         cors_origins=cors_origins,
-        # 默认纯规则实现；D 的实现按 包.模块:类名 填入。故意不支持"自动降级"，
-        # 否则分类来源会撒谎（见 app/intelligence/factory.py 顶部说明）
-        intelligence_provider=_env("INTELLIGENCE_PROVIDER", "fallback-rules"),
+        # 默认使用离线 OCR + 规则分类；配置 DeepSeek Key 后才启用模型分类。
+        # 需要禁用 OCR 时仍可显式选择 fallback-rules。
+        intelligence_provider=_env(
+            "INTELLIGENCE_PROVIDER", "app.intelligence.deepseek:DeepSeekIntelligence"
+        ),
         deepseek_base_url=_env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         deepseek_api_key=_env("DEEPSEEK_API_KEY", ""),
         deepseek_model=_env("DEEPSEEK_MODEL", "deepseek-chat"),
