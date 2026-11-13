@@ -10,6 +10,12 @@ const router = useRouter(),
   password = ref(""),
   busy = ref(false),
   error = ref("");
+const showLocalDemo = import.meta.env.DEV && !isDemo && ["localhost", "127.0.0.1"].includes(location.hostname);
+async function enterDemo() {
+  username.value = "demo_a";
+  password.value = "DemoA@2026";
+  await submit();
+}
 async function submit() {
   if (!username.value || !password.value) {
     error.value = "请输入账号和密码。";
@@ -79,6 +85,11 @@ async function submit() {
             {{ busy ? "正在登录…" : "进入账本" }} <ArrowRight :size="18" />
           </button>
         </form>
+        <div v-if="showLocalDemo" class="local-demo-entry">
+          <span>本地预览</span>
+          <button type="button" :disabled="busy" @click="enterDemo">进入演示账本 <ArrowRight :size="16" /></button>
+          <small>使用项目提供的合成账本账号</small>
+        </div>
         <p v-if="isDemo" class="demo-help">
           当前为合成数据演示模式，输入任意账号密码即可预览界面。
         </p>
