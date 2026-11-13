@@ -48,6 +48,7 @@ from ..contracts import (
     IngestionMethod,
     Issue,
     Progress,
+    ResolveMissingInput,
     ResolvedCategory,
     Source,
     TransactionDraft,
@@ -56,9 +57,11 @@ from ..contracts import (
 from ..crypto import CryptoError, decrypt_bytes, decrypt_json, encrypt_bytes, encrypt_json
 from ..db import as_utc, utcnow
 from ..errors import ApiError
+from ..intelligence import resolve_missing_deterministic
 from ..intelligence.base import (
-    ISSUE_DUPLICATE_EXISTING,
     ISSUE_DRAFT_UNREADABLE,
+    ISSUE_DUPLICATE_EXISTING,
+    ISSUE_DUPLICATE_SUSPECTED,
     ISSUE_NO_ROWS_PARSED,
     IntelligenceFailure,
     IntelligenceProvider,
@@ -517,7 +520,8 @@ def process_batch(
     if drafts:
         rules = load_rules(db, batch.user_id, batch.source, key)
         try:
-            results = provider.classify_transactions(drafts, rules, use_llm=False)
+            use_llm = bool(settings.deepseek_api_key and provider.name != "fallback-rules")
+            results = provider.classify_transactions(drafts, rules, use_llm=use_llm)
             assert_one_result_per_row(drafts, results)
         except IntelligenceFailure as exc:
             # docs/13：分类失败可回退 pending 类别，而不是让整批可识别账单全部丢失
@@ -808,6 +812,148 @@ def _validate_rows(payload, drafts: dict[str, TransactionDraft]) -> list[FieldEr
     return errors
 
 
+def _dedupe_issues(items: list[Issue]) -> list[Issue]:
+    seen: set[tuple[str | None, str | None, str, str]] = set()
+    unique: list[Issue] = []
+    for item in items:
+        sig = (item.row_id, item.field, item.code, item.message)
+        if sig not in seen:
+            seen.add(sig)
+            unique.append(item)
+    return unique
+
+
+def resolve_missing_batch(
+    db: Session,
+    batch: models.ImportBatch,
+    payload: ResolveMissingInput,
+    settings: Settings,
+    provider: IntelligenceProvider,
+) -> Batch:
+    """根据用户确认的年份或自然语言说明补全缺失字段，重跑确定性判重并返回最新 Batch。"""
+    if batch.status != STATUS_PENDING_REVIEW:
+        raise ApiError(
+            "BATCH_STATE_CONFLICT",
+            409,
+            "只有待确认的批次能够补充缺失信息",
+            details=ErrorDetails(current_version=batch.version),
+        )
+    if is_expired(batch):
+        raise ApiError(
+            "BATCH_STATE_CONFLICT",
+            409,
+            "批次草稿已过期，请重新上传该账单",
+            details=ErrorDetails(current_version=batch.version),
+        )
+    if payload.expected_version != batch.version:
+        raise ApiError(
+            "VERSION_CONFLICT",
+            409,
+            "批次已被修改，请刷新后重试",
+            details=ErrorDetails(current_version=batch.version),
+        )
+
+    instruction = (payload.instruction or "").strip() or None
+    if payload.default_year is None and instruction is None:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            422,
+            "请至少提供默认年份或补充说明",
+            details=ErrorDetails(
+                fields=[
+                    FieldError(
+                        field="default_year",
+                        row_id=None,
+                        code="MISSING_RESOLUTION_INPUT",
+                        message="请至少填写默认年份或输入给智能体的补充说明",
+                    )
+                ]
+            ),
+        )
+
+    key = settings.data_encryption_key
+    drafts, existing_issues = load_drafts(batch, key)
+    if any(issue.code == ISSUE_DRAFT_UNREADABLE for issue in existing_issues):
+        raise ApiError(
+            "SERVICE_UNAVAILABLE",
+            503,
+            "批次草稿无法解密，请重新上传该账单",
+        )
+
+    batch_level_issues = [issue for issue in existing_issues if issue.row_id is None]
+
+    try:
+        resolver = getattr(provider, "resolve_missing_fields", None)
+        if callable(resolver):
+            updated_drafts = resolver(
+                drafts,
+                default_year=payload.default_year,
+                instruction=instruction,
+            )
+        else:
+            updated_drafts = resolve_missing_deterministic(
+                drafts,
+                default_year=payload.default_year,
+                instruction=instruction,
+            )
+    except IntelligenceFailure as exc:
+        raise ApiError("SERVICE_UNAVAILABLE", 503, exc.message) from exc
+
+    cleaned_drafts: list[TransactionDraft] = []
+    collected_issues: list[Issue] = list(batch_level_issues)
+    for draft in updated_drafts:
+        kept_row_issues = [
+            issue
+            for issue in draft.issues
+            if issue.code != ISSUE_DUPLICATE_EXISTING
+            and (issue.code != ISSUE_DUPLICATE_SUSPECTED or "同一" in issue.message)
+        ]
+        intra_duplicate = any(
+            issue.code == ISSUE_DUPLICATE_SUSPECTED and "同一" in issue.message
+            for issue in kept_row_issues
+        )
+        cleaned = draft.model_copy(
+            update={
+                "duplicate_status": "duplicate" if intra_duplicate else "unique",
+                "issues": kept_row_issues,
+            }
+        )
+        cleaned_drafts.append(cleaned)
+        collected_issues.extend(kept_row_issues)
+
+    marked_drafts = mark_duplicates(
+        db,
+        user_id=batch.user_id,
+        source=batch.source,
+        drafts=cleaned_drafts,
+        key=key,
+        issues=collected_issues,
+    )
+    final_drafts = [
+        draft.model_copy(update={"issues": _dedupe_issues(draft.issues)})
+        for draft in marked_drafts
+    ]
+    final_issues = _dedupe_issues(
+        [
+            *batch_level_issues,
+            *(issue for draft in final_drafts for issue in draft.issues),
+        ]
+    )
+
+    batch.encrypted_rows = encrypt_json(
+        key,
+        {
+            "rows": [draft.model_dump(mode="json") for draft in final_drafts],
+            "issues": [issue.model_dump(mode="json") for issue in final_issues],
+        },
+    )
+    batch.encrypted_issues = None
+    batch.version += 1
+    batch.updated_at = utcnow()
+    db.commit()
+    return to_contract(batch, key)
+
+
 def ensure_pending_state(batch: models.ImportBatch) -> None:
     """retry 的前置校验：只有 failed 且未过期才能重跑。"""
     if batch.status != STATUS_FAILED:
@@ -864,6 +1010,7 @@ __all__ = [
     "process_batch",
     "read_limited",
     "reset_for_retry",
+    "resolve_missing_batch",
     "resolve_target",
     "sanitize_filename",
     "to_contract",

@@ -25,12 +25,14 @@ from ..contracts import (
     Error,
     ErrorDetails,
     IngestionMethod,
+    ResolveMissingInput,
     RetryInput,
     Source,
 )
 from ..crypto import CryptoError, decrypt_bytes
 from ..deps import AuthContext, get_db, require_csrf, require_session
 from ..errors import ApiError
+from ..intelligence import build_intelligence
 from ..http_utils import content_disposition
 from ..services import imports
 
@@ -201,6 +203,27 @@ def confirm_import(
     settings = request.app.state.settings
     batch = imports.load_owned(db, auth.user.id, id)
     return imports.confirm_batch(db, batch, payload, settings)
+
+
+@router.post(
+    "/{id}/resolve-missing",
+    response_model=Batch,
+    responses={401: _ERR, 403: _ERR, 404: _ERR, 409: _ERR, 422: _ERR, 503: _ERR},
+)
+def resolve_import_missing(
+    id: str,
+    payload: ResolveMissingInput,
+    request: Request,
+    auth: AuthContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> Batch:
+    settings = request.app.state.settings
+    provider = getattr(request.app.state, "intelligence_provider", None)
+    if provider is None:
+        provider = build_intelligence(settings.intelligence_provider)
+        request.app.state.intelligence_provider = provider
+    batch = imports.load_owned(db, auth.user.id, id)
+    return imports.resolve_missing_batch(db, batch, payload, settings, provider)
 
 
 # ---------------------------------------------------------------- 内部工具

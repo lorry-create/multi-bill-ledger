@@ -107,6 +107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.import_worker_enabled:
             # 取不到实现就在这里失败（factory 不自动降级），别等到用户上传完才发现
             provider = build_intelligence(settings.intelligence_provider)
+            app.state.intelligence_provider = provider
             worker = ImportWorker(session_factory, provider, settings)
             worker.start()
         app.state.import_worker = worker
@@ -115,6 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             if worker is not None:
                 worker.stop()
+            app.state.intelligence_provider = None
             engine.dispose()
 
     app = FastAPI(
@@ -127,6 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = session_factory
+    app.state.intelligence_provider = None
 
     register_error_handlers(app)
     app.add_middleware(ContractVersionMiddleware, version=CONTRACT_VERSION)
