@@ -23,4 +23,4 @@ npm run typecheck
 npm run build
 ```
 
-接口契约变更后运行 `python tools/generate_contract_artifacts.py` 重新生成 SDK，前端不手改生成文件。当前后端已实现 17 个业务接口；本地真实 HTTP 联调覆盖 CSV 上传、逐笔确认、账单修正和规则反馈。可从月报导出 PDF，从账单页导出当前筛选结果的 CSV。
+接口契约变更后运行 `python tools/generate_contract_artifacts.py` 重新生成 SDK，前端不手改生成文件。当前后端已实现 19 个接口；本地真实 HTTP 联调覆盖 CSV 上传、截图离线 OCR、逐笔确认、账单修正和规则反馈。可从月报导出 PDF，从账单页导出当前筛选结果的 CSV。截图 OCR 默认启用；DeepSeek 分类需在后端单独配置 API Key。
