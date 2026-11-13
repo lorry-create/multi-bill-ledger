@@ -31,6 +31,8 @@ export function errorText(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {
       auth.session = null;
+      if (error.payload?.error?.code === "AUTH_INVALID")
+        return error.payload.error.message || "账号或密码不正确。";
       return "登录已过期，请重新登录。";
     }
     if (error.status === 409) return "数据已更新，请刷新后核对再保存。";

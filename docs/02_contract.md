@@ -12,7 +12,7 @@ backend/app/models/            H 数据库及加密映射
 backend/app/intelligence/      D 文件解析 OCR 分类 纯匹配
 backend/tests/intelligence/    D 模块测试
 backend/tests/integration/     H 数据库 权限与 HTTP 测试
-frontend/                     F 页面 类型与交互
+web/                     F 页面 类型与交互
 contracts/                    H 维护 三方评审
 deploy/                       H 部署和资源
 docs/evidence/                各人 仅合成或授权脱敏证据

@@ -6,7 +6,7 @@
 
 前端开发地址为 http://127.0.0.1:5173，后端为 http://127.0.0.1:8000。Vite代理 /api 和 /health 至后端，SDK baseUrl 为空字符串即可。Compose对外默认8080，浏览器仍同源调用。地址是T00需实现的开发约定，当前没有已启动服务。
 
-复制生成SDK到 frontend/src/api/client.generated.ts，并由生成命令持续同步；或T00配置从contracts直接导入，三人共同选择一种。生成文件禁止手改。请求示例如下，文件名和字段与SDK一致：
+复制生成SDK到 web/src/api/client.generated.ts，并由生成命令持续同步；或T00配置从contracts直接导入，三人共同选择一种。生成文件禁止手改。请求示例如下，文件名和字段与SDK一致：
 
 ```typescript
 import { login, getImport, confirmImport, getMonthlyReport, patchTransaction, ApiError } from "./client.generated";

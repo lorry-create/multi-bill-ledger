@@ -34,4 +34,4 @@ T10 落实数据加密、用户隔离、备份恢复、干净部署；确保图�
 
 开工先读11的全部HTTP接口和13的数据/事务设计，按contracts/openapi.json建立共同Pydantic请求与response_model。不要只参考功能描述后自行定义返回字典。先交付health、login、getSession、logout；再按任务接批次、确认、查询、纠错、报表和导出。
 
-交付时执行tools/validate_examples.py、生成器--check和真实HTTP测试；Schema静态检查不代替鉴权和事务测试。F创建frontend/src/api目录后，生成器会同步SDK至该目录，CI检查是否漂移。你修改契约时同步生成物和两个调用端。
+交付时执行tools/validate_examples.py、生成器--check和真实HTTP测试；Schema静态检查不代替鉴权和事务测试。F创建web/src/api目录后，生成器会同步SDK至该目录，CI检查是否漂移。你修改契约时同步生成物和两个调用端。

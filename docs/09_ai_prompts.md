@@ -51,4 +51,4 @@
 
 请先读取docs/11_api_reference.md、docs/12_page_api_integration.md、docs/13_database_module_design.md和contracts/examples.json。接口名、字段、成功状态、错误code和分页按它们实现，SDK导出函数名与operationId相同。
 
-前端先创建frontend/src/api目录，运行生成器生成SDK并使用，禁止手写另一套请求字段。后端用共同Pydantic模型和response_model，并通过真实请求校验。D严格返回规定DTO。任何不够用的字段先提交共同变更，不能各自临时改协议。
+前端先创建web/src/api目录，运行生成器生成SDK并使用，禁止手写另一套请求字段。后端用共同Pydantic模型和response_model，并通过真实请求校验。D严格返回规定DTO。任何不够用的字段先提交共同变更，不能各自临时改协议。

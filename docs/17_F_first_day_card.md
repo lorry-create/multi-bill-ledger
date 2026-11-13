@@ -15,7 +15,7 @@
 ```bash
 git clone <仓库地址> && cd multi-bill-ledger
 git checkout task/T00-baseline
-cd frontend
+cd web
 npm install
 npm run dev          # 应能打开 5173 的空壳
 ```
@@ -29,13 +29,13 @@ npm run dev          # 应能打开 5173 的空壳
 ## 只允许改这些文件
 
 ```text
-frontend/src/pages/Login.vue
-frontend/src/pages/ImportUpload.vue
-frontend/src/pages/ImportConfirm.vue
-frontend/src/api/mock.ts          # 新建
-frontend/src/router.ts            # 新建或改
-frontend/src/api/index.ts         # 新建：真实/mock 的切换层
-frontend/src/styles/              # 样式
+web/src/pages/Login.vue
+web/src/pages/ImportUpload.vue
+web/src/pages/ImportConfirm.vue
+web/src/api/mock.ts          # 新建
+web/src/router.ts            # 新建或改
+web/src/api/index.ts         # 新建：真实/mock 的切换层
+web/src/styles/              # 样式
 ```
 
 **禁止**改：`contracts/` 下任何文件、`client.generated.ts`、`backend/` 下任何文件、根 CI。发现接口不够用，按 `docs/10_change_delivery.md` 提变更说明，不要自己加后端没有的字段。

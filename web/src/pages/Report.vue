@@ -14,6 +14,7 @@ import { api, isDemo } from "../api";
 import type { Category, MonthlyReport, ResolvedCategory } from "../api";
 import { categories, download, parseYuan, yuan } from "../format";
 import { csrf, errorText } from "../session";
+import ParticleField from "../components/ParticleField.vue";
 
 const router = useRouter(),
   month = ref(
@@ -30,7 +31,7 @@ const router = useRouter(),
   budgetOpen = ref(false),
   saving = ref(false);
 const activeCategory = ref<Category | null>(null);
-const trendMode = ref<"daily" | "weekly">("daily");
+const trendMode = ref<"daily" | "weekly">("weekly");
 const activeTrendIndex = ref<number | null>(null);
 type Tooltip = { x: number; y: number; title: string; color: string; rows: { label: string; value: string }[] };
 const tooltip = ref<Tooltip | null>(null);
@@ -60,7 +61,7 @@ function showTrendTooltip(event: PointerEvent, index: number) {
   activeTrendIndex.value = index;
   const item = trendData.value[index];
   if (!item) return;
-  placeTooltip(event, item.range, "#007aff", [
+  placeTooltip(event, item.range, "#19b59c", [
     { label: "收入", value: yuan(item.income_fen) },
     { label: "支出", value: yuan(item.gross_expense_fen) },
     { label: "退款", value: yuan(item.refund_fen) },
@@ -117,7 +118,7 @@ const categoryTotal = computed(
 );
 const chartSegments = computed(() => {
   let offset = 0;
-  const colors = ["#007aff", "#8fc5ff", "#ffad42", "#68a7c8", "#cbd6e1"];
+  const colors = ["#19b59c", "#74d4bb", "#f4ad69", "#6e9bac", "#a8c6c6"];
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
     .map((x, i) => {
@@ -140,6 +141,7 @@ const exceededBudgets = computed(() => (report.value?.budgets ?? []).filter((x) 
 function changeTrendMode(mode: "daily" | "weekly") {
   trendMode.value = mode;
   activeTrendIndex.value = null;
+  hideTooltip();
 }
 async function load() {
   loading.value = true;
@@ -244,6 +246,7 @@ function goCategory(category: string) {
   <div v-if="loading" class="empty-state">正在读取月报…</div>
   <template v-else-if="report"
     ><section class="balance-hero">
+      <ParticleField />
       <div class="balance-main">
         <span>本月收支差额</span
         ><strong>{{ yuan(report.totals.balance_fen) }}</strong>
@@ -327,8 +330,8 @@ function goCategory(category: string) {
       <section class="content-panel trend-panel">
         <div class="panel-heading">
           <div>
-            <h2>每日收支</h2>
-            <p>每一天的收入与毛支出</p>
+            <h2>收支走势</h2>
+            <p>{{ trendMode === 'weekly' ? '先看全月节奏，再按日查看细节' : '逐日查看收入与毛支出' }}</p>
           </div>
           <div class="chart-switch" role="group" aria-label="趋势时间范围">
             <button :class="{ active: trendMode === 'daily' }" :aria-pressed="trendMode === 'daily'" @click="changeTrendMode('daily')">按日</button>
@@ -359,13 +362,13 @@ function goCategory(category: string) {
               ><i
                 class="income-bar"
                 :style="{
-                  height: `${Math.max(2, (day.income_fen / maxTrend) * 100)}%`,
+                  height: `${(day.income_fen / maxTrend) * 100}%`,
                 }"
               ></i
               ><i
                 class="expense-bar"
                 :style="{
-                  height: `${Math.max(2, (day.gross_expense_fen / maxTrend) * 100)}%`,
+                  height: `${(day.gross_expense_fen / maxTrend) * 100}%`,
                 }"
               ></i></span
             ><small
