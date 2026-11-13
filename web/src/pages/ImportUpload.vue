@@ -9,16 +9,31 @@ import {
 } from "@lucide/vue";
 import { api } from "../api";
 import type { IngestionMethod, Source } from "../api";
-import { csrf, errorText } from "../session";
+import { errorText, withCsrfRetry } from "../session";
 
 const router = useRouter(),
   source = ref<Source>("wechat"),
   method = ref<IngestionMethod>("file"),
   file = ref<File | null>(null),
+  dragging = ref(false),
   busy = ref(false),
   error = ref("");
 function choose(e: Event) {
   file.value = (e.target as HTMLInputElement).files?.[0] ?? null;
+  error.value = "";
+}
+function onDrop(e: DragEvent) {
+  dragging.value = false;
+  const dropped = e.dataTransfer?.files?.[0] ?? null;
+  if (dropped) {
+    file.value = dropped;
+    error.value = "";
+  }
+}
+function switchMethod(next: IngestionMethod) {
+  method.value = next;
+  file.value = null;
+  dragging.value = false;
   error.value = "";
 }
 async function submit() {
@@ -34,7 +49,7 @@ async function submit() {
   }
   if (
     !(image
-      ? /^image\/(png|jpeg)$/.test(f.type)
+      ? /^image\/(png|jpeg)$/.test(f.type) || /\.(png|jpe?g)$/i.test(f.name)
       : /\.(csv|xlsx)$/i.test(f.name))
   ) {
     error.value = image
@@ -45,11 +60,13 @@ async function submit() {
   busy.value = true;
   error.value = "";
   try {
-    const batch = await api.createImport(
-      {
-        body: { source: source.value, ingestion_method: method.value, file: f },
-      },
-      csrf(),
+    const batch = await withCsrfRetry((token) =>
+      api.createImport(
+        {
+          body: { source: source.value, ingestion_method: method.value, file: f },
+        },
+        token,
+      ),
     );
     router.push(`/import/${batch.id}`);
   } catch (e) {
@@ -105,23 +122,22 @@ async function submit() {
       <div class="method-tabs">
         <button
           :class="{ active: method === 'file' }"
-          @click="
-            method = 'file';
-            file = null;
-          "
+          @click="switchMethod('file')"
         >
           <FileSpreadsheet :size="18" />账单文件</button
         ><button
           :class="{ active: method === 'screenshot' }"
-          @click="
-            method = 'screenshot';
-            file = null;
-          "
+          @click="switchMethod('screenshot')"
         >
           <ImageUp :size="18" />交易截图
         </button>
       </div>
-      <label class="dropzone"
+      <label
+        class="dropzone"
+        :class="{ dragging }"
+        @dragover.prevent="dragging = true"
+        @dragleave.prevent="dragging = false"
+        @drop.prevent="onDrop"
         ><input
           :key="method"
           type="file"
@@ -133,7 +149,7 @@ async function submit() {
           @change="choose"
         /><span class="upload-icon"
           ><UploadCloud :size="28" :stroke-width="1.6" /></span
-        ><strong>{{ file?.name ?? "点击选择文件" }}</strong
+        ><strong>{{ file?.name ?? "点击或拖拽文件到此处" }}</strong
         ><span>{{
           method === "file"
             ? "CSV、XLSX，单个文件不超过 10 MiB"

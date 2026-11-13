@@ -101,6 +101,42 @@ body { background: var(--paper); }
 .report-insights .insight-item { border-color: #dce8e3; }
 .report-insights .insight-item:hover { border-color: #78c9b7; box-shadow: 0 12px 28px rgba(21,101,87,.1); }
 .month-step:hover { color: var(--teal); background: #e9f6f1; }
+
+/* 统一收口所有历史 Apple 蓝残留到青绿主题 */
+input:focus,
+select:focus,
+.login-form input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 4px rgba(8, 127, 120, 0.12);
+  outline: none;
+}
+input[type="checkbox"] { accent-color: var(--teal); }
+.sidebar-toggle:hover { color: var(--teal); }
+.login-story { background: #edf5f2; }
+.login-story .brand-mark { background: var(--ink); color: #72dfc9; }
+.login-story .brand-dot { color: var(--teal); }
+.preview-total { color: var(--teal); }
+.welcome-icon { color: var(--teal); background: #e7f6f1; }
+.upload-aside { background: #edf7f3; }
+.upload-aside li > span { color: var(--teal); }
+.aside-foot { border-top-color: #d6ebe3; }
+.step-dot { background: #e6f5ef; color: var(--teal); }
+.source-option.selected { border-color: #70c7b4; background: #f1fbf7; }
+.selected .radio-dot { border-color: var(--teal); }
+.method-tabs button.active { color: var(--teal); border-color: var(--teal); }
+.dropzone { background: #f8fcfa; border-color: #9dd4c6; }
+.dropzone:hover, .dropzone.dragging { background: #edf8f4; border-color: var(--teal); }
+.upload-icon { background: #e4f4ee; color: var(--teal); }
+.batch-source, .status-pill.pending_review, .small-tag { color: #0a6b65; background: #e5f5f0; }
+.money.income, .money.refund { color: var(--teal); }
+.table-action:hover { color: var(--teal); background: #eaf7f2; }
+.rule-avatar { background: #e6f5f0; color: var(--teal); }
+.switch input:checked + span { background: var(--teal); }
+.switch input:focus-visible + span { outline: 3px solid #29b9a5; outline-offset: 2px; }
+@media (max-width: 760px) {
+  .drawer-link.router-link-active { color: var(--teal); background: #e7f6f1; }
+  .mobile-nav-link:active { background: #e6f5ef; }
+}
 @keyframes ledger-unfold {
   from { clip-path: inset(0 100% 0 0 round 24px); }
   to { clip-path: inset(0 0 0 0 round 24px); }

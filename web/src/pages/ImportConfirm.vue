@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
@@ -18,13 +18,15 @@ import type {
 } from "../api";
 import {
   categories,
+  classificationSources,
+  download,
   flows,
   fromLocalInput,
   parseYuan,
   sources,
   toLocalInput,
 } from "../format";
-import { csrf, errorText } from "../session";
+import { csrf, errorText, withCsrfRetry } from "../session";
 
 type Editable = {
   row: TransactionDraft;
@@ -33,9 +35,25 @@ type Editable = {
   amount: string;
   flow_type: FlowType | null;
   merchant: string;
+  description: string;
   category: Category;
   allow_suspected_duplicate: boolean;
 };
+
+function isRowComplete(r: {
+  occurred_at: string;
+  amount: string;
+  flow_type: FlowType | null;
+  merchant: string;
+}) {
+  return (
+    !!r.occurred_at &&
+    parseYuan(r.amount) !== null &&
+    !!r.flow_type &&
+    !!r.merchant.trim()
+  );
+}
+
 const route = useRoute(),
   router = useRouter(),
   batch = ref<Batch | null>(null),
@@ -44,6 +62,10 @@ const route = useRoute(),
   error = ref(""),
   notice = ref(""),
   originalUrl = ref(""),
+  originalLoadedFor = ref<string | null>(null),
+  originalLoading = ref(false),
+  originalZoomed = ref(false),
+  rowErrors = ref<Record<string, string[]>>({}),
   elapsed = ref(0),
   resolveOpen = ref(false),
   resolveBusy = ref(false),
@@ -51,6 +73,7 @@ const route = useRoute(),
   resolveInstruction = ref(""),
   resolveError = ref(""),
   promptAutoShownFor = ref<string>("");
+let active = true;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let retryPayload: ConfirmInput | null = null;
 const ready = computed(() => batch.value?.status === "pending_review");
@@ -82,31 +105,70 @@ const statusLabel: Record<Batch["status"], string> = {
   failed: "处理失败",
 };
 const invalid = computed(() =>
-  selected.value.filter(
-    (r) => !r.occurred_at || parseYuan(r.amount) === null || !r.flow_type,
-  ),
+  selected.value.filter((r) => !isRowComplete(r)),
 );
-function fill(b: Batch, preserve = false) {
-  batch.value = b;
-  if (!preserve)
-    rows.value = b.rows.map((row) => ({
-      row,
-      selected:
-        row.duplicate_status === "unique" &&
-        !!row.occurred_at &&
-        row.amount_fen !== null &&
-        !!row.flow_type,
-      occurred_at: toLocalInput(row.occurred_at),
-      amount: row.amount_fen === null ? "" : (row.amount_fen / 100).toFixed(2),
-      flow_type: row.flow_type,
-      merchant: row.merchant,
-      category: row.category,
-      allow_suspected_duplicate: false,
-    }));
+function draftToEditable(row: TransactionDraft): Editable {
+  const occurred_at = toLocalInput(row.occurred_at);
+  const amount = row.amount_fen === null ? "" : (row.amount_fen / 100).toFixed(2);
+  const flow_type = row.flow_type;
+  const merchant = row.merchant;
+  return {
+    row,
+    selected:
+      row.duplicate_status === "unique" &&
+      isRowComplete({ occurred_at, amount, flow_type, merchant }),
+    occurred_at,
+    amount,
+    flow_type,
+    merchant,
+    description: row.description,
+    category: row.category,
+    allow_suspected_duplicate: false,
+  };
 }
-async function load(preserve = false) {
+async function loadOriginalPreview(b: Batch) {
+  if (
+    isDemo ||
+    b.ingestion_method !== "screenshot" ||
+    !["pending_review", "completed", "failed"].includes(b.status) ||
+    originalLoadedFor.value === b.id ||
+    originalLoading.value
+  ) {
+    return;
+  }
+  originalLoading.value = true;
+  originalLoadedFor.value = b.id;
   try {
-    const b = await api.getImport({ path: { id: String(route.params.id) } });
+    const blob = await api.getImportOriginal({ path: { id: b.id } });
+    if (!active || String(route.params.id) !== b.id) return;
+    if (originalUrl.value) URL.revokeObjectURL(originalUrl.value);
+    originalUrl.value = URL.createObjectURL(blob);
+  } catch {
+    originalLoadedFor.value = null;
+  } finally {
+    if (active) originalLoading.value = false;
+  }
+}
+function fill(b: Batch, preserve = false) {
+  const prevStatus = batch.value?.status;
+  const canPreserve =
+    preserve &&
+    prevStatus === "pending_review" &&
+    rows.value.length > 0 &&
+    rows.value.length === b.rows.length;
+  batch.value = b;
+  if (!canPreserve) rows.value = b.rows.map(draftToEditable);
+  loadOriginalPreview(b);
+}
+async function load(preserve = false, resetTimeout = false) {
+  const batchId = String(route.params.id);
+  clearTimeout(timer);
+  timer = undefined;
+  if (resetTimeout) elapsed.value = 0;
+  try {
+    const b = await api.getImport({ path: { id: batchId } });
+    if (!active || String(route.params.id) !== batchId) return;
+    error.value = "";
     fill(b, preserve);
     if (
       b.status === "pending_review" &&
@@ -117,34 +179,85 @@ async function load(preserve = false) {
       openResolveModal();
     }
     if (["uploaded", "processing"].includes(b.status) && elapsed.value < 120) {
-      timer = setTimeout(
-        () => {
-          elapsed.value += 2;
-          load();
-        },
-        elapsed.value ? 2000 : 1000,
-      );
+      const wait = elapsed.value ? 2000 : 1000;
+      timer = setTimeout(() => {
+        elapsed.value += wait / 1000;
+        load(false);
+      }, wait);
     }
   } catch (e) {
-    error.value = errorText(e);
+    if (active) error.value = errorText(e);
   }
 }
-onMounted(() => load());
+function onConfirmKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  if (originalZoomed.value) {
+    originalZoomed.value = false;
+    return;
+  }
+  if (resolveOpen.value && !resolveBusy.value) {
+    resolveOpen.value = false;
+  }
+}
+watch(
+  () => route.params.id,
+  (next, prev) => {
+    if (!next || next === prev) return;
+    clearTimeout(timer);
+    timer = undefined;
+    elapsed.value = 0;
+    retryPayload = null;
+    batch.value = null;
+    rows.value = [];
+    error.value = "";
+    notice.value = "";
+    rowErrors.value = {};
+    resolveOpen.value = false;
+    originalZoomed.value = false;
+    originalLoadedFor.value = null;
+    if (originalUrl.value) {
+      URL.revokeObjectURL(originalUrl.value);
+      originalUrl.value = "";
+    }
+    load(false, true);
+  },
+);
+onMounted(() => {
+  window.addEventListener("keydown", onConfirmKeydown);
+  load();
+});
 onUnmounted(() => {
+  active = false;
   clearTimeout(timer);
+  window.removeEventListener("keydown", onConfirmKeydown);
   if (originalUrl.value) URL.revokeObjectURL(originalUrl.value);
 });
-function edited() {
+function edited(rowId?: string) {
   retryPayload = null;
   notice.value = "";
+  if (rowId && rowErrors.value[rowId]) {
+    const next = { ...rowErrors.value };
+    delete next[rowId];
+    rowErrors.value = next;
+  }
 }
 async function original() {
+  if (!batch.value) return;
   try {
+    if (batch.value.ingestion_method === "screenshot" && originalUrl.value) {
+      window.open(originalUrl.value, "_blank", "noopener");
+      return;
+    }
     const blob = await api.getImportOriginal({
-      path: { id: String(route.params.id) },
+      path: { id: batch.value.id },
     });
+    if (batch.value.ingestion_method === "file") {
+      download(blob, batch.value.file_name);
+      return;
+    }
     if (originalUrl.value) URL.revokeObjectURL(originalUrl.value);
     originalUrl.value = URL.createObjectURL(blob);
+    originalLoadedFor.value = batch.value.id;
     window.open(originalUrl.value, "_blank", "noopener");
   } catch (e) {
     error.value = errorText(e);
@@ -152,19 +265,27 @@ async function original() {
 }
 async function retry() {
   if (!batch.value) return;
+  const targetId = batch.value.id;
   busy.value = true;
+  clearTimeout(timer);
+  timer = undefined;
+  elapsed.value = 0;
+  retryPayload = null;
+  rowErrors.value = {};
   try {
     fill(
-      await api.retryImport(
-        {
-          path: { id: batch.value.id },
-          body: { expected_version: batch.value.version },
-        },
-        csrf(),
+      await withCsrfRetry(() =>
+        api.retryImport(
+          {
+            path: { id: targetId },
+            body: { expected_version: batch.value!.version },
+          },
+          csrf(),
+        ),
       ),
     );
     error.value = "";
-    load(true);
+    load(false, true);
   } catch (e) {
     error.value = errorText(e);
     if ((e as { status?: number }).status === 409) load();
@@ -182,6 +303,7 @@ async function confirm() {
     return;
   busy.value = true;
   error.value = "";
+  rowErrors.value = {};
   try {
     if (!retryPayload)
       retryPayload = {
@@ -198,22 +320,55 @@ async function confirm() {
             amount_fen: parseYuan(r.amount)!,
             currency: "CNY",
             flow_type: r.flow_type!,
-            merchant: r.merchant,
-            description: r.row.description,
+            merchant: r.merchant.trim(),
+            description: r.description,
             category: r.category,
           },
         })),
       };
-    const result = await api.confirmImport(
-      { path: { id: batch.value.id }, body: retryPayload },
-      csrf(),
+    const result = await withCsrfRetry(() =>
+      api.confirmImport(
+        { path: { id: batch.value!.id }, body: retryPayload! },
+        csrf(),
+      ),
     );
     notice.value = `已入账 ${result.created_count} 笔，跳过重复 ${result.duplicate_count} 笔，忽略 ${result.ignored_count} 笔。`;
     await load(true);
     retryPayload = null;
   } catch (e) {
     error.value = errorText(e);
-    if ((e as { status?: number }).status === 409) {
+    const err = e as {
+      status?: number;
+      payload?: {
+        error?: {
+          details?: {
+            fields?: Array<{
+              row_id?: string | null;
+              field?: string;
+              message?: string;
+            }>;
+          };
+        };
+      };
+    };
+    const fields = err?.payload?.error?.details?.fields ?? [];
+    if (fields.length) {
+      const grouped: Record<string, string[]> = {};
+      for (const item of fields) {
+        const key = item.row_id || "_global";
+        grouped[key] = [...(grouped[key] ?? []), item.message || "字段无效"];
+      }
+      rowErrors.value = grouped;
+      const firstRowId = fields.find((f) => f.row_id)?.row_id;
+      if (firstRowId) {
+        requestAnimationFrame(() => {
+          document
+            .getElementById(`draft-row-${firstRowId}`)
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+    }
+    if (err?.status === 409) {
       retryPayload = null;
       await load(true);
     }
@@ -248,6 +403,7 @@ function applyResolvedBatch(prevBatch: Batch | null, updated: Batch) {
   const localById = new Map(rows.value.map((item) => [item.row.row_id, item]));
   batch.value = updated;
   retryPayload = null;
+  rowErrors.value = {};
   rows.value = updated.rows.map((newRow) => {
     const prevRow = prevById.get(newRow.row_id);
     const local = localById.get(newRow.row_id);
@@ -256,6 +412,8 @@ function applyResolvedBatch(prevBatch: Batch | null, updated: Batch) {
     const serverCatChanged = !prevRow || newRow.category !== prevRow.category;
     const serverFlowChanged =
       !prevRow || newRow.flow_type !== prevRow.flow_type;
+    const serverDescChanged =
+      !prevRow || newRow.description !== prevRow.description;
 
     const occurred_at = serverTimeChanged
       ? toLocalInput(newRow.occurred_at)
@@ -273,11 +431,12 @@ function applyResolvedBatch(prevBatch: Batch | null, updated: Batch) {
           ? ""
           : (newRow.amount_fen / 100).toFixed(2);
     const merchant = local ? local.merchant : newRow.merchant;
+    const description = serverDescChanged
+      ? newRow.description
+      : (local?.description ?? newRow.description);
     const validForSelect =
       newRow.duplicate_status === "unique" &&
-      !!occurred_at &&
-      Number(amount) > 0 &&
-      !!flow_type;
+      isRowComplete({ occurred_at, amount, flow_type, merchant });
     return {
       row: newRow,
       selected: validForSelect,
@@ -285,6 +444,7 @@ function applyResolvedBatch(prevBatch: Batch | null, updated: Batch) {
       amount,
       flow_type,
       merchant,
+      description,
       category,
       allow_suspected_duplicate: false,
     };
@@ -306,16 +466,18 @@ async function submitResolveMissing(quickOnly = false) {
   error.value = "";
   const prevBatch = batch.value;
   try {
-    const updated = await api.resolveImportMissing(
-      {
-        path: { id: batch.value.id },
-        body: {
-          expected_version: batch.value.version,
-          default_year: yearVal,
-          instruction: instr || null,
+    const updated = await withCsrfRetry(() =>
+      api.resolveImportMissing(
+        {
+          path: { id: batch.value!.id },
+          body: {
+            expected_version: batch.value!.version,
+            default_year: yearVal,
+            instruction: instr || null,
+          },
         },
-      },
-      csrf(),
+        csrf(),
+      ),
     );
     const beforeMissing = prevBatch.rows.filter((r) => !r.occurred_at).length;
     const afterMissing = updated.rows.filter((r) => !r.occurred_at).length;
@@ -358,7 +520,7 @@ async function submitResolveMissing(quickOnly = false) {
       <h1>核对并确认</h1>
       <p>逐笔检查识别结果，只有选中的账单会入账。</p>
     </div>
-    <button class="secondary-btn" @click="load(true)">
+    <button class="secondary-btn" @click="load(true, true)">
       <RefreshCw :size="16" /> 刷新状态
     </button>
   </div>
@@ -390,7 +552,7 @@ async function submitResolveMissing(quickOnly = false) {
       <p>
         {{
           elapsed >= 120
-            ? "自动刷新已暂停，请稍后手动刷新。"
+            ? "自动刷新已暂停（已超过 2 分钟），可点击下方按钮继续检查。"
             : "识别完成后，你可以核对每一笔交易。"
         }}
       </p>
@@ -401,16 +563,42 @@ async function submitResolveMissing(quickOnly = false) {
           }"
         ></span>
       </div>
+      <div v-else-if="elapsed < 120" class="progress-track indeterminate">
+        <span></span>
+      </div>
+      <button
+        v-if="elapsed >= 120"
+        type="button"
+        class="secondary-btn continue-wait-btn"
+        @click="load(false, true)"
+      >
+        <RefreshCw :size="15" /> 继续等待刷新
+      </button>
     </div>
     <div v-if="ready || batch.status === 'completed'" class="confirm-layout">
       <aside class="original-panel">
         <div class="panel-heading">
           <h2>原始来源</h2>
-          <button class="text-btn" @click="original">
-            查看原文件 <ExternalLink :size="14" />
+          <button v-if="!isDemo" class="text-btn" @click="original">
+            {{ batch.ingestion_method === "file" ? "下载原文件" : "新窗口查看" }}
+            <ExternalLink :size="14" />
           </button>
         </div>
-        <div class="original-placeholder">
+        <div
+          v-if="batch.ingestion_method === 'screenshot' && originalUrl"
+          class="original-preview"
+        >
+          <button
+            type="button"
+            class="original-preview-btn"
+            title="点击放大查看原始截图"
+            @click="originalZoomed = true"
+          >
+            <img :src="originalUrl" :alt="batch.file_name" />
+          </button>
+          <p class="original-caption">{{ batch.file_name }}（点击图片可放大）</p>
+        </div>
+        <div v-else class="original-placeholder">
           <span>{{
             batch.ingestion_method === "file" ? "CSV / XLSX" : "PNG / JPEG"
           }}</span
@@ -419,13 +607,20 @@ async function submitResolveMissing(quickOnly = false) {
             {{
               isDemo
                 ? "合成数据演示不包含原始文件"
-                : "点击上方查看原始内容，对照右侧逐笔核对。"
+                : originalLoading
+                  ? "正在加载原始截图预览…"
+                  : batch.ingestion_method === "file"
+                    ? "点击上方按钮下载原始账单文件，对照右侧逐笔核对。"
+                    : "点击上方查看原始内容，对照右侧逐笔核对。"
             }}
           </p>
         </div>
         <div class="issue-list" v-if="batch.issues.length">
           <h3>批次提示</h3>
-          <p v-for="issue in batch.issues" :key="issue.code + issue.row_id">
+          <p
+            v-for="(issue, idx) in batch.issues"
+            :key="issue.code + (issue.row_id ?? '') + idx"
+          >
             {{ issue.message }}
           </p>
         </div>
@@ -473,18 +668,27 @@ async function submitResolveMissing(quickOnly = false) {
           <article
             v-for="(r, index) in rows"
             :key="r.row.row_id"
+            :id="'draft-row-' + r.row.row_id"
             class="draft-row"
+            :class="{ 'has-error': !!rowErrors[r.row.row_id]?.length }"
           >
             <div class="draft-top">
-              <label class="check-label"
+              <label
+                class="check-label"
+                :title="
+                  !r.selected && !isRowComplete(r)
+                    ? '请先补全交易时间、金额、收支方向和商户名称'
+                    : undefined
+                "
                 ><input
                   v-model="r.selected"
                   type="checkbox"
                   :disabled="
                     batch.status === 'completed' ||
-                    r.row.duplicate_status === 'duplicate'
+                    r.row.duplicate_status === 'duplicate' ||
+                    (!r.selected && !isRowComplete(r))
                   "
-                  @change="edited"
+                  @change="edited(r.row.row_id)"
                 /><strong>第 {{ index + 1 }} 笔</strong></label
               ><span
                 v-if="r.row.duplicate_status === 'duplicate'"
@@ -495,11 +699,7 @@ async function submitResolveMissing(quickOnly = false) {
                 class="small-tag warn"
                 >疑似重复，需主动确认</span
               ><span v-else class="small-tag">{{
-                r.row.classification_source === "user_rule"
-                  ? "个人规则"
-                  : r.row.classification_source === "deepseek"
-                    ? "智能分类"
-                    : "识别结果"
+                classificationSources[r.row.classification_source] || "识别结果"
               }}</span>
             </div>
             <div class="draft-fields">
@@ -508,19 +708,19 @@ async function submitResolveMissing(quickOnly = false) {
                   type="datetime-local"
                   v-model="r.occurred_at"
                   :disabled="batch.status === 'completed'"
-                  @input="edited" /></label
+                  @input="edited(r.row.row_id)" /></label
               ><label
                 >金额（元）<input
                   v-model="r.amount"
                   inputmode="decimal"
                   placeholder="如 23.00"
                   :disabled="batch.status === 'completed'"
-                  @input="edited" /></label
+                  @input="edited(r.row.row_id)" /></label
               ><label
                 >收支方向<select
                   v-model="r.flow_type"
                   :disabled="batch.status === 'completed'"
-                  @change="edited"
+                  @change="edited(r.row.row_id)"
                 >
                   <option :value="null">请选择</option>
                   <option v-for="(label, key) in flows" :key="key" :value="key">
@@ -530,13 +730,20 @@ async function submitResolveMissing(quickOnly = false) {
               ><label
                 >商户<input
                   v-model="r.merchant"
+                  placeholder="商户名称"
                   :disabled="batch.status === 'completed'"
-                  @input="edited" /></label
+                  @input="edited(r.row.row_id)" /></label
+              ><label
+                >摘要/备注<input
+                  v-model="r.description"
+                  placeholder="可选说明"
+                  :disabled="batch.status === 'completed'"
+                  @input="edited(r.row.row_id)" /></label
               ><label
                 >类别<select
                   v-model="r.category"
                   :disabled="batch.status === 'completed'"
-                  @change="edited"
+                  @change="edited(r.row.row_id)"
                 >
                   <option
                     v-for="(label, key) in categories"
@@ -548,8 +755,14 @@ async function submitResolveMissing(quickOnly = false) {
                 </select></label
               >
             </div>
+            <p v-if="r.row.classification_reason" class="row-reason">
+              分类依据：{{ r.row.classification_reason }}
+            </p>
             <p v-if="r.row.issues.length" class="row-issue">
               {{ r.row.issues.map((x) => x.message).join("；") }}
+            </p>
+            <p v-if="rowErrors[r.row.row_id]?.length" class="row-field-error">
+              {{ rowErrors[r.row.row_id].join("；") }}
             </p>
             <label
               v-if="r.row.duplicate_status === 'suspected' && r.selected"
@@ -557,7 +770,8 @@ async function submitResolveMissing(quickOnly = false) {
               ><input
                 v-model="r.allow_suspected_duplicate"
                 type="checkbox"
-                @change="edited"
+                :disabled="batch.status === 'completed'"
+                @change="edited(r.row.row_id)"
               />
               我已核对，仍要将这笔疑似重复交易入账</label
             >
@@ -565,7 +779,7 @@ async function submitResolveMissing(quickOnly = false) {
         </div>
         <div class="confirm-footer">
           <p v-if="invalid.length">
-            已选记录中有 {{ invalid.length }} 笔缺少时间、金额或收支方向。
+            已选记录中有 {{ invalid.length }} 笔缺少交易时间、金额、收支方向或商户名称。
           </p>
           <p
             v-else-if="
@@ -756,8 +970,121 @@ async function submitResolveMissing(quickOnly = false) {
       </section>
     </div></template
   >
+  <div
+    v-if="originalZoomed && originalUrl && batch"
+    class="modal-backdrop"
+    @click.self="originalZoomed = false"
+  >
+    <section
+      class="edit-dialog zoom-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label="原始截图预览"
+    >
+      <div class="dialog-head">
+        <div>
+          <h2>原始截图对照</h2>
+          <p>{{ batch.file_name }}</p>
+        </div>
+        <button
+          class="icon-btn"
+          aria-label="关闭"
+          @click="originalZoomed = false"
+        >
+          <X :size="20" />
+        </button>
+      </div>
+      <div class="zoom-frame">
+        <img :src="originalUrl" :alt="batch.file_name" />
+      </div>
+    </section>
+  </div>
 </template>
 <style scoped>
+.original-preview {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+.original-preview-btn {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  background: #f4f8f7;
+  border: 1px solid #d7e5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 0.18s ease;
+}
+.original-preview-btn:hover {
+  border-color: #087f78;
+}
+.original-preview-btn img {
+  display: block;
+  width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.original-caption {
+  margin: 0;
+  font-size: 11px;
+  color: #6b8180;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.zoom-dialog {
+  width: min(94vw, 820px);
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.zoom-frame {
+  background: #f4f8f7;
+  border: 1px solid #d7e5e1;
+  border-radius: 12px;
+  padding: 8px;
+  text-align: center;
+}
+.zoom-frame img {
+  max-width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.progress-track.indeterminate {
+  overflow: hidden;
+}
+.progress-track.indeterminate span {
+  width: 38%;
+  animation: progressIndeterminate 1.4s ease-in-out infinite;
+}
+@keyframes progressIndeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+.continue-wait-btn {
+  margin: 18px auto 0;
+}
+.draft-row.has-error {
+  border-color: #d97c83;
+  background: #fff9f9;
+}
+.row-reason {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #5b7572;
+}
+.row-field-error {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #c62828;
+  font-weight: 500;
+}
 .ai-trigger-btn {
   display: inline-flex;
   align-items: center;
@@ -765,9 +1092,9 @@ async function submitResolveMissing(quickOnly = false) {
   white-space: nowrap;
 }
 .ai-trigger-btn.highlight {
-  border-color: #7bbcff;
-  background: #f0f7ff;
-  color: #006ee6;
+  border-color: #7cc9bb;
+  background: #edf8f4;
+  color: #087f78;
 }
 .resolve-banner {
   display: flex;
@@ -776,19 +1103,19 @@ async function submitResolveMissing(quickOnly = false) {
   gap: 16px;
   margin-bottom: 16px;
   padding: 14px 16px;
-  background: #f3f9ff;
-  border: 1px solid #cce3ff;
+  background: #edf8f4;
+  border: 1px solid #b8e3d9;
   border-radius: 14px;
 }
 .resolve-banner strong {
   display: block;
   margin-bottom: 4px;
-  color: #005bb8;
+  color: #0f5c55;
   font-size: 13px;
 }
 .resolve-banner p {
   margin: 0;
-  color: #46617b;
+  color: #3f6360;
   font-size: 12px;
 }
 .resolve-banner .primary-btn {
@@ -814,8 +1141,8 @@ async function submitResolveMissing(quickOnly = false) {
   overflow-y: auto;
   margin: 14px 0;
   padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #e7ebf0;
+  background: #f6faf8;
+  border: 1px solid #e1ece8;
   border-radius: 12px;
 }
 .resolve-preview-row {
@@ -899,9 +1226,9 @@ async function submitResolveMissing(quickOnly = false) {
   font-weight: 500;
 }
 .chip-btn.active {
-  border-color: #007aff;
-  background: #eaf4ff;
-  color: #006ee6;
+  border-color: #087f78;
+  background: #e5f5f0;
+  color: #0a6b65;
 }
 .instr-label {
   display: grid;
@@ -921,8 +1248,8 @@ async function submitResolveMissing(quickOnly = false) {
   line-height: 1.5;
 }
 .instr-label textarea:focus {
-  border-color: #007aff;
-  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.11);
+  border-color: #087f78;
+  box-shadow: 0 0 0 4px rgba(8, 127, 120, 0.14);
   outline: none;
 }
 .quick-prompts {
@@ -935,10 +1262,27 @@ async function submitResolveMissing(quickOnly = false) {
 }
 .link-chip {
   padding: 3px 9px;
-  border: 1px dashed #b9d6fa;
+  border: 1px dashed #8ad4c7;
   border-radius: 999px;
-  background: #f5f9ff;
-  color: #006ee6;
+  background: #f1faf7;
+  color: #087f78;
   font-size: 11px;
+}
+@media (max-width: 640px) {
+  .resolve-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .resolve-preview-row {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+  }
+  .resolve-preview-row .row-amt {
+    text-align: left;
+  }
+  .resolve-preview-row .row-hint,
+  .resolve-preview-row .row-ok {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
 }
 </style>

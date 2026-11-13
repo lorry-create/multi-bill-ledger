@@ -659,11 +659,11 @@ def parse_llm_ocr_payload(raw_json: str, source: str) -> ParseResult:
                     row_id=draft.row_id,
                     field="source_transaction_id",
                     code=ISSUE_DUPLICATE_SUSPECTED,
-                    message="同一截图内出现相同交易单号",
+                    message="同一截图内出现相同交易单号，请核对是否重复",
                 )
                 draft = draft.model_copy(
                     update={
-                        "duplicate_status": "duplicate",
+                        "duplicate_status": "suspected",
                         "issues": list(draft.issues) + [dup_issue],
                     }
                 )

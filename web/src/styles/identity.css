@@ -156,8 +156,7 @@ input[type="checkbox"] { accent-color: #007aff; }
 .income-track i { display: block; height: 100%; border-radius: 20px; }
 .report-lower-grid { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 22px; align-items: stretch; }
 .report-lower-grid .income-panel { margin: 0; }
-.report-lower-grid .budget-row { grid-template-columns: 68px minmax(0,1fr) 112px; gap: 11px; }
-.report-lower-grid .budget-over { display: none; }
+.report-lower-grid .budget-row { grid-template-columns: 64px minmax(0,1fr) minmax(0,auto) auto; gap: 11px; }
 .month-step { width:39px; height:39px; flex:none; display:grid; place-items:center; border:1px solid #dedee3; border-radius:11px; color:#5a6574; background:#fff; transition: background .16s ease, color .16s ease, transform .16s ease; }
 .month-step:hover { color:#007aff; background:#edf6ff; }
 .month-step:active { transform:scale(.94); }

@@ -3,8 +3,12 @@ import { onMounted, ref } from "vue";
 import { api } from "../api";
 import type { ClassificationRule, ResolvedCategory } from "../api";
 import { categories, sources } from "../format";
-import { csrf, errorText } from "../session";
+import { errorText, withCsrfRetry } from "../session";
 
+const resolvedCategories = Object.entries(categories).filter(([k]) => k !== "pending") as [
+  ResolvedCategory,
+  string,
+][];
 const rules = ref<ClassificationRule[]>([]),
   error = ref(""),
   loading = ref(true),
@@ -27,12 +31,14 @@ async function change(
 ) {
   saving.value = rule.id;
   try {
-    await api.patchRule(
-      {
-        path: { id: rule.id },
-        body: { expected_version: rule.version, ...patch },
-      },
-      csrf(),
+    await withCsrfRetry((token) =>
+      api.patchRule(
+        {
+          path: { id: rule.id },
+          body: { expected_version: rule.version, ...patch },
+        },
+        token,
+      ),
     );
     await load();
   } catch (e) {
@@ -88,10 +94,9 @@ async function change(
           "
         >
           <option
-            v-for="(label, key) in categories"
+            v-for="[key, label] in resolvedCategories"
             :key="key"
             :value="key"
-            :disabled="key === 'pending'"
           >
             {{ label }}
           </option></select

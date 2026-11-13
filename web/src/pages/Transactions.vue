@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed } from "vue";
+import { onMounted, onUnmounted, reactive, ref, computed } from "vue";
 import { useRoute } from "vue-router";
 import { Download, Filter, Plus, Pencil, X } from "@lucide/vue";
 import { api } from "../api";
@@ -8,10 +8,12 @@ import type {
   FlowType,
   Source,
   Transaction,
+  TransactionPatch,
   TransactionPage,
 } from "../api";
 import {
   categories,
+  classificationSources,
   dateTime,
   download,
   flows,
@@ -21,8 +23,9 @@ import {
   fromLocalInput,
   yuan,
 } from "../format";
-import { csrf, errorText } from "../session";
+import { errorText, withCsrfRetry } from "../session";
 
+const PAGE_SIZE = 50;
 const route = useRoute();
 const filters = reactive<{
   date_from: string;
@@ -41,14 +44,18 @@ const filters = reactive<{
 });
 const data = ref<TransactionPage | null>(null),
   loading = ref(false),
+  exporting = ref(false),
   error = ref(""),
   editing = ref<Transaction | null>(null),
+  modalError = ref(""),
+  conflictLatest = ref<Transaction | null>(null),
   saving = ref(false),
   remember = ref(false);
 const edit = reactive({
   occurred_at: "",
   amount: "",
   merchant: "",
+  description: "",
   category: "pending" as Category,
   flow_type: "expense" as FlowType,
 });
@@ -59,12 +66,28 @@ const query = computed(() => ({
   source: filters.source || undefined,
   flow_type: filters.flow_type || undefined,
 }));
+function handleEscape(e: KeyboardEvent) {
+  if (e.key === "Escape" && editing.value && !saving.value) {
+    closeModal();
+  }
+}
+onMounted(() => {
+  window.addEventListener("keydown", handleEscape);
+  load();
+});
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleEscape);
+});
 async function load() {
+  if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) {
+    error.value = "开始日期不能晚于结束日期。";
+    return;
+  }
   loading.value = true;
   error.value = "";
   try {
     data.value = await api.listTransactions({
-      query: { ...query.value, page: filters.page, page_size: 20 },
+      query: { ...query.value, page: filters.page, page_size: PAGE_SIZE },
     });
   } catch (e) {
     error.value = errorText(e);
@@ -72,62 +95,114 @@ async function load() {
     loading.value = false;
   }
 }
-onMounted(load);
 function search() {
   filters.page = 1;
   load();
 }
-function open(t: Transaction) {
-  editing.value = t;
+function fillEditFrom(t: Transaction) {
   edit.occurred_at = toLocalInput(t.occurred_at);
   edit.amount = (t.amount_fen / 100).toFixed(2);
   edit.merchant = t.merchant;
+  edit.description = t.description;
   edit.category = t.category;
   edit.flow_type = t.flow_type;
+}
+function open(t: Transaction) {
+  editing.value = t;
+  modalError.value = "";
+  conflictLatest.value = null;
+  fillEditFrom(t);
   remember.value = false;
+}
+function closeModal() {
+  editing.value = null;
+  modalError.value = "";
+  conflictLatest.value = null;
+}
+function applyLatestConflict() {
+  if (!conflictLatest.value) return;
+  editing.value = conflictLatest.value;
+  fillEditFrom(conflictLatest.value);
+  conflictLatest.value = null;
+  modalError.value = "";
 }
 async function save() {
   if (!editing.value) return;
   const amount = parseYuan(edit.amount);
   if (amount === null || !edit.occurred_at) {
-    error.value = "请填写有效的交易时间和金额，金额最多两位小数。";
+    modalError.value = "请填写有效的交易时间和金额，金额最多两位小数。";
     return;
   }
+  const orig = editing.value;
+  const nextOccurred = fromLocalInput(edit.occurred_at);
+  const nextMerchant = edit.merchant.trim();
+  const nextDesc = edit.description.trim();
+  if (remember.value && (!nextMerchant || edit.category === "pending")) {
+    modalError.value = "记住商户规则需要先填写商户名称并选择具体分类。";
+    return;
+  }
+  const changes: TransactionPatch["changes"] = {};
+  if (nextOccurred !== fromLocalInput(toLocalInput(orig.occurred_at))) {
+    changes.occurred_at = nextOccurred;
+  }
+  if (amount !== orig.amount_fen) changes.amount_fen = amount;
+  if (nextMerchant !== orig.merchant) changes.merchant = nextMerchant;
+  if (nextDesc !== orig.description) changes.description = nextDesc;
+  if (edit.category !== orig.category) changes.category = edit.category;
+  if (edit.flow_type !== orig.flow_type) changes.flow_type = edit.flow_type;
+
+  if (!Object.keys(changes).length && !remember.value) {
+    modalError.value = "未检测到字段改动。";
+    return;
+  }
+  if (!Object.keys(changes).length && remember.value) {
+    changes.category = edit.category;
+  }
+
   saving.value = true;
-  error.value = "";
+  modalError.value = "";
   try {
-    await api.patchTransaction(
-      {
-        path: { id: editing.value.id },
-        body: {
-          expected_version: editing.value.version,
-          changes: {
-            occurred_at: fromLocalInput(edit.occurred_at),
-            amount_fen: amount,
-            merchant: edit.merchant,
-            category: edit.category,
-            flow_type: edit.flow_type,
+    await withCsrfRetry((token) =>
+      api.patchTransaction(
+        {
+          path: { id: orig.id },
+          body: {
+            expected_version: orig.version,
+            changes,
+            remember_rule: remember.value,
           },
-          remember_rule: remember.value,
         },
-      },
-      csrf(),
+        token,
+      ),
     );
-    editing.value = null;
+    closeModal();
     await load();
   } catch (e) {
-    error.value = errorText(e);
-    if ((e as { status?: number }).status === 409) await load();
+    modalError.value = errorText(e);
+    if ((e as { status?: number }).status === 409) {
+      await load();
+      const latest = data.value?.items.find((x) => x.id === orig.id) ?? null;
+      conflictLatest.value = latest;
+    }
   } finally {
     saving.value = false;
   }
 }
 async function exportCsv() {
+  if (exporting.value) return;
+  if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) {
+    error.value = "开始日期不能晚于结束日期。";
+    return;
+  }
+  exporting.value = true;
+  error.value = "";
   try {
     const blob = await api.exportTransactions({ query: query.value });
-    download(blob, "归账-筛选明细.csv");
+    download(blob, "账单导出.csv");
   } catch (e) {
     error.value = errorText(e);
+  } finally {
+    exporting.value = false;
   }
 }
 </script>
@@ -147,8 +222,8 @@ async function exportCsv() {
       <div class="toolbar-title">
         <Filter :size="18" /><strong>筛选账单</strong>
       </div>
-      <button class="secondary-btn" @click="exportCsv">
-        <Download :size="16" /> 导出当前筛选
+      <button class="secondary-btn" :disabled="exporting" @click="exportCsv">
+        <Download :size="16" /> {{ exporting ? "导出中…" : "导出当前筛选" }}
       </button>
     </div>
     <div class="filters">
@@ -201,15 +276,26 @@ async function exportCsv() {
           <tr v-for="t in data?.items" :key="t.id">
             <td>
               <strong>{{ t.merchant || "未填写商户" }}</strong
-              ><small>{{ t.description || flows[t.flow_type] }}</small>
+              ><small
+                >{{ flows[t.flow_type]
+                }}{{ t.description ? ` · ${t.description}` : "" }}</small
+              >
             </td>
             <td>{{ dateTime(t.occurred_at) }}</td>
             <td>{{ sources[t.source] }}</td>
             <td>
               <span class="category-pill">{{ categories[t.category] }}</span>
+              <small class="source-note">{{
+                classificationSources[t.classification_source]
+              }}</small>
             </td>
             <td class="money" :class="t.flow_type">
-              {{ ["income", "refund"].includes(t.flow_type) ? "+" : "−"
+              {{
+                ["income", "refund"].includes(t.flow_type)
+                  ? "+"
+                  : t.flow_type === "expense"
+                    ? "−"
+                    : ""
               }}{{ yuan(t.amount_fen) }}
             </td>
             <td>
@@ -229,6 +315,7 @@ async function exportCsv() {
     <div v-else-if="!data?.items.length" class="empty-state">
       <strong>没有找到符合条件的账单</strong
       ><span>试试调整日期或类别，或先导入一份账单。</span>
+      <RouterLink to="/import" class="text-btn">去导入账单</RouterLink>
     </div>
     <div v-if="data && data.total > 0" class="pagination">
       <span>共 {{ data.total }} 笔</span>
@@ -241,9 +328,9 @@ async function exportCsv() {
           "
         >
           上一页</button
-        ><span>{{ filters.page }} / {{ Math.ceil(data.total / 20) }}</span
+        ><span>{{ filters.page }} / {{ Math.ceil(data.total / PAGE_SIZE) }}</span
         ><button
-          :disabled="filters.page * 20 >= data.total"
+          :disabled="filters.page * PAGE_SIZE >= data.total"
           @click="
             filters.page++;
             load();
@@ -254,7 +341,7 @@ async function exportCsv() {
       </div>
     </div>
   </section>
-  <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
+  <div v-if="editing" class="modal-backdrop" @click.self="closeModal">
     <section
       class="edit-dialog"
       role="dialog"
@@ -266,8 +353,14 @@ async function exportCsv() {
           <h2>修正账单</h2>
           <p>保存后，相关月报会按新内容重新计算。</p>
         </div>
-        <button class="icon-btn" aria-label="关闭" @click="editing = null">
+        <button class="icon-btn" aria-label="关闭" @click="closeModal">
           <X :size="20" />
+        </button>
+      </div>
+      <div v-if="modalError" class="alert error" role="alert">
+        {{ modalError }}
+        <button v-if="conflictLatest" type="button" @click="applyLatestConflict">
+          载入最新版本（v{{ conflictLatest.version }}）
         </button>
       </div>
       <div class="edit-grid">
@@ -290,7 +383,7 @@ async function exportCsv() {
               {{ label }}
             </option>
           </select></label
-        >
+        ><label>说明<input v-model="edit.description" placeholder="可选备注" /></label>
       </div>
       <label class="remember-check"
         ><input
@@ -298,10 +391,10 @@ async function exportCsv() {
           type="checkbox"
           :disabled="edit.category === 'pending' || !edit.merchant.trim()"
         />
-        记住该商户的分类，用于之后的新账单</label
+        记住该商户的分类，仅用于之后新导入账单（不影响历史记录）</label
       >
       <div class="dialog-actions">
-        <button class="secondary-btn" @click="editing = null">取消</button
+        <button class="secondary-btn" @click="closeModal">取消</button
         ><button class="primary-btn" :disabled="saving" @click="save">
           {{ saving ? "保存中…" : "保存修改" }}
         </button>
@@ -309,3 +402,11 @@ async function exportCsv() {
     </section>
   </div>
 </template>
+<style scoped>
+.source-note {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #6b7f85;
+}
+</style>

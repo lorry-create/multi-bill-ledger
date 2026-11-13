@@ -80,6 +80,10 @@ BATCH_TIMEOUT = "BATCH_TIMEOUT"
 BATCH_INTERRUPTED = "BATCH_INTERRUPTED"
 BATCH_EXPIRED = "BATCH_EXPIRED"
 CRYPTO_FAILED = "CRYPTO_FAILED"
+BATCH_TOO_MANY_ROWS = "TOO_MANY_ROWS"
+
+# 契约 docs/02 与 ConfirmInput.rows 约定单文件最多 500 个候选行
+MAX_DRAFT_ROWS = 500
 
 # 只有这四种文件进得来（docs/11 createImport）
 _FILE_TYPES = {
@@ -516,6 +520,16 @@ def process_batch(
 
     issues: list[Issue] = list(parsed.issues)
     drafts: list[TransactionDraft] = list(parsed.rows)
+
+    if len(drafts) > MAX_DRAFT_ROWS:
+        mark_failed(
+            db,
+            batch,
+            BATCH_TOO_MANY_ROWS,
+            f"单次最多导入 {MAX_DRAFT_ROWS} 笔交易（当前解析出 {len(drafts)} 笔），请拆分日期范围后重新上传",
+            key,
+        )
+        return
 
     if drafts:
         rules = load_rules(db, batch.user_id, batch.source, key)

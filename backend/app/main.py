@@ -6,7 +6,7 @@
     python -m app.seed_demo ...    # 可选：导入合成演示数据
     python -m uvicorn app.main:app --reload --port 8000
 
-已实现接口：契约 17 个操作全部落地（auth 4、imports 5、transactions 2、rules 2、
+已实现接口：契约 18 个操作全部落地（auth 4、imports 6、transactions 2、rules 2、
 reports 1、budgets 1、exports 2）。
 其余接口由 T05/T08 按契约补齐。后端自己导出的 /openapi.json 反映"已实现部分"，
 不是权威契约；权威仍是 contracts/openapi.json，两边不一致时必须先改文档再改代码。

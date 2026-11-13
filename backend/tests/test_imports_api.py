@@ -520,6 +520,21 @@ class ImportApiTest(unittest.TestCase):
         self.assertEqual(3, response.json()["duplicate_count"])
         self.assertEqual(before, self._txn_count(), "重复行不得二次入账")
 
+    def test_more_than_500_rows_fails_during_processing(self) -> None:
+        header = (
+            "微信支付账单明细,,,,\n"
+            "----------------------,,,,\n"
+            "交易时间,交易类型,交易对方,商品,收/支,金额(元),支付方式,当前状态,交易单号,商户单号,备注\n"
+        )
+        lines = [
+            f"2026-11-01 09:{i // 60:02d}:{i % 60:02d},商户消费,测试店{i},早餐,支出,¥5.00,零钱,支付成功,ORD500_{i},, "
+            for i in range(501)
+        ]
+        batch = self._pending_batch(data=(header + "\n".join(lines)).encode("utf-8-sig"))
+        self.assertEqual("failed", batch["status"])
+        codes = {issue["code"] for issue in batch["issues"]}
+        self.assertIn("TOO_MANY_ROWS", codes)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

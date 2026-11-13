@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   ArrowDownRight,
@@ -13,7 +13,7 @@ import {
 import { api, isDemo } from "../api";
 import type { Category, MonthlyReport, ResolvedCategory } from "../api";
 import { categories, download, parseYuan, yuan } from "../format";
-import { csrf, errorText } from "../session";
+import { csrf, errorText, withCsrfRetry } from "../session";
 import ParticleField from "../components/ParticleField.vue";
 
 const router = useRouter(),
@@ -29,7 +29,45 @@ const router = useRouter(),
   budgetCategory = ref<ResolvedCategory>("dining"),
   budgetAmount = ref(""),
   budgetOpen = ref(false),
-  saving = ref(false);
+  budgetError = ref(""),
+  saving = ref(false),
+  exporting = ref(false),
+  exportRetryable = ref(false);
+
+const budgetCategoryOptions = Object.entries(categories).filter(
+  ([key]) => key !== "pending",
+) as [ResolvedCategory, string][];
+
+function fillBudgetAmount(category: ResolvedCategory) {
+  const existing = report.value?.budgets.find((b) => b.category === category);
+  budgetAmount.value =
+    existing && existing.budget_fen > 0
+      ? (existing.budget_fen / 100).toFixed(2)
+      : "";
+}
+
+function openBudget(category: ResolvedCategory = budgetCategory.value) {
+  budgetCategory.value = category;
+  budgetError.value = "";
+  fillBudgetAmount(category);
+  budgetOpen.value = true;
+}
+
+watch(budgetCategory, (category) => {
+  if (budgetOpen.value) {
+    budgetError.value = "";
+    fillBudgetAmount(category);
+  }
+});
+
+function onReportKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && budgetOpen.value && !saving.value) {
+    budgetOpen.value = false;
+  }
+}
+
+onMounted(() => window.addEventListener("keydown", onReportKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onReportKeydown));
 const activeCategory = ref<Category | null>(null);
 const trendMode = ref<"daily" | "weekly">("weekly");
 const activeTrendIndex = ref<number | null>(null);
@@ -51,7 +89,10 @@ function showCategoryTooltip(event: PointerEvent, item: (typeof chartSegments.va
   ]);
 }
 function chooseCategory(category: Category) {
-  if (window.matchMedia("(hover: none)").matches) {
+  if (
+    window.matchMedia("(hover: none)").matches &&
+    activeCategory.value !== category
+  ) {
     activeCategory.value = category;
     return;
   }
@@ -73,6 +114,11 @@ function leaveCategory(event: PointerEvent) {
   if (event.pointerType !== "touch") activeCategory.value = null;
 }
 function shiftMonth(delta: number) {
+  if (!/^\d{4}-\d{2}$/.test(month.value)) {
+    month.value = new Date()
+      .toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" })
+      .slice(0, 7);
+  }
   const [year, part] = month.value.split("-").map(Number);
   const next = new Date(year, part - 1 + delta, 1);
   month.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
@@ -118,7 +164,18 @@ const categoryTotal = computed(
 );
 const chartSegments = computed(() => {
   let offset = 0;
-  const colors = ["#19b59c", "#74d4bb", "#f4ad69", "#6e9bac", "#a8c6c6"];
+  const colors = [
+    "#19b59c",
+    "#74d4bb",
+    "#f4ad69",
+    "#6e9bac",
+    "#e88d67",
+    "#2e9d8f",
+    "#9cc97f",
+    "#d97c83",
+    "#5d7b93",
+    "#a8c6c6",
+  ];
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
     .map((x, i) => {
@@ -144,8 +201,12 @@ function changeTrendMode(mode: "daily" | "weekly") {
   hideTooltip();
 }
 async function load() {
+  if (!/^\d{4}-\d{2}$/.test(month.value)) {
+    return;
+  }
   loading.value = true;
   error.value = "";
+  exportRetryable.value = false;
   try {
     report.value = await api.getMonthlyReport({
       query: { month: month.value },
@@ -172,41 +233,59 @@ onMounted(load);
 async function saveBudget() {
   const amount = parseYuan(budgetAmount.value, true);
   if (amount === null) {
-    error.value = "请输入有效的预算金额，最多两位小数。";
+    budgetError.value = "请输入有效的预算金额，最多两位小数。";
     return;
   }
   saving.value = true;
+  budgetError.value = "";
   try {
-    await api.putBudget(
-      {
-        body: {
-          month: month.value,
-          category: budgetCategory.value,
-          amount_fen: amount,
+    await withCsrfRetry(() =>
+      api.putBudget(
+        {
+          body: {
+            month: month.value,
+            category: budgetCategory.value,
+            amount_fen: amount,
+          },
         },
-      },
-      csrf(),
+        csrf(),
+      ),
     );
     budgetOpen.value = false;
     await load();
   } catch (e) {
-    error.value = errorText(e);
+    budgetError.value = errorText(e);
   } finally {
     saving.value = false;
   }
 }
 async function exportPdf() {
   if (isDemo) {
+    exportRetryable.value = false;
     error.value = "合成数据演示不提供 PDF，请连接真实后端导出。";
     return;
   }
+  if (exporting.value || !/^\d{4}-\d{2}$/.test(month.value)) {
+    return;
+  }
+  exporting.value = true;
+  error.value = "";
+  exportRetryable.value = false;
   try {
     download(
       await api.exportMonthlyPdf({ query: { month: month.value } }),
-      `归账-${month.value}-月报.pdf`,
+      `收支月报_${month.value}.pdf`,
     );
   } catch (e) {
+    const err = e as {
+      status?: number;
+      payload?: { error?: { code?: string } };
+    };
+    exportRetryable.value =
+      err?.payload?.error?.code === "EXPORT_UNAVAILABLE" || err?.status === 503;
     error.value = errorText(e);
+  } finally {
+    exporting.value = false;
   }
 }
 function goCategory(category: string) {
@@ -237,12 +316,23 @@ function goCategory(category: string) {
         @change="load"
       />
       <button class="month-step" type="button" aria-label="下个月" @click="shiftMonth(1)"><ChevronRight :size="17" /></button>
-      <button class="secondary-btn" @click="exportPdf">
-        <Download :size="16" /> 导出月报
+      <button class="secondary-btn" :disabled="exporting" @click="exportPdf">
+        <Download :size="16" /> {{ exporting ? "导出中…" : "导出月报" }}
       </button>
     </div>
   </div>
-  <div v-if="error" class="alert error" role="alert">{{ error }}</div>
+  <div v-if="error" class="alert error" role="alert">
+    <span>{{ error }}</span>
+    <button
+      v-if="exportRetryable"
+      type="button"
+      class="text-btn"
+      :disabled="exporting"
+      @click="exportPdf"
+    >
+      重试导出
+    </button>
+  </div>
   <div v-if="loading" class="empty-state">正在读取月报…</div>
   <template v-else-if="report"
     ><section class="balance-hero">
@@ -389,7 +479,7 @@ function goCategory(category: string) {
         <span>本月最大支出类别</span><strong>{{ categories[topExpense.category] }} · {{ yuan(topExpense.amount_fen) }}</strong><span>查看明细 <ChevronRight :size="14" /></span>
       </button>
       <button v-if="exceededBudgets.length" class="insight-item" @click="goCategory(exceededBudgets[0].category)">
-        <span>需要留意</span><strong>{{ categories[exceededBudgets[0].category] }}超出预算 {{ yuan(exceededBudgets[0].over_fen) }}</strong><span>查看相关账单 <ChevronRight :size="14" /></span>
+        <span>需要留意</span><strong>{{ categories[exceededBudgets[0].category] }}超出预算 {{ yuan(exceededBudgets[0].over_fen) }}{{ exceededBudgets.length > 1 ? `（另有 ${exceededBudgets.length - 1} 项超支）` : "" }}</strong><span>查看相关账单 <ChevronRight :size="14" /></span>
       </button>
     </section>
     <div class="report-lower-grid"><section class="content-panel income-panel">
@@ -407,7 +497,7 @@ function goCategory(category: string) {
           <h2>类别预算</h2>
           <p>按净支出计算，跨月退款可能让已用金额为负。</p>
         </div>
-        <button class="secondary-btn" @click="budgetOpen = true">
+        <button class="secondary-btn" @click="openBudget()">
           <Plus :size="16" /> 设置预算
         </button>
       </div>
@@ -417,7 +507,7 @@ function goCategory(category: string) {
           <strong>还没有设置预算</strong>
           <p>给常用类别设一个月度范围，方便及时发现超支。</p>
         </div>
-        <button class="text-btn" @click="budgetOpen = true">设置预算</button>
+        <button class="text-btn" @click="openBudget()">设置预算</button>
       </div>
       <div v-else class="budget-list">
         <button
@@ -430,15 +520,22 @@ function goCategory(category: string) {
           <div class="budget-track">
             <span
               :style="{
-                width: `${budget.budget_fen ? Math.min(100, Math.max(0, (budget.spent_fen / budget.budget_fen) * 100)) : budget.spent_fen > 0 ? 100 : 0}%`,
+                width: `${budget.budget_fen ? Math.min(100, Math.max(0, (budget.spent_fen / budget.budget_fen) * 100)) : 0}%`,
               }"
               :class="{ over: budget.over_fen > 0 }"
             ></span>
           </div>
-          <span class="budget-values"
-            >{{ yuan(budget.spent_fen) }} / {{ yuan(budget.budget_fen) }}</span
+          <span class="budget-values">{{
+            budget.budget_fen > 0
+              ? `${yuan(budget.spent_fen)} / ${yuan(budget.budget_fen)}`
+              : `已花 ${yuan(budget.spent_fen)} · 未设预算`
+          }}</span
           ><span class="budget-over">{{
-            budget.over_fen > 0 ? `超出 ${yuan(budget.over_fen)}` : "查看明细"
+            budget.over_fen > 0
+              ? `超出 ${yuan(budget.over_fen)}`
+              : budget.budget_fen > 0
+                ? `剩余 ${yuan(budget.remaining_fen)}`
+                : "查看明细"
           }}</span>
         </button>
       </div>
@@ -447,7 +544,7 @@ function goCategory(category: string) {
   <div
     v-if="budgetOpen"
     class="modal-backdrop"
-    @click.self="budgetOpen = false"
+    @click.self="!saving && (budgetOpen = false)"
   >
     <section
       class="edit-dialog budget-dialog"
@@ -460,18 +557,25 @@ function goCategory(category: string) {
           <h2>设置月度预算</h2>
           <p>{{ month }} · 按类别管理计划金额</p>
         </div>
-        <button class="icon-btn" aria-label="关闭" @click="budgetOpen = false">
+        <button
+          class="icon-btn"
+          aria-label="关闭"
+          :disabled="saving"
+          @click="budgetOpen = false"
+        >
           ×
         </button>
+      </div>
+      <div v-if="budgetError" class="alert error" role="alert">
+        {{ budgetError }}
       </div>
       <div class="edit-grid">
         <label
           >类别<select v-model="budgetCategory">
             <option
-              v-for="(label, key) in categories"
+              v-for="[key, label] in budgetCategoryOptions"
               :key="key"
               :value="key"
-              :disabled="key === 'pending'"
             >
               {{ label }}
             </option>
@@ -484,7 +588,12 @@ function goCategory(category: string) {
         /></label>
       </div>
       <div class="dialog-actions">
-        <button class="secondary-btn" @click="budgetOpen = false">取消</button
+        <button
+          class="secondary-btn"
+          :disabled="saving"
+          @click="budgetOpen = false"
+        >
+          取消</button
         ><button class="primary-btn" :disabled="saving" @click="saveBudget">
           {{ saving ? "保存中…" : "保存预算" }}
         </button>

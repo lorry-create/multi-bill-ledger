@@ -239,18 +239,33 @@ def build_monthly_pdf(
     page_w, page_h = A4
     margin = 18 * mm
     width = page_w - margin * 2
+    bottom_guard = margin + 16 * mm
 
     c = canvas.Canvas(buffer, pagesize=A4)
     c.setTitle(f"{year} 年 {int(mon)} 月收支月报")
     c.setAuthor("multi-bill-ledger")
     y = page_h - margin
+    page_num = 1
 
-    def line(text: str, size: int = 10, gap: float = 6 * mm, color=(0.15, 0.15, 0.15)) -> None:
-        nonlocal y
-        c.setFont(font, size)
-        c.setFillColorRGB(*color)
-        c.drawString(margin, y, text)
-        y -= gap
+    def start_new_page() -> None:
+        nonlocal y, page_num
+        c.showPage()
+        page_num += 1
+        y = page_h - margin
+        c.setFont(font, 9)
+        c.setFillColorRGB(0.45, 0.45, 0.45)
+        c.drawString(margin, y, f"{year} 年 {int(mon)} 月收支月报（第 {page_num} 页）")
+        y -= 4 * mm
+        c.setStrokeColorRGB(0.88, 0.88, 0.88)
+        c.setLineWidth(0.5)
+        c.line(margin, y, margin + width, y)
+        y -= 7 * mm
+
+    def ensure_space(need: float, after_break=None) -> None:
+        if y - need < bottom_guard:
+            start_new_page()
+            if after_break is not None:
+                after_break()
 
     # ---- 标题
     c.setFont(font, 20)
@@ -294,6 +309,7 @@ def build_monthly_pdf(
     y -= (len(summary) + 1) // 2 * 6 * mm + 5 * mm
 
     # ---- 分类构成（含横向条形，满足任务书"可视化"要求）
+    ensure_space(16 * mm)
     c.setFont(font, 11)
     c.setFillColorRGB(0.05, 0.05, 0.05)
     c.drawString(margin, y, "支出分类构成")
@@ -310,6 +326,7 @@ def build_monthly_pdf(
         bar_x = margin + 26 * mm
         bar_max = width - 26 * mm - 22 * mm
         for item in items:
+            ensure_space(7 * mm)
             c.setFont(font, 9)
             c.setFillColorRGB(0.25, 0.25, 0.25)
             c.drawString(margin, y, category_label(item.category))
@@ -328,11 +345,6 @@ def build_monthly_pdf(
         if point.income_fen or point.gross_expense_fen or point.refund_fen
     ]
     if active_days:
-        c.setFont(font, 11)
-        c.setFillColorRGB(0.05, 0.05, 0.05)
-        c.drawString(margin, y, "每日支出趋势")
-        y -= 6 * mm
-
         columns = (
             ("日期", margin),
             ("收入", margin + 30 * mm),
@@ -340,13 +352,24 @@ def build_monthly_pdf(
             ("退款", margin + 80 * mm),
             ("净支出", margin + 103 * mm),
         )
-        c.setFont(font, 8.5)
-        c.setFillColorRGB(0.45, 0.45, 0.45)
-        for label, x in columns:
-            c.drawString(x, y, label)
-        y -= 4.6 * mm
+
+        def draw_trend_header(cont: bool = False) -> None:
+            nonlocal y
+            c.setFont(font, 11)
+            c.setFillColorRGB(0.05, 0.05, 0.05)
+            c.drawString(margin, y, "每日支出趋势（续）" if cont else "每日支出趋势")
+            y -= 6 * mm
+            c.setFont(font, 8.5)
+            c.setFillColorRGB(0.45, 0.45, 0.45)
+            for label, x in columns:
+                c.drawString(x, y, label)
+            y -= 4.6 * mm
+
+        ensure_space(18 * mm)
+        draw_trend_header(False)
 
         for point in active_days:
+            ensure_space(5.5 * mm, lambda: draw_trend_header(True))
             c.setFont(font, 8.5)
             c.setFillColorRGB(0.25, 0.25, 0.25)
             c.drawString(margin, y, point.date.isoformat())
@@ -366,11 +389,17 @@ def build_monthly_pdf(
 
     # ---- 预算执行
     if report.budgets:
-        c.setFont(font, 11)
-        c.setFillColorRGB(0.05, 0.05, 0.05)
-        c.drawString(margin, y, "预算执行")
-        y -= 6.5 * mm
+        def draw_budget_header(cont: bool = False) -> None:
+            nonlocal y
+            c.setFont(font, 11)
+            c.setFillColorRGB(0.05, 0.05, 0.05)
+            c.drawString(margin, y, "预算执行（续）" if cont else "预算执行")
+            y -= 6.5 * mm
+
+        ensure_space(15 * mm)
+        draw_budget_header(False)
         for status in report.budgets:
+            ensure_space(6.5 * mm, lambda: draw_budget_header(True))
             c.setFont(font, 9)
             c.setFillColorRGB(0.25, 0.25, 0.25)
             c.drawString(margin, y, category_label(status.category))
@@ -384,8 +413,10 @@ def build_monthly_pdf(
             y -= 6 * mm
         y -= 2 * mm
 
-    # ---- 脚注：把口径写清楚，别让看的人自己猜
-    y = max(y, margin + 14 * mm)
+    # ---- 脚注：空间不足时换页再写，绝不盖住前面的列表或预算数据
+    if y < margin + 18 * mm:
+        start_new_page()
+    y = min(y, margin + 16 * mm)
     c.setStrokeColorRGB(0.88, 0.88, 0.88)
     c.line(margin, y, margin + width, y)
     y -= 5 * mm
