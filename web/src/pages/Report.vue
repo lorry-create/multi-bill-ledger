@@ -33,6 +33,7 @@ const router = useRouter(),
   saving = ref(false),
   exporting = ref(false),
   exportRetryable = ref(false);
+let reportRequest = 0;
 
 const budgetCategoryOptions = Object.entries(categories).filter(
   ([key]) => key !== "pending",
@@ -201,32 +202,37 @@ function changeTrendMode(mode: "daily" | "weekly") {
   hideTooltip();
 }
 async function load() {
+  const request = ++reportRequest;
   if (!/^\d{4}-\d{2}$/.test(month.value)) {
+    loading.value = false;
     return;
   }
+  const requestedMonth = month.value;
   loading.value = true;
   error.value = "";
   exportRetryable.value = false;
   try {
-    report.value = await api.getMonthlyReport({
-      query: { month: month.value },
+    const nextReport = await api.getMonthlyReport({
+      query: { month: requestedMonth },
     });
-    incomeParts.value = [];
-    const [year, part] = month.value.split("-").map(Number);
-    const date_to = `${month.value}-${new Date(year, part, 0).getDate()}`;
+    const [year, part] = requestedMonth.split("-").map(Number);
+    const date_to = `${requestedMonth}-${new Date(year, part, 0).getDate()}`;
     let page = 1;
     const totals = new Map<Category, number>();
     while (true) {
-      const result = await api.listTransactions({query:{date_from:`${month.value}-01`,date_to,flow_type:"income",page,page_size:100}});
+      const result = await api.listTransactions({query:{date_from:`${requestedMonth}-01`,date_to,flow_type:"income",page,page_size:100}});
+      if (request !== reportRequest) return;
       for (const item of result.items) totals.set(item.category,(totals.get(item.category)??0)+item.amount_fen);
       if (page * 100 >= result.total) break;
       page++;
     }
+    if (request !== reportRequest) return;
+    report.value = nextReport;
     incomeParts.value = [...totals].map(([category,amount_fen])=>({category,amount_fen})).sort((a,b)=>b.amount_fen-a.amount_fen);
   } catch (e) {
-    error.value = errorText(e);
+    if (request === reportRequest) error.value = errorText(e);
   } finally {
-    loading.value = false;
+    if (request === reportRequest) loading.value = false;
   }
 }
 onMounted(load);

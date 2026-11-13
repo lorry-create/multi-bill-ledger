@@ -51,6 +51,7 @@ const data = ref<TransactionPage | null>(null),
   conflictLatest = ref<Transaction | null>(null),
   saving = ref(false),
   remember = ref(false);
+let listRequest = 0;
 const edit = reactive({
   occurred_at: "",
   amount: "",
@@ -79,20 +80,22 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleEscape);
 });
 async function load() {
+  const request = ++listRequest;
   if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) {
     error.value = "开始日期不能晚于结束日期。";
+    loading.value = false;
     return;
   }
   loading.value = true;
   error.value = "";
+  const requestedQuery = { ...query.value, page: filters.page, page_size: PAGE_SIZE };
   try {
-    data.value = await api.listTransactions({
-      query: { ...query.value, page: filters.page, page_size: PAGE_SIZE },
-    });
+    const result = await api.listTransactions({ query: requestedQuery });
+    if (request === listRequest) data.value = result;
   } catch (e) {
-    error.value = errorText(e);
+    if (request === listRequest) error.value = errorText(e);
   } finally {
-    loading.value = false;
+    if (request === listRequest) loading.value = false;
   }
 }
 function search() {
