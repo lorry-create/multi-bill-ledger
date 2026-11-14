@@ -1,0 +1,441 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T17:57:00Z",
+  "title": "Design System: 归账",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "归账蓝",
+        "tonalRamp": [
+          "oklch(15% 0.1548 258.5)",
+          "oklch(27% 0.1548 258.5)",
+          "oklch(38% 0.1548 258.5)",
+          "oklch(50% 0.1548 258.5)",
+          "oklch(61% 0.1548 258.5)",
+          "oklch(73% 0.1548 258.5)",
+          "oklch(84% 0.1548 258.5)",
+          "oklch(95% 0.1548 258.5)"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "行动深蓝",
+        "tonalRamp": [
+          "oklch(15% 0.1405 257.9)",
+          "oklch(27% 0.1405 257.9)",
+          "oklch(38% 0.1405 257.9)",
+          "oklch(50% 0.1405 257.9)",
+          "oklch(61% 0.1405 257.9)",
+          "oklch(73% 0.1405 257.9)",
+          "oklch(84% 0.1405 257.9)",
+          "oklch(95% 0.1405 257.9)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "浅蓝纸面",
+        "tonalRamp": [
+          "oklch(15% 0.0091 258.3)",
+          "oklch(27% 0.0091 258.3)",
+          "oklch(38% 0.0091 258.3)",
+          "oklch(50% 0.0091 258.3)",
+          "oklch(61% 0.0091 258.3)",
+          "oklch(73% 0.0091 258.3)",
+          "oklch(84% 0.0091 258.3)",
+          "oklch(95% 0.0091 258.3)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "内容白",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.9)",
+          "oklch(27% 0.0000 89.9)",
+          "oklch(38% 0.0000 89.9)",
+          "oklch(50% 0.0000 89.9)",
+          "oklch(61% 0.0000 89.9)",
+          "oklch(73% 0.0000 89.9)",
+          "oklch(84% 0.0000 89.9)",
+          "oklch(95% 0.0000 89.9)"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "正文深蓝",
+        "tonalRamp": [
+          "oklch(15% 0.0627 254.1)",
+          "oklch(27% 0.0627 254.1)",
+          "oklch(38% 0.0627 254.1)",
+          "oklch(50% 0.0627 254.1)",
+          "oklch(61% 0.0627 254.1)",
+          "oklch(73% 0.0627 254.1)",
+          "oklch(84% 0.0627 254.1)",
+          "oklch(95% 0.0627 254.1)"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "说明灰蓝",
+        "tonalRamp": [
+          "oklch(15% 0.0507 254.7)",
+          "oklch(27% 0.0507 254.7)",
+          "oklch(38% 0.0507 254.7)",
+          "oklch(50% 0.0507 254.7)",
+          "oklch(61% 0.0507 254.7)",
+          "oklch(73% 0.0507 254.7)",
+          "oklch(84% 0.0507 254.7)",
+          "oklch(95% 0.0507 254.7)"
+        ]
+      },
+      "surface-line": {
+        "role": "neutral",
+        "displayName": "浅蓝分界",
+        "tonalRamp": [
+          "oklch(15% 0.0207 254.9)",
+          "oklch(27% 0.0207 254.9)",
+          "oklch(38% 0.0207 254.9)",
+          "oklch(50% 0.0207 254.9)",
+          "oklch(61% 0.0207 254.9)",
+          "oklch(73% 0.0207 254.9)",
+          "oklch(84% 0.0207 254.9)",
+          "oklch(95% 0.0207 254.9)"
+        ]
+      },
+      "selected": {
+        "role": "primary",
+        "displayName": "选中浅蓝",
+        "tonalRamp": [
+          "oklch(15% 0.0205 254.9)",
+          "oklch(27% 0.0205 254.9)",
+          "oklch(38% 0.0205 254.9)",
+          "oklch(50% 0.0205 254.9)",
+          "oklch(61% 0.0205 254.9)",
+          "oklch(73% 0.0205 254.9)",
+          "oklch(84% 0.0205 254.9)",
+          "oklch(95% 0.0205 254.9)"
+        ]
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "焦点蓝",
+        "tonalRamp": [
+          "oklch(15% 0.1189 255.8)",
+          "oklch(27% 0.1189 255.8)",
+          "oklch(38% 0.1189 255.8)",
+          "oklch(50% 0.1189 255.8)",
+          "oklch(61% 0.1189 255.8)",
+          "oklch(73% 0.1189 255.8)",
+          "oklch(84% 0.1189 255.8)",
+          "oklch(95% 0.1189 255.8)"
+        ]
+      },
+      "placeholder": {
+        "role": "neutral",
+        "displayName": "占位灰蓝",
+        "tonalRamp": [
+          "oklch(15% 0.0505 255.7)",
+          "oklch(27% 0.0505 255.7)",
+          "oklch(38% 0.0505 255.7)",
+          "oklch(50% 0.0505 255.7)",
+          "oklch(61% 0.0505 255.7)",
+          "oklch(73% 0.0505 255.7)",
+          "oklch(84% 0.0505 255.7)",
+          "oklch(95% 0.0505 255.7)"
+        ]
+      },
+      "income": {
+        "role": "primary",
+        "displayName": "收入蓝",
+        "tonalRamp": [
+          "oklch(15% 0.1542 256.3)",
+          "oklch(27% 0.1542 256.3)",
+          "oklch(38% 0.1542 256.3)",
+          "oklch(50% 0.1542 256.3)",
+          "oklch(61% 0.1542 256.3)",
+          "oklch(73% 0.1542 256.3)",
+          "oklch(84% 0.1542 256.3)",
+          "oklch(95% 0.1542 256.3)"
+        ]
+      },
+      "expense": {
+        "role": "primary",
+        "displayName": "支出浅蓝",
+        "tonalRamp": [
+          "oklch(15% 0.0818 255.0)",
+          "oklch(27% 0.0818 255.0)",
+          "oklch(38% 0.0818 255.0)",
+          "oklch(50% 0.0818 255.0)",
+          "oklch(61% 0.0818 255.0)",
+          "oklch(73% 0.0818 255.0)",
+          "oklch(84% 0.0818 255.0)",
+          "oklch(95% 0.0818 255.0)"
+        ]
+      },
+      "budget-over": {
+        "role": "secondary",
+        "displayName": "超预算暖棕",
+        "tonalRamp": [
+          "oklch(15% 0.1161 66.8)",
+          "oklch(27% 0.1161 66.8)",
+          "oklch(38% 0.1161 66.8)",
+          "oklch(50% 0.1161 66.8)",
+          "oklch(61% 0.1161 66.8)",
+          "oklch(73% 0.1161 66.8)",
+          "oklch(84% 0.1161 66.8)",
+          "oklch(95% 0.1161 66.8)"
+        ]
+      },
+      "pending-text": {
+        "role": "primary",
+        "displayName": "待确认蓝",
+        "tonalRamp": [
+          "oklch(15% 0.1388 258.0)",
+          "oklch(27% 0.1388 258.0)",
+          "oklch(38% 0.1388 258.0)",
+          "oklch(50% 0.1388 258.0)",
+          "oklch(61% 0.1388 258.0)",
+          "oklch(73% 0.1388 258.0)",
+          "oklch(84% 0.1388 258.0)",
+          "oklch(95% 0.1388 258.0)"
+        ]
+      },
+      "pending-surface": {
+        "role": "primary",
+        "displayName": "待确认浅底",
+        "tonalRamp": [
+          "oklch(15% 0.0211 252.5)",
+          "oklch(27% 0.0211 252.5)",
+          "oklch(38% 0.0211 252.5)",
+          "oklch(50% 0.0211 252.5)",
+          "oklch(61% 0.0211 252.5)",
+          "oklch(73% 0.0211 252.5)",
+          "oklch(84% 0.0211 252.5)",
+          "oklch(95% 0.0211 252.5)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "系统正文",
+        "purpose": "全站字体栈；SF、苹方与系统回退。"
+      },
+      "display": {
+        "displayName": "封面标题",
+        "purpose": "登录页品牌主张；手机缩至37px。"
+      },
+      "amount": {
+        "displayName": "收支差额",
+        "purpose": "月报首要读数，等宽数字；动态标签读最终值。"
+      },
+      "headline": {
+        "displayName": "页面标题",
+        "purpose": "月报、账单、导入与规则页面。"
+      },
+      "title": {
+        "displayName": "面板标题",
+        "purpose": "各信息分组。"
+      },
+      "description": {
+        "displayName": "页面说明",
+        "purpose": "标题下的简短任务说明。"
+      },
+      "label": {
+        "displayName": "表单标签",
+        "purpose": "登录表单。"
+      },
+      "button": {
+        "displayName": "按钮文字",
+        "purpose": "主要与次要操作。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "0 16px 40px rgba(35,78,133,.055)",
+        "purpose": "内容面板的柔和蓝影。"
+      },
+      {
+        "name": "balance-hero",
+        "value": "0 24px 52px rgba(45,98,171,.13), inset 0 1px 0 rgba(255,255,255,.95)",
+        "purpose": "月报主卡的视觉重心。"
+      },
+      {
+        "name": "chart-tooltip",
+        "value": "0 18px 42px rgba(24,54,94,.23)",
+        "purpose": "跟随指针的图表读数。"
+      },
+      {
+        "name": "dialog",
+        "value": "0 28px 80px rgba(25,25,35,.18)",
+        "purpose": "编辑弹层。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-arrive",
+        "value": "cubic-bezier(.16,1,.3,1)",
+        "purpose": "到达、按压与短状态过渡。"
+      },
+      {
+        "name": "control",
+        "value": "180ms",
+        "purpose": "按钮背景与阴影变化。"
+      },
+      {
+        "name": "screen",
+        "value": "opacity 140ms, transform 220ms",
+        "purpose": "页面短入场。"
+      },
+      {
+        "name": "amount",
+        "value": "520ms",
+        "purpose": "金额变动后收敛；暂停或减少动态时直接显示最终值。"
+      },
+      {
+        "name": "ripple",
+        "value": "600ms",
+        "purpose": "按压涟漪；暂停和减少动态时禁用。"
+      },
+      {
+        "name": "ledger-unfold",
+        "value": "820ms",
+        "purpose": "月报主卡的裁切展开。"
+      },
+      {
+        "name": "route-flow",
+        "value": "5s linear infinite",
+        "purpose": "封面归集流线；可暂停、离屏停止。"
+      },
+      {
+        "name": "orbit-turn",
+        "value": "18s linear infinite",
+        "purpose": "识别步骤的缓慢环绕；可暂停。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "460px"
+      },
+      {
+        "name": "mobile",
+        "value": "760px"
+      },
+      {
+        "name": "compact",
+        "value": "1100px"
+      },
+      {
+        "name": "wide-cover",
+        "value": "1600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主要按钮",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "蓝底白字的主要操作；等待状态禁止重复触发。",
+      "html": "<button class=\"ds-primary\" type=\"button\">进入账本 <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:13px;font-weight:620;height:43px;padding:0 17px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;transition:background-color .18s ease,box-shadow .18s ease,transform .18s var(--ease-arrive,cubic-bezier(.16,1,.3,1));background:var(--brand-blue,#326fca);color:#fff;border:1px solid var(--brand-blue,#326fca);box-shadow:0 7px 18px rgba(50,111,202,.16)}.ds-primary:hover:not(:disabled){background:#275faf;box-shadow:0 11px 22px rgba(50,111,202,.23)}.ds-primary:focus-visible{outline:3px solid #6398de;outline-offset:4px}.ds-primary:active:not(:disabled){transform:scale(.975)}.ds-primary:disabled{opacity:.55;cursor:not-allowed}@media(max-width:760px){.ds-primary,.ds-secondary{min-height:44px}}@media(prefers-reduced-motion:reduce){.ds-primary,.ds-secondary{transition:none}.ds-primary:active,.ds-secondary:active{transform:none}}"
+    },
+    {
+      "name": "次要按钮",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "白底细边的导出、取消等次要操作。",
+      "html": "<button class=\"ds-secondary\" type=\"button\">导出月报</button>",
+      "css": ".ds-secondary{font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:13px;font-weight:620;height:43px;padding:0 17px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;transition:background-color .18s ease,box-shadow .18s ease,transform .18s var(--ease-arrive,cubic-bezier(.16,1,.3,1));background:#fff;border:1px solid #dedee3;color:#333338}.ds-secondary:hover:not(:disabled){background:#f8f8fa;border-color:#c8c8ce}.ds-secondary:focus-visible{outline:3px solid #6398de;outline-offset:4px}.ds-secondary:active:not(:disabled){transform:scale(.975)}.ds-secondary:disabled{opacity:.55;cursor:not-allowed}@media(max-width:760px){.ds-primary,.ds-secondary{min-height:44px}}@media(prefers-reduced-motion:reduce){.ds-primary,.ds-secondary{transition:none}.ds-primary:active,.ds-secondary:active{transform:none}}"
+    },
+    {
+      "name": "登录输入",
+      "kind": "input",
+      "refersTo": "login-input",
+      "description": "清楚标签、可读占位字与蓝色聚焦外晕。",
+      "html": "<label class=\"ds-field-label\" for=\"ds-account\">账号</label><input class=\"ds-login-input\" id=\"ds-account\" autocomplete=\"username\" placeholder=\"请输入账号\" />",
+      "css": ".ds-field-label{display:block;margin:0 0 10px;font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:13px;font-weight:700;color:#38516f}.ds-login-input{font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:15px;height:50px;width:240px;max-width:100%;padding:0 15px;border-radius:13px;border:1px solid #d9e4f2;background:#fbfdff;color:#1d1d1f;transition:border-color .2s,box-shadow .2s,background .2s}.ds-login-input::placeholder{color:#5e738f}.ds-login-input:hover{border-color:#a7c9f3}.ds-login-input:focus-visible{background:#fff;border-color:var(--brand-blue,#326fca);outline:none;box-shadow:0 0 0 4px rgba(50,111,202,.13)}.ds-login-input:disabled{opacity:.55}@media(max-width:760px){.ds-login-input{font-size:16px}}"
+    },
+    {
+      "name": "侧栏导航",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "半透明导航材质；浅蓝底标明当前页面。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"归账导航\"><a class=\"ds-nav-link ds-nav-active\" href=\"#report\" aria-current=\"page\">月度概览</a><a class=\"ds-nav-link\" href=\"#transactions\">全部账单</a><a class=\"ds-nav-link\" href=\"#import\">导入账单</a><a class=\"ds-nav-link\" href=\"#rules\">分类规则</a></nav>",
+      "css": ".ds-nav{width:198px;padding:17px;background:rgba(255,255,255,.88);border:1px solid #dce7f5;border-radius:20px;backdrop-filter:blur(24px) saturate(1.25)}.ds-nav-link{display:flex;align-items:center;height:46px;padding:0 13px;border-radius:11px;margin:0 0 5px;color:#5e738b;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;font-weight:570;transition:color .2s,background .2s,transform .24s var(--ease-arrive,cubic-bezier(.16,1,.3,1))}.ds-nav-link:hover{color:#245ba9;background:#edf5ff;transform:translateX(3px)}.ds-nav-link:focus-visible{outline:3px solid #6398de;outline-offset:4px}.ds-nav-link:active{transform:scale(.97)}.ds-nav-active{color:#235eb4;background:#e6f1ff}@media(prefers-reduced-motion:reduce){.ds-nav-link{transition:none}.ds-nav-link:hover,.ds-nav-link:active{transform:none}}"
+    },
+    {
+      "name": "待确认状态",
+      "kind": "chip",
+      "refersTo": "pending-chip",
+      "description": "文字直接说明导入状态，颜色辅助辨识。",
+      "html": "<span class=\"ds-pending\">待确认</span>",
+      "css": ".ds-pending{display:inline-block;padding:7px 11px;border-radius:100px;background:#e7f2ff;color:#285fae;font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:11px}"
+    },
+    {
+      "name": "月报内容面板",
+      "kind": "card",
+      "refersTo": "report-panel",
+      "description": "白色表面承载高对比正文，蓝影与细边建立分组。",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-panel-title\">收入构成</h2><p class=\"ds-panel-description\">按类别核对本月收入。</p><button class=\"ds-panel-row\" type=\"button\"><span>工资</span><strong>¥ 8,600.00</strong></button></section>",
+      "css": ".ds-panel{width:300px;max-width:100%;padding:24px;border:1px solid #e0e9f5;border-radius:20px;background:#fff;box-shadow:0 16px 40px rgba(35,78,133,.055);font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:var(--text-primary,#18314f);transition:border-color .22s,box-shadow .3s}.ds-panel:hover{border-color:#bed4ef;box-shadow:0 18px 42px #235c9e0c}.ds-panel-title{margin:0 0 6px;font-size:18px;font-weight:690;letter-spacing:-.025em}.ds-panel-description{margin:0 0 22px;color:var(--text-secondary,#627894);font-size:12px;line-height:1.6}.ds-panel-row{display:flex;justify-content:space-between;gap:20px;width:100%;padding:15px 7px;border:0;border-bottom:1px solid #e9eff7;border-radius:9px;background:transparent;color:#365576;font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:12px;cursor:pointer}.ds-panel-row strong{font-variant-numeric:tabular-nums}.ds-panel-row:hover{background:#edf5ff}.ds-panel-row:focus-visible{outline:3px solid #6398de;outline-offset:4px}.ds-panel-row:active{background:#e8f2ff}@media(max-width:760px){.ds-panel-row{min-height:44px}}"
+    },
+    {
+      "name": "收支差额主卡",
+      "kind": "custom",
+      "refersTo": "balance-hero",
+      "description": "浅蓝渐变与大金额建立月报重心；示例金额为合成示意。",
+      "html": "<section class=\"ds-balance\" aria-label=\"合成金额示意\"><span class=\"ds-balance-label\">本月收支差额</span><strong class=\"ds-balance-amount\">¥ 3,280.00</strong><p class=\"ds-balance-note\">收入 − 毛支出 ＋ 退款</p></section>",
+      "css": ".ds-balance{max-width:100%;padding:42px 46px;border:1px solid #bfd7f7;border-radius:24px;background:radial-gradient(circle at 76% 32%,rgba(129,184,255,.45),transparent 39%),linear-gradient(118deg,#f9fcff 0%,#eaf4ff 53%,#dcecff 100%);box-shadow:0 24px 52px rgba(45,98,171,.13),inset 0 1px 0 rgba(255,255,255,.95);font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:var(--text-primary,#18314f);transition:box-shadow .3s}.ds-balance:hover{box-shadow:0 28px 60px rgba(45,98,171,.16),inset 0 1px 0 rgba(255,255,255,.95)}.ds-balance-label{color:#517db7;font-size:13px;font-weight:650;letter-spacing:.015em}.ds-balance-amount{display:block;margin:10px 0 20px;color:#183f72;font-size:clamp(49px,5.1vw,79px);font-weight:720;letter-spacing:-.035em;line-height:1.13;font-variant-numeric:tabular-nums}.ds-balance-note{margin:0;color:#647f9e;font-size:12px;line-height:1.5}@media(max-width:760px){.ds-balance{padding:30px 28px;border-radius:22px}.ds-balance-amount{font-size:clamp(48px,10vw,68px)}}"
+    },
+    {
+      "name": "归账原创标记",
+      "kind": "custom",
+      "description": "实际品牌 SVG：来源箭头汇入账本轮廓。",
+      "html": "<span class=\"ds-brand\"><svg class=\"ds-brand-icon\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" fill=\"none\" aria-hidden=\"true\"><defs><linearGradient id=\"ds-brand-blue\" x1=\"5\" y1=\"2\" x2=\"43\" y2=\"48\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"#579bf3\"/><stop offset=\"1\" stop-color=\"#235ac0\"/></linearGradient></defs><rect width=\"48\" height=\"48\" rx=\"14\" fill=\"url(#ds-brand-blue)\"/><rect x=\".75\" y=\".75\" width=\"46.5\" height=\"46.5\" rx=\"13.25\" stroke=\"white\" stroke-opacity=\".25\" stroke-width=\"1.5\"/><path d=\"M15 13.5v14a7 7 0 0 0 7 7h11V19a5.5 5.5 0 0 0-5.5-5.5H23\" stroke=\"white\" stroke-width=\"3.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M10.5 23H25m-4.5-4.5L25 23l-4.5 4.5\" stroke=\"#d7ecff\" stroke-width=\"3.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><strong class=\"ds-brand-name\">归账</strong></span>",
+      "css": ".ds-brand{display:inline-flex;align-items:center;gap:11px;font-family:-apple-system,BlinkMacSystemFont,\"SF Pro Display\",\"SF Pro Text\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:var(--text-primary,#18314f)}.ds-brand-icon{display:block;width:42px;height:42px;border-radius:28%;box-shadow:0 5px 12px #235ac01a}.ds-brand-name{font-size:26px;font-weight:730;letter-spacing:-.05em}"
+    }
+  ],
+  "narrative": {
+    "northStar": "清透的个人账本",
+    "overview": "蓝白画布、深蓝正文与系统字体构成沉稳的 iOS 式工作空间。半透明导航和浮层提供轻盈材质，账单、金额与表单保留清楚的对比和阅读顺序。原创归集标记把来源箭头与账本轮廓连成一个记号。\n\n轻粒子贯穿工作区、登录封面、月报主卡、导入说明和规则说明。动态用于解释归集、回应操作和提示变化；用户可随时暂停，系统减少动态效果、离屏和后台状态都参与控制。",
+    "keyCharacteristics": [
+      "浅蓝白底、蓝色行动、深蓝内容。",
+      "半透明边界与清晰正文并存。",
+      "金额优先，账单来源和确认状态可辨。",
+      "动效轻、可暂停，手机任务入口直接可达。"
+    ],
+    "rules": [
+      {
+        "name": "The Content First Rule",
+        "body": "装饰层不得覆盖文字、吞掉焦点或承担唯一的信息表达；读数和状态必须有可见文本。",
+        "section": "colors"
+      },
+      {
+        "name": "The Honest Amount Rule",
+        "body": "动画金额的辅助技术标签始终读最终值，不能把过渡中的数字当作业务结果。",
+        "section": "typography"
+      },
+      {
+        "name": "The Quiet Motion Rule",
+        "body": "动效开关与系统偏好必须覆盖新增装饰；暂停后任务状态和最终读数仍然完整。",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** 沿用蓝白画布、深蓝正文与系统 SF／苹方字体。",
+      "**Do** 给图表提供指针、键盘和手机可用的读数路径。",
+      "**Do** 为手机交互保留至少 44px 触摸目标，并避让底部安全区。",
+      "**Do** 让新动效服从全局暂停、系统减少动态效果与离屏控制。",
+      "**Do** 在确认成功后反馈结果，取消操作仅关闭当前界面。"
+    ],
+    "donts": [
+      "**Don't** 恢复历史绿色主操作或深色侧栏。",
+      "**Don't** 用粒子、光晕、渐变或半透明底削弱正文对比。",
+      "**Don't** 用色块或字母代替微信、支付宝的来源 SVG。",
+      "**Don't** 将归集流程示意写成平台直连、公开注册或公开分享能力。",
+      "**Don't** 在未经确认入账时把草稿混入月报，或把收支差额称为银行余额。"
+    ]
+  }
+}
