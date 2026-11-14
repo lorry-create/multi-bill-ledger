@@ -15,6 +15,8 @@ import type { Category, MonthlyReport, ResolvedCategory } from "../api";
 import { categories, download, parseYuan, yuan } from "../format";
 import { csrf, errorText, withCsrfRetry } from "../session";
 import ParticleField from "../components/ParticleField.vue";
+import AnimatedAmount from "../components/AnimatedAmount.vue";
+import { notify } from "../motion";
 
 const router = useRouter(),
   month = ref(
@@ -259,6 +261,7 @@ async function saveBudget() {
     );
     budgetOpen.value = false;
     await load();
+    notify("本月类别预算已保存");
   } catch (e) {
     budgetError.value = errorText(e);
   } finally {
@@ -282,6 +285,7 @@ async function exportPdf() {
       await api.exportMonthlyPdf({ query: { month: month.value } }),
       `收支月报_${month.value}.pdf`,
     );
+    notify("收支月报已导出");
   } catch (e) {
     const err = e as {
       status?: number;
@@ -294,13 +298,14 @@ async function exportPdf() {
     exporting.value = false;
   }
 }
-function goCategory(category: string) {
+function goCategory(category: string, flow_type?: "income") {
   const [year, part] = month.value.split("-").map(Number);
   const last = new Date(year, part, 0).getDate();
   router.push({
     path: "/transactions",
     query: {
       category,
+      flow_type,
       date_from: `${month.value}-01`,
       date_to: `${month.value}-${last}`,
     },
@@ -345,17 +350,17 @@ function goCategory(category: string) {
       <ParticleField />
       <div class="balance-main">
         <span>本月收支差额</span
-        ><strong>{{ yuan(report.totals.balance_fen) }}</strong>
+        ><strong><AnimatedAmount :value="report.totals.balance_fen" /></strong>
         <p>收入减去支出，加上退款；不代表账户余额。</p>
       </div>
       <div class="balance-side">
         <div>
           <span><ArrowUpRight :size="17" /> 本月收入</span
-          ><strong>{{ yuan(report.totals.income_fen) }}</strong>
+          ><strong><AnimatedAmount :value="report.totals.income_fen" /></strong>
         </div>
         <div>
           <span><ArrowDownRight :size="17" /> 净支出</span
-          ><strong>{{ yuan(report.totals.net_expense_fen) }}</strong>
+          ><strong><AnimatedAmount :value="report.totals.net_expense_fen" /></strong>
         </div>
       </div>
       <div class="hero-decoration" aria-hidden="true"></div>
@@ -423,7 +428,7 @@ function goCategory(category: string) {
           ><span>确认入账后，这里会显示类别分布。</span>
         </div>
       </section>
-      <section class="content-panel trend-panel">
+      <section class="content-panel trend-panel" :key="`${month}-${trendMode}`">
         <div class="panel-heading">
           <div>
             <h2>收支走势</h2>
@@ -474,7 +479,7 @@ function goCategory(category: string) {
           </div>
         </div>
         <div class="trend-foot">
-          <span>本月退款 {{ yuan(report.totals.refund_fen) }}</span
+          <span class="chart-instruction">指向柱组查看数据</span><span>本月退款 {{ yuan(report.totals.refund_fen) }}</span
           ><span>净支出 {{ yuan(report.totals.net_expense_fen) }}</span>
         </div>
       </section>
@@ -491,9 +496,9 @@ function goCategory(category: string) {
     <div class="report-lower-grid"><section class="content-panel income-panel">
       <div class="panel-heading"><div><h2>收入构成</h2><p>按已确认收入的类别汇总</p></div></div>
       <div v-if="incomeParts.length" class="income-list">
-        <div v-for="part in incomeParts" :key="part.category" class="income-row">
+        <button v-for="part in incomeParts" :key="part.category" class="income-row" type="button" @click="goCategory(part.category, 'income')" :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，查看明细`">
           <span>{{ categories[part.category] }}</span><div class="income-track"><i :style="{width:`${report.totals.income_fen?part.amount_fen/report.totals.income_fen*100:0}%`}"></i></div><strong>{{ yuan(part.amount_fen) }}</strong>
-        </div>
+        </button>
       </div>
       <div v-else class="empty-state"><strong>本月没有收入明细</strong><span>收入账单确认后会在这里展示来源。</span></div>
     </section>

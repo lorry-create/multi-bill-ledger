@@ -12,9 +12,12 @@ import {
   Menu,
   X,
   WalletCards,
+  Check, Pause, Play,
 } from "@lucide/vue";
 import { auth, restoreSession, signOut } from "./session";
 import { isDemo } from "./api";
+import ParticleField from "./components/ParticleField.vue";
+import { motionPaused, toggleMotion, notice } from "./motion";
 
 const route = useRoute(),
   router = useRouter();
@@ -59,9 +62,10 @@ async function leave() {
   <div v-if="auth.loading" class="startup">正在打开归账…</div>
   <RouterView v-else-if="publicPage" />
   <div v-else class="shell" :class="{ 'is-collapsed': sidebarCollapsed }">
+    <div class="workspace-atmosphere"><ParticleField /></div>
     <aside class="sidebar">
       <RouterLink class="brand" to="/report"
-        ><span class="brand-mark"><img src="/brand.svg" alt="" /></span
+        ><span class="brand-mark"><img src="/brand.svg?v=4" alt="" /></span
         ><span class="brand-name">归账</span></RouterLink
       >
       <div class="side-caption">个人账务空间</div>
@@ -79,6 +83,7 @@ async function leave() {
         /></RouterLink>
       </nav>
       <div class="side-bottom">
+        <div class="sidebar-note"><BookOpenCheck :size="19" /><p>每一笔，都有来处。<small>确认、修正，让账本更懂你。</small></p></div>
         <div class="profile">
           <span class="avatar">{{
             auth.session?.user.username.slice(0, 1).toUpperCase()
@@ -105,6 +110,7 @@ async function leave() {
         <p class="drawer-user">{{ auth.session?.user.username }}</p>
         <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="drawer-link" @click="mobileMenuOpen = false"><component :is="item.icon" :size="19" />{{ item.label }}</RouterLink>
         <button class="drawer-logout" type="button" @click="leave"><LogOut :size="18" />退出登录</button>
+        <button class="motion-toggle" type="button" :aria-pressed="motionPaused" @click="toggleMotion"><Play v-if="motionPaused" :size="15" /><Pause v-else :size="15" />{{ motionPaused ? '开启动效' : '减少动态效果' }}</button>
       </section>
     </div>
     <nav aria-label="手机主导航" class="mobile-nav">
@@ -123,6 +129,7 @@ async function leave() {
               : (nav.find((x) => route.path.startsWith(x.to))?.label ?? "导入确认")
           }}</span></div>
         <div class="top-actions">
+          <button class="motion-toggle" type="button" :aria-pressed="motionPaused" :title="motionPaused ? '开启动态效果' : '减少动态效果'" @click="toggleMotion"><Play v-if="motionPaused" :size="15" /><Pause v-else :size="15" /><span>{{ motionPaused ? '动态已暂停' : '动态效果' }}</span></button>
           <span v-if="isDemo" class="demo-badge">合成数据演示</span
           ><span class="top-date">{{
             new Intl.DateTimeFormat("zh-CN", {
@@ -135,10 +142,11 @@ async function leave() {
       <div class="page-wrap">
         <RouterView v-slot="{ Component }">
           <Transition name="screen" mode="out-in">
-            <component :is="Component" />
+            <div :key="route.path" class="page-screen"><component :is="Component" /></div>
           </Transition>
         </RouterView>
       </div>
     </main>
   </div>
+  <Transition name="toast"><div v-if="notice" :key="notice.id" class="feedback-toast" role="status"><Check :size="18" />{{ notice.text }}</div></Transition>
 </template>

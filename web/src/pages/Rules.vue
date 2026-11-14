@@ -4,6 +4,10 @@ import { api } from "../api";
 import type { ClassificationRule, ResolvedCategory } from "../api";
 import { categories, sources } from "../format";
 import { errorText, withCsrfRetry } from "../session";
+import { ArrowRight, SlidersHorizontal, BookOpenCheck, Repeat2 } from "@lucide/vue";
+import ParticleField from "../components/ParticleField.vue";
+import PlatformLogo from "../components/PlatformLogo.vue";
+import { notify } from "../motion";
 
 const resolvedCategories = Object.entries(categories).filter(([k]) => k !== "pending") as [
   ResolvedCategory,
@@ -40,6 +44,7 @@ async function change(
         token,
       ),
     );
+    notify(patch.enabled === false ? "规则已停用" : patch.enabled === true ? "规则已启用，将用于之后导入的交易" : "商户分类规则已更新");
     await load();
   } catch (e) {
     error.value = errorText(e);
@@ -57,6 +62,11 @@ async function change(
     </div>
   </div>
   <div v-if="error" class="alert error" role="alert">{{ error }}</div>
+  <section class="rule-explainer">
+    <ParticleField />
+    <div><h2>你的选择，会成为下一次的规则。</h2><p>在账单中修正类别，并选择“记住该商户”。同平台的新交易会优先采用你的分类。</p></div>
+    <div class="rule-cycle"><span><SlidersHorizontal :size="20" />修正分类</span><ArrowRight :size="16" /><span><BookOpenCheck :size="20" />记住商户</span><ArrowRight :size="16" /><span><Repeat2 :size="20" />下次自动分类</span></div>
+  </section>
   <section class="content-panel rules-panel">
     <div class="panel-heading">
       <div>
@@ -77,9 +87,7 @@ async function change(
     </div>
     <div v-else class="rule-list">
       <div v-for="rule in rules" :key="rule.id" class="rule-row">
-        <span class="rule-avatar">{{
-          rule.merchant_normalized.slice(0, 1)
-        }}</span>
+        <PlatformLogo :source="rule.source" :size="38" />
         <div class="rule-name">
           <strong>{{ rule.merchant_normalized }}</strong
           ><small

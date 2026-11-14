@@ -24,6 +24,8 @@ import {
   yuan,
 } from "../format";
 import { errorText, withCsrfRetry } from "../session";
+import PlatformLogo from "../components/PlatformLogo.vue";
+import { notify } from "../motion";
 
 const PAGE_SIZE = 50;
 const route = useRoute();
@@ -38,8 +40,8 @@ const filters = reactive<{
   date_from: String(route.query.date_from ?? ""),
   date_to: String(route.query.date_to ?? ""),
   category: String(route.query.category ?? "") as "" | Category,
-  source: "",
-  flow_type: "",
+  source: String(route.query.source ?? "") as "" | Source,
+  flow_type: String(route.query.flow_type ?? "") as "" | FlowType,
   page: 1,
 });
 const data = ref<TransactionPage | null>(null),
@@ -100,6 +102,10 @@ async function load() {
 }
 function search() {
   filters.page = 1;
+  load();
+}
+function clearFilters() {
+  Object.assign(filters, { date_from: "", date_to: "", category: "", source: "", flow_type: "", page: 1 });
   load();
 }
 function fillEditFrom(t: Transaction) {
@@ -178,6 +184,7 @@ async function save() {
         token,
       ),
     );
+    notify(remember.value ? "账单已更新，已记住该商户的分类" : "账单已更新，相关月报已同步");
     closeModal();
     await load();
   } catch (e) {
@@ -202,6 +209,7 @@ async function exportCsv() {
   try {
     const blob = await api.exportTransactions({ query: query.value });
     download(blob, "账单导出.csv");
+    notify("当前筛选的全部账单已导出");
   } catch (e) {
     error.value = errorText(e);
   } finally {
@@ -220,7 +228,7 @@ async function exportCsv() {
     >
   </div>
   <div v-if="error" class="alert error" role="alert">{{ error }}</div>
-  <section class="content-panel">
+  <section class="content-panel transaction-panel" :aria-busy="loading">
     <div class="toolbar">
       <div class="toolbar-title">
         <Filter :size="18" /><strong>筛选账单</strong>
@@ -228,6 +236,11 @@ async function exportCsv() {
       <button class="secondary-btn" :disabled="exporting" @click="exportCsv">
         <Download :size="16" /> {{ exporting ? "导出中…" : "导出当前筛选" }}
       </button>
+    </div>
+    <div class="platform-filter" role="group" aria-label="快捷筛选平台">
+      <button type="button" :aria-pressed="filters.source === ''" :class="{ active: !filters.source }" @click="filters.source = ''; search()">全部平台</button>
+      <button v-for="platform in (['wechat', 'alipay'] as const)" :key="platform" type="button" :aria-pressed="filters.source === platform" :class="{ active: filters.source === platform }" @click="filters.source = platform; search()"><PlatformLogo :source="platform" :size="22" />{{ sources[platform] }}</button>
+      <button v-if="Object.values(query).some(Boolean)" class="clear-filters" type="button" @click="clearFilters"><X :size="14" />清除筛选</button>
     </div>
     <div class="filters">
       <label
@@ -244,13 +257,6 @@ async function exportCsv() {
         >类别<select v-model="filters.category" @change="search">
           <option value="">全部类别</option>
           <option v-for="(label, key) in categories" :key="key" :value="key">
-            {{ label }}
-          </option>
-        </select></label
-      ><label
-        >平台<select v-model="filters.source" @change="search">
-          <option value="">全部平台</option>
-          <option v-for="(label, key) in sources" :key="key" :value="key">
             {{ label }}
           </option>
         </select></label
@@ -285,7 +291,7 @@ async function exportCsv() {
               >
             </td>
             <td>{{ dateTime(t.occurred_at) }}</td>
-            <td>{{ sources[t.source] }}</td>
+            <td><span class="transaction-source"><PlatformLogo :source="t.source" :size="23" />{{ sources[t.source] }}</span></td>
             <td>
               <span class="category-pill">{{ categories[t.category] }}</span>
               <small class="source-note">{{

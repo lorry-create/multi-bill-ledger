@@ -11,6 +11,8 @@ import { api } from "../api";
 import type { Batch, IngestionMethod, Source } from "../api";
 import { AlertTriangle, X } from "@lucide/vue";
 import { errorText, withCsrfRetry } from "../session";
+import PlatformLogo from "../components/PlatformLogo.vue";
+import ParticleField from "../components/ParticleField.vue";
 
 const router = useRouter(),
   source = ref<Source>("wechat"),
@@ -20,6 +22,12 @@ const router = useRouter(),
   busy = ref(false),
   error = ref(""),
   duplicateBatch = ref<Batch | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+function clearFile() {
+  file.value = null;
+  error.value = "";
+  if (fileInput.value) fileInput.value.value = "";
+}
 const uploadStatusText: Record<Batch["status"], string> = {
   uploaded: "等待处理",
   processing: "正在识别",
@@ -129,18 +137,22 @@ async function submit() {
         <button
           class="source-option"
           :class="{ selected: source === 'wechat' }"
+          :aria-pressed="source === 'wechat'"
+          :disabled="busy"
           @click="source = 'wechat'"
         >
-          <span class="source-logo wechat-logo">微</span
-          ><span><strong>微信支付</strong><small>微信账单导出</small></span
+          <PlatformLogo source="wechat" :size="44" />
+          <span><strong>微信支付</strong><small>微信账单导出</small></span
           ><span class="radio-dot"></span></button
         ><button
           class="source-option"
           :class="{ selected: source === 'alipay' }"
+          :aria-pressed="source === 'alipay'"
+          :disabled="busy"
           @click="source = 'alipay'"
         >
-          <span class="source-logo alipay-logo">支</span
-          ><span><strong>支付宝</strong><small>支付宝交易记录</small></span
+          <PlatformLogo source="alipay" :size="44" />
+          <span><strong>支付宝</strong><small>支付宝交易记录</small></span
           ><span class="radio-dot"></span>
         </button>
       </div>
@@ -155,11 +167,15 @@ async function submit() {
       <div class="method-tabs">
         <button
           :class="{ active: method === 'file' }"
+          :aria-pressed="method === 'file'"
+          :disabled="busy"
           @click="switchMethod('file')"
         >
           <FileSpreadsheet :size="18" />账单文件</button
         ><button
           :class="{ active: method === 'screenshot' }"
+          :aria-pressed="method === 'screenshot'"
+          :disabled="busy"
           @click="switchMethod('screenshot')"
         >
           <ImageUp :size="18" />交易截图
@@ -167,13 +183,16 @@ async function submit() {
       </div>
       <label
         class="dropzone"
-        :class="{ dragging }"
+        :class="{ dragging, 'has-file': file, 'is-uploading': busy }"
         @dragover.prevent="dragging = true"
         @dragleave.prevent="dragging = false"
         @drop.prevent="onDrop"
         ><input
+          ref="fileInput"
           :key="method"
           type="file"
+          :aria-label="method === 'file' ? '选择账单文件' : '选择交易截图'"
+          :disabled="busy"
           :accept="
             method === 'file'
               ? '.csv,.xlsx'
@@ -189,6 +208,7 @@ async function submit() {
             : "PNG、JPEG，单张图片不超过 5 MiB"
         }}</span></label
       >
+      <div v-if="file" class="selected-file" role="status"><FileSpreadsheet v-if="method === 'file'" :size="19" /><ImageUp v-else :size="19" /><span><strong>{{ file.name }}</strong><small>{{ (file.size / 1024).toFixed(1) }} KB · {{ busy ? '上传处理中' : '已就绪，等待导入' }}</small></span><button type="button" class="icon-btn" aria-label="移除已选文件" :disabled="busy" @click="clearFile"><X :size="17" /></button></div>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       <div class="upload-action">
         <button class="primary-btn" :disabled="busy" @click="submit">
@@ -197,6 +217,7 @@ async function submit() {
       </div>
     </section>
     <aside class="upload-aside">
+      <ParticleField />
       <h3>导入后会发生什么？</h3>
       <ol>
         <li>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
+import { motionPaused } from "../motion";
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 type Dot = { x: number; y: number; vx: number; vy: number; size: number; phase: number };
@@ -86,7 +87,7 @@ function draw(advance: boolean) {
 
 function tick() {
   frame = 0;
-  if (motionOff || !visible || document.hidden) return;
+  if (motionOff || motionPaused.value || !visible || document.hidden) return;
   draw(true);
   frame = requestAnimationFrame(tick);
 }
@@ -94,7 +95,7 @@ function tick() {
 function sync() {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
-  if (motionOff || !visible || document.hidden) draw(false);
+  if (motionOff || motionPaused.value || !visible || document.hidden) draw(false);
   else frame = requestAnimationFrame(tick);
 }
 
@@ -120,10 +121,12 @@ onMounted(() => {
   observer.observe(canvas.value);
   window.addEventListener("pointermove", move, { passive: true });
   document.addEventListener("visibilitychange", sync);
+  window.addEventListener("ledger-motion-change", sync);
   cleanup = () => {
     media?.removeEventListener("change", onMotion);
     window.removeEventListener("pointermove", move);
     document.removeEventListener("visibilitychange", sync);
+    window.removeEventListener("ledger-motion-change", sync);
   };
   resize();
   sync();
