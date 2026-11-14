@@ -3,7 +3,9 @@ from pathlib import Path
 import argparse
 import copy
 import json
+import os
 import re
+import tempfile
 
 
 def require(condition, message):
@@ -75,13 +77,19 @@ def check_fixture(fixture, doc):
 
 
 def check_links(root):
-    for path in root.rglob('*.md'):
-        for link in re.findall(r'\]\(([^)]+)\)', path.read_text(encoding='utf-8')):
-            if re.match(r'^(https?://|#|[A-Za-z]:)', link):
+    excluded = {'.git', 'node_modules', '.venv', 'venv', 'dist', 'dev-dist', '.pytest_cache'}
+    for directory, folders, files in os.walk(root):
+        folders[:] = sorted(name for name in folders if name not in excluded)
+        for name in sorted(files):
+            if not name.endswith('.md'):
                 continue
-            target = link.split('#')[0]
-            if target:
-                require((path.parent / target).exists(), f'Broken document link in {path}: {target}')
+            path = Path(directory) / name
+            for link in re.findall(r'\]\(([^)]+)\)', path.read_text(encoding='utf-8')):
+                if re.match(r'^(https?://|#|[A-Za-z]:)', link):
+                    continue
+                target = link.split('#')[0]
+                if target:
+                    require((path.parent / target).exists(), f'Broken document link in {path}: {target}')
 
 
 def main():
@@ -95,6 +103,21 @@ def main():
     check_fixture(fixture, doc)
     check_links(root)
     if args.self_test:
+        with tempfile.TemporaryDirectory(prefix='ledger-links-') as directory:
+            sample = Path(directory)
+            (sample / 'README.md').write_text('[existing](guide.md)', encoding='utf-8')
+            (sample / 'guide.md').write_text('Guide', encoding='utf-8')
+            dependency = sample / 'web' / 'node_modules' / 'dependency'
+            dependency.mkdir(parents=True)
+            (dependency / 'README.md').write_text('[third party](/missing.md)', encoding='utf-8')
+            check_links(sample)
+            (sample / 'README.md').write_text('[broken](missing.md)', encoding='utf-8')
+            try:
+                check_links(sample)
+            except ValueError:
+                pass
+            else:
+                raise ValueError('Checker failed to reject a broken project document link')
         invalid = copy.deepcopy(fixture)
         invalid['expected']['totals']['net_expense_fen'] += 1
         try:
@@ -111,7 +134,7 @@ def main():
             pass
         else:
             raise ValueError('Checker failed to reject a broken reference')
-        print('Negative checks: invalid money expectation and broken reference rejected.')
+        print('Negative checks: invalid money expectation, broken reference and project document link rejected; dependency documents excluded.')
     print('PASS: basic document links, local API references, operation IDs and synthetic expectations.')
     print('NOT TESTED: application behavior, live providers, full OpenAPI conformance, GitHub CI or deployment.')
 

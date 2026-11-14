@@ -9,9 +9,12 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from openpyxl import Workbook
 
 from app.contracts import (
     Category,
@@ -189,6 +192,28 @@ class WechatParseTest(unittest.TestCase):
         meituan = [row for row in self.result.rows if "美团" in row.merchant]
         self.assertEqual(len(meituan), 1)
         self.assertEqual(meituan[0].flow_type, FlowType.expense)
+
+
+class ExcelParseTest(unittest.TestCase):
+    def test_both_platform_xlsx_files_preserve_amounts_and_dates(self) -> None:
+        # 将独立合成样例写成真实 XLSX，断言人工固定金额，不能只比较两个解析器。
+        for source, sample, expected in (
+            ("alipay", ALIPAY, [400, 500, 3200, 12900, 250000, 1000000]),
+            ("wechat", WECHAT, [2000, 2850, 3500, 5000, 8600, 19900]),
+        ):
+            with self.subTest(source=source):
+                book = Workbook()
+                for row in csv.reader(io.StringIO(sample.read_text(encoding="utf-8-sig"))):
+                    book.active.append(row)
+                stream = io.BytesIO()
+                book.save(stream)
+                book.close()
+                result = build_intelligence().parse_bill_file(stream.getvalue(), "bill.xlsx", source)
+                self.assertEqual(6, len(result.rows))
+                self.assertEqual(expected, sorted(row.amount_fen for row in result.rows))
+                self.assertTrue(all(row.occurred_at and row.occurred_at.month == 11 for row in result.rows))
+                self.assertTrue(all(row.source_transaction_id for row in result.rows))
+                self.assertEqual(1, sum(row.flow_type == FlowType.income for row in result.rows))
 
 
 class EncodingTest(unittest.TestCase):

@@ -1337,6 +1337,46 @@
           }
         }
       }
+    },
+    {
+      "case_id": "retryImport_validation_error",
+      "operation_id": "retryImport",
+      "method": "POST",
+      "path_template": "/api/imports/{id}/retry",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "path": {
+          "id": "batch_demo_01"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Contract-Version": "0.2.0"
+        },
+        "body": {
+          "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "请求内容不合法",
+            "details": {
+              "fields": [
+                {
+                  "field": "expected_version",
+                  "row_id": null,
+                  "code": "missing",
+                  "message": "Field required"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "request_valid": false
     }
   ]
 }

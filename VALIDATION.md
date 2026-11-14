@@ -104,3 +104,44 @@ T00 基线已推送到远端 `task/T00-baseline` 分支；`main` 未改动。远
 （reportlab 只能嵌 TrueType 轮廓，Noto CJK 是 CFF/OTF 会加载失败）；
 `requirements.txt` 增 `reportlab>=4.0,<5`；`.env.example` 增 `EXPORT_MAX_ROWS` 与 `PDF_FONT_PATH`。
 **Docker 本身仍未实跑验证**（A14）。
+
+## 2026 年 11 月 15 日：需求复核与回归修复（T10 回归部分，CHG-008）
+
+本轮基线为 `ce4d9b8`，契约仍为 0.2.0；下列记录对应本节及修复代码所在提交。
+本机 Python 3.13.9、Node 24.20.0，后端测试使用临时 SQLite，不操作本机账本库。
+Node 22 团队基线和 Linux/PostgreSQL 部署需在对应环境验收，本节不替代该结果。
+
+### 需求逐项核对
+
+| 需求 | 当前实现与验证 | 验收边界 |
+| --- | --- | --- |
+| 截图 OCR | RapidOCR 本地提字，解析金额、时间、流向；原图对照、缺字段修正、确认入账均有实现 | 合成截图的真实 OCR 用例通过；缺少年份不会静默补齐。真实平台截图尚未提供，准确率未测 |
+| 文件导入导出 | CSV/XLSX 导入；CSV 明细与中文 PDF 月报导出 | 新增 XLSX 回归覆盖两平台模板、6 笔草稿、整数分金额及日期；样本均合成。旧 XLS 和原生 XLSX 导出未实现，本轮不把其视为已支持格式 |
+| 支付平台 API（可选） | 尚无微信/支付宝账单开放接口直连 | OCR、DeepSeek 接口和手动上传不算平台账单 API 对接；不计入已完成加分项 |
+| 自动分类与调整 | 个人规则优先，再通用规则；可手动修改，显式选择记住商户 | 当前本机未配置 DeepSeek Key；模型调用采用测试替身验证，不声称真实模型准确率 |
+| 月度报表 | 分类环形图、收支柱状图、收入构成、退款/净支出/差额、类别预算 | 月报口径、预算和 CSV/PDF 导出回归通过；导出满足“导出或分享”，无公开分享链接 |
+| 查询与保护 | 日期、类别、平台、流向筛选；原件、敏感明细、规则与纠错日志 AES-GCM 加密；账号隔离 | 月份、类别、平台等必要索引仍为明文，不宣称整个数据库文件加密 |
+| 用户反馈闭环 | 导入并分类 → 确认 → 修正并记住商户 → 新交易命中个人规则 → 停用后回落通用规则 | A07 全链路测试通过；属于规则持续优化，不是模型训练。预算超支和最大支出可跳转明细，月报可导出 |
+
+### 本轮发现及修复
+
+- 首轮 184 项回归中，截图确认用例偶发返回 409。测试在后台 worker 运行时又直接调用 `process_batch`，同一批次存在两个处理方。现改为启动时注入 OCR 测试替身，通过真实 worker 和 HTTP 轮询完成两条截图链路，保留确认、缺字段、判重和权限断言。
+- `retryImport` 已有请求校验 422，但契约遗漏。补充 422/`VALIDATION_ERROR`、非法请求快照及“缺版本不修改批次”的 API 回归；生成物由生成器同步。
+- 文档链接检查误扫前端 `node_modules`。排除第三方依赖、虚拟环境及构建产物，并加入自测，继续拒绝项目自己的坏链接。
+- 增加两平台 XLSX 合成样例回归，使用独立固定金额断言。
+
+### 实际执行结果
+
+| 检查 | 本轮结果 |
+| --- | --- |
+| `python -m unittest discover -s tests`（等价 unittest discovery runner） | 规则模式和默认智能模块配置各跑一次，均 **186 项通过，0 失败、0 跳过**；默认配置无外部模型 Key |
+| `python tools/check_implemented_contract.py` | **19/19** 接口一致，无此前 retry 422 提醒 |
+| `python tools/validate_examples.py --self-test` | OpenAPI 标准校验、**32** 个请求/响应快照和负向校验通过 |
+| `python tools/check_contract.py --self-test` | 文档链接、契约引用、合成账本及检查器负向自测通过 |
+| `python tools/generate_contract_artifacts.py --check` | 生成的手册、SDK、Postman 一致 |
+| `python tools/gen_pydantic_models.py --check` | Pydantic 生成物一致，532 行 |
+| `cd web; npm run build` | vue-tsc 与 Vite 生产构建通过 |
+
+用户已确认本机尚无获授权真实账单和截图，因此 A02/A05 的真实样本验收保持待办。
+Docker 引擎查询本轮未完成，未执行容器、干净 Linux、PostgreSQL 或备份恢复验证。
+此处结论是必做功能已实现且合成回归通过，不是全部真实场景或正式上线验收通过。

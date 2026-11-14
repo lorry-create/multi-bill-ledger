@@ -1083,6 +1083,45 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "请求内容不合法",
+                        "details": {
+                          "fields": [
+                            {
+                              "field": "expected_version",
+                              "row_id": null,
+                              "code": "missing",
+                              "message": "Field required"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1139,6 +1178,9 @@
           "409": [
             "VERSION_CONFLICT",
             "BATCH_STATE_CONFLICT"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
           ]
         }
       }

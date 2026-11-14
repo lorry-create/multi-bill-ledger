@@ -313,6 +313,21 @@ class ImportApiTest(unittest.TestCase):
 
     # ---------------------------------------------------------------- 重试
 
+    def test_retry_requires_version_and_keeps_batch_unchanged(self) -> None:
+        batch = self._pending_batch()
+        response = self.client.post(
+            f"/api/imports/{batch['id']}/retry",
+            json={},
+            headers={"X-CSRF-Token": self.csrf},
+        )
+        self.assertEqual(422, response.status_code, response.text)
+        error = response.json()["error"]
+        self.assertEqual("VALIDATION_ERROR", error["code"])
+        self.assertIn("expected_version", [field["field"] for field in error["details"]["fields"]])
+        current = self.client.get(f"/api/imports/{batch['id']}").json()
+        self.assertEqual(batch["version"], current["version"])
+        self.assertEqual(batch["status"], current["status"])
+
     def test_retry_rejects_non_failed_batch(self) -> None:
         batch = self._pending_batch()
         response = self.client.post(

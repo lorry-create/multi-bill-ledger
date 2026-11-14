@@ -523,3 +523,13 @@ merchant, description, classification_source, source_transaction_id
    "登录成功、下一请求 401"。
 2. **错误只能按 `error.code` 分支**，不许匹配中文 `message`。
 3. **金额全程整数分**：`Number(x) * 100` 会差 1 分，必须用字符串解析转换。
+
+## CHG-008（2026-11-15）：需求复核、截图链路测试与重试 422 收口
+
+- 任务：T10 回归部分；契约版本仍为 0.2.0。仅补充已存在的请求校验响应，不改变请求字段、成功对象或业务行为。
+- 截图上传确认、补全及二次判重测试改为启动前注入 OCR 替身，由真实后台 worker 处理并通过 HTTP 轮询，消除测试代码直接处理同一批次造成的竞争。
+- `POST /api/imports/{id}/retry` 补充 422 与 `VALIDATION_ERROR`，增加缺失 `expected_version` 的错误快照和 API 负向回归。受影响调用方为前端 `retryImport`；原有统一 `ApiError` 处理仍适用。
+- 先修改源 OpenAPI 和 examples，再执行 `tools/generate_contract_artifacts.py`；SDK、手册、Postman 均由生成器产出，未手改生成文件。
+- 增加两平台 XLSX 解析回归；文档链接检查排除第三方依赖并保留项目坏链接负向自测。
+- 本机两种智能模块配置均 186 项通过；19 接口、32 快照、生成一致性及前端构建通过。详细输入、环境和限制见 [验证记录](../VALIDATION.md)。
+- 真实账单与截图由用户确认尚未准备；不将合成结果列作真实样本验收。支付平台账单 API 直连仍为未实现的可选加分项。

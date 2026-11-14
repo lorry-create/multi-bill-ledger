@@ -599,6 +599,7 @@ Retry-After: 2
 | 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
 | 404 | RESOURCE_NOT_FOUND | 提示资源不可用，不泄露别的用户资源。 |
 | 409 | VERSION_CONFLICT, BATCH_STATE_CONFLICT | 按error.code区分版本、幂等或状态冲突；重新读取后由用户确认。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
 错误示例：HTTP 409
 
@@ -608,6 +609,27 @@ Retry-After: 2
     "code": "BATCH_STATE_CONFLICT",
     "message": "只有失败批次能够重试",
     "details": {}
+  }
+}
+```
+
+错误示例：HTTP 422
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "请求内容不合法",
+    "details": {
+      "fields": [
+        {
+          "field": "expected_version",
+          "row_id": null,
+          "code": "missing",
+          "message": "Field required"
+        }
+      ]
+    }
   }
 }
 ```

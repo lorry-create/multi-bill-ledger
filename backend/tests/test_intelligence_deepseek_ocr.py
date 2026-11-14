@@ -14,10 +14,12 @@ import io
 import json
 import os
 import tempfile
+import time
 import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 _TMP_DIR = tempfile.mkdtemp(prefix="mbl_d_test_")
 os.environ.setdefault("APP_ENV", "test")
@@ -65,7 +67,6 @@ from app.intelligence import (  # noqa: E402
 from app.intelligence.ocr import OcrLine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.security import hash_password  # noqa: E402
-from app.services import imports as import_service  # noqa: E402
 
 CST = timezone(timedelta(hours=8))
 
@@ -112,6 +113,22 @@ def _png_bytes() -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", (120, 80), "white").save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _wait_for_review(client: TestClient, batch_id: str) -> dict:
+    """通过真实 worker 完成识别，避免手动处理和后台线程竞争同一批次。"""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/imports/{batch_id}")
+        if response.status_code != 200:
+            raise AssertionError(response.text)
+        batch = response.json()
+        if batch["status"] == BatchStatus.pending_review.value:
+            return batch
+        if batch["status"] == BatchStatus.failed.value:
+            raise AssertionError(f"批次处理失败：{batch.get('issues')}")
+        time.sleep(0.01)
+    raise AssertionError("批次未在期限内进入待确认状态")
 
 
 def _find_cjk_font() -> str | None:
@@ -468,7 +485,18 @@ class ScreenshotImportApiFlowTest(unittest.TestCase):
                 )
                 db.commit()
 
-    def test_screenshot_upload_process_and_confirm(self) -> None:
+    @patch("app.main.build_intelligence")
+    def test_screenshot_upload_process_and_confirm(self, provider_factory) -> None:
+        fake_ocr = _FakeOcrEngine(
+            [
+                _line("账单详情", 20),
+                _line("瑞幸咖啡", 60),
+                _line("-18.00", 100),
+                _line("支付时间 2026-11-11 14:20:00", 140),
+                _line("交易单号 wx_ocr_20261111_01", 180),
+            ]
+        )
+        provider_factory.return_value = DeepSeekIntelligence(api_key="", ocr_engine=fake_ocr)
         with TestClient(app) as client:
             login = client.post(
                 "/api/auth/login",
@@ -486,25 +514,7 @@ class ScreenshotImportApiFlowTest(unittest.TestCase):
             self.assertEqual(resp.status_code, 202)
             batch_id = resp.json()["id"]
 
-            # 注入测试替身 OCR 跑一次批次处理
-            fake_ocr = _FakeOcrEngine(
-                [
-                    _line("账单详情", 20),
-                    _line("瑞幸咖啡", 60),
-                    _line("-18.00", 100),
-                    _line("支付时间 2026-11-11 14:20:00", 140),
-                    _line("交易单号 wx_ocr_20261111_01", 180),
-                ]
-            )
-            provider = DeepSeekIntelligence(api_key="", ocr_engine=fake_ocr)
-            with app.state.session_factory() as db:
-                batch = db.get(models.ImportBatch, batch_id)
-                assert batch is not None
-                import_service.process_batch(db, batch, provider, app.state.settings)
-
-            detail = client.get(f"/api/imports/{batch_id}")
-            self.assertEqual(detail.status_code, 200)
-            body = detail.json()
+            body = _wait_for_review(client, batch_id)
             self.assertEqual(body["status"], BatchStatus.pending_review.value)
             self.assertEqual(len(body["rows"]), 1)
             row = body["rows"][0]
@@ -540,7 +550,7 @@ class ScreenshotImportApiFlowTest(unittest.TestCase):
                     ],
                 },
             )
-            self.assertEqual(confirm.status_code, 200)
+            self.assertEqual(confirm.status_code, 200, confirm.text)
             self.assertEqual(confirm.json()["created_count"], 1)
 
 
@@ -694,7 +704,12 @@ class ResolveMissingFieldsTest(unittest.TestCase):
         self.assertEqual(resolved[1].classification_source, ClassificationSource.deepseek)
         self.assertTrue(all(not r.issues for r in resolved))
 
-    def test_resolve_missing_api_flow_and_duplicate_recheck(self) -> None:
+    @patch("app.main.build_intelligence")
+    def test_resolve_missing_api_flow_and_duplicate_recheck(self, provider_factory) -> None:
+        ocr_lines: list[OcrLine] = []
+        provider_factory.return_value = DeepSeekIntelligence(
+            api_key="", ocr_engine=_FakeOcrEngine(ocr_lines)
+        )
         prev_provider = getattr(app.state, "intelligence_provider", None)
         try:
             with TestClient(app) as client:
@@ -706,7 +721,7 @@ class ResolveMissingFieldsTest(unittest.TestCase):
                 csrf = login.json()["csrf_token"]
 
                 # 先入账一笔 2026-11-06 16:53 医疗 ¥980.57（后续补充年份后应命中判重）
-                fake_shot = _FakeOcrEngine(
+                ocr_lines.extend(
                     [
                         _line("微信支付账单", 10),
                         _line("医疗", 50, 20),
@@ -732,14 +747,8 @@ class ResolveMissingFieldsTest(unittest.TestCase):
                 self.assertEqual(up1.status_code, 202)
                 batch1_id = up1.json()["id"]
 
-                offline_provider = DeepSeekIntelligence(api_key="", ocr_engine=fake_shot)
-                with app.state.session_factory() as db:
-                    b1 = db.get(models.ImportBatch, batch1_id)
-                    assert b1 is not None
-                    import_service.process_batch(db, b1, offline_provider, app.state.settings)
-
                 # 先用快捷年份补全前2笔（第3笔无时间留空）
-                r_detail = client.get(f"/api/imports/{batch1_id}").json()
+                r_detail = _wait_for_review(client, batch1_id)
                 self.assertTrue(any(i["code"] == ISSUE_TIME_MISSING for i in r_detail["issues"]))
 
                 # 缺 CSRF 403 / 空参数 422 / 版本冲突 409
@@ -858,7 +867,7 @@ class ResolveMissingFieldsTest(unittest.TestCase):
                         ],
                     },
                 )
-                self.assertEqual(confirm.status_code, 200)
+                self.assertEqual(confirm.status_code, 200, confirm.text)
                 self.assertEqual(confirm.json()["created_count"], 1)
 
                 # 对已完成批次再调 resolve-missing 应返回 409 BATCH_STATE_CONFLICT
@@ -879,12 +888,7 @@ class ResolveMissingFieldsTest(unittest.TestCase):
                 )
                 self.assertEqual(up2.status_code, 202)
                 batch2_id = up2.json()["id"]
-                with app.state.session_factory() as db:
-                    b2 = db.get(models.ImportBatch, batch2_id)
-                    assert b2 is not None
-                    import_service.process_batch(db, b2, offline_provider, app.state.settings)
-
-                b2_before = client.get(f"/api/imports/{batch2_id}").json()
+                b2_before = _wait_for_review(client, batch2_id)
                 self.assertEqual(b2_before["rows"][0]["duplicate_status"], "unique")
 
                 b2_after_resp = client.post(
