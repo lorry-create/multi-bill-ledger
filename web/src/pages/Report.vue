@@ -18,6 +18,7 @@ import type {
   Category,
   MonthlyReport,
   ResolvedCategory,
+  Transaction,
 } from "../api";
 import { categories, download, parseYuan, yuan } from "../format";
 import { csrf, errorText, withCsrfRetry } from "../session";
@@ -60,8 +61,15 @@ function pickMonth(event: Event) {
   if (validMonth(input.value)) selectMonth(input.value);
   else input.value = month.value;
 }
+type IncomePart = {
+  key: string;
+  label: string;
+  category: Category;
+  amount_fen: number;
+  color: string;
+};
 const report = ref<MonthlyReport | null>(null),
-  incomeParts = ref<{ category: Category; amount_fen: number }[]>([]),
+  incomeParts = ref<IncomePart[]>([]),
   confirmedActivity = ref(false),
   loading = ref(false),
   error = ref(""),
@@ -243,6 +251,31 @@ const categoryColors: Record<Category, string> = {
   other: "#647f9e",
   pending: "#a9b8ca",
 };
+function incomeSource(item: Transaction): Omit<IncomePart, "amount_fen"> {
+  const text = `${item.merchant} ${item.description}`;
+  if (item.category === "salary" || item.category === "other") {
+    if (/副业|兼职|接单|自由职业/.test(text))
+      return {
+        key: `${item.category}-side-job`,
+        label: "副业收入",
+        category: item.category,
+        color: "#478fc2",
+      };
+    if (/奖金|绩效|年终奖/.test(text))
+      return {
+        key: `${item.category}-bonus`,
+        label: "奖金",
+        category: item.category,
+        color: "#769bcf",
+      };
+  }
+  return {
+    key: item.category,
+    label: categories[item.category],
+    category: item.category,
+    color: categoryColors[item.category],
+  };
+}
 const chartSegments = computed(() => {
   let offset = 0;
   return (report.value?.expense_by_category ?? [])
@@ -303,7 +336,6 @@ const incomeSlices = computed(() => {
         parts.length > 1 && share >= 0.16
           ? incomePiePoint(offset - share / 2, 53)
           : null,
-      color: categoryColors[part.category],
     };
   });
 });
@@ -312,7 +344,7 @@ function showIncomeTooltip(
   event: PointerEvent,
   part: (typeof incomeSlices.value)[number],
 ) {
-  placeTooltip(event, categories[part.category], part.color, [
+  placeTooltip(event, part.label, part.color, [
     { label: "收入", value: yuan(part.amount_fen) },
     { label: "占比", value: part.shareText },
   ]);
@@ -375,25 +407,27 @@ async function load() {
       ).total > 0;
     if (request !== reportRequest) return;
     let page = 1;
-    const totals = new Map<Category, number>();
+    const totals = new Map<string, IncomePart>();
     while (nextReport.totals.income_fen > 0) {
       const result = await api.listTransactions({
         query: { ...dates, flow_type: "income", page, page_size: 100 },
       });
       if (request !== reportRequest) return;
-      for (const item of result.items)
-        totals.set(
-          item.category,
-          (totals.get(item.category) ?? 0) + item.amount_fen,
-        );
+      for (const item of result.items) {
+        const source = incomeSource(item);
+        const existing = totals.get(source.key);
+        totals.set(source.key, {
+          ...source,
+          amount_fen: (existing?.amount_fen ?? 0) + item.amount_fen,
+        });
+      }
       if (page * 100 >= result.total) break;
       page++;
     }
     if (request !== reportRequest) return;
     confirmedActivity.value = hasConfirmed;
     report.value = nextReport;
-    incomeParts.value = [...totals]
-      .map(([category, amount_fen]) => ({ category, amount_fen }))
+    incomeParts.value = [...totals.values()]
       .sort((a, b) => b.amount_fen - a.amount_fen);
   } catch (e) {
     if (request === reportRequest) {
@@ -887,7 +921,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
           <div class="panel-heading">
             <div>
               <h2>收入构成</h2>
-              <p>按已确认收入的类别汇总</p>
+              <p>按已确认账单区分工资、副业及奖金等收入来源</p>
             </div>
           </div>
           <div v-if="incomeSlices.length" class="statement-income-breakdown">
@@ -900,8 +934,8 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
               <defs>
                 <linearGradient
                   v-for="part in incomeSlices"
-                  :key="part.category"
-                  :id="`income-pie-${part.category}`"
+                  :key="part.key"
+                  :id="`income-pie-${part.key}`"
                   gradientUnits="userSpaceOnUse"
                   x1="39"
                   y1="18"
@@ -915,13 +949,13 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
               </defs>
               <path
                 v-for="part in incomeSlices"
-                :key="part.category"
+                :key="part.key"
                 class="statement-income-slice"
                 :d="part.path"
-                :fill="`url(#income-pie-${part.category})`"
+                :fill="`url(#income-pie-${part.key})`"
                 role="button"
                 tabindex="0"
-                :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，占 ${part.shareText}，查看明细`"
+                :aria-label="`${part.label} ${yuan(part.amount_fen)}，占 ${part.shareText}，查看${categories[part.category]}分类明细`"
                 @pointerenter="showIncomeTooltip($event, part)"
                 @pointermove="showIncomeTooltip($event, part)"
                 @pointerleave="hideTooltip"
@@ -931,14 +965,14 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
               />
               <g v-if="incomeSlices.length === 1" class="statement-income-labels" aria-hidden="true">
                 <text class="statement-income-center-name" x="90" y="74">
-                  {{ categories[incomeSlices[0].category] }}
+                  {{ incomeSlices[0].label }}
                 </text>
                 <text class="statement-income-center-share" x="90" y="111">
                   {{ incomeSlices[0].shareText }}
                 </text>
               </g>
               <g v-else class="statement-income-labels" aria-hidden="true">
-                <template v-for="part in incomeSlices" :key="part.category">
+                <template v-for="part in incomeSlices" :key="part.key">
                   <text
                     v-if="part.labelPoint"
                     class="statement-income-slice-share"
@@ -949,16 +983,17 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                 </template>
               </g>
             </svg>
-            <div class="statement-income-legend" aria-label="收入类别明细">
+            <div class="statement-income-legend" aria-label="收入来源明细">
               <button
                 v-for="part in incomeSlices"
-                :key="part.category"
+                :key="part.key"
                 class="statement-income-item"
                 type="button"
+                :aria-label="`${part.label} ${yuan(part.amount_fen)}，占 ${part.shareText}，查看${categories[part.category]}分类明细`"
                 @click="goCategory(part.category, 'income')"
               >
                 <i :style="{ background: part.color }" aria-hidden="true"></i>
-                <span>{{ categories[part.category] }}<small>{{ part.shareText }}</small></span>
+                <span>{{ part.label }}<small>{{ part.shareText }}</small></span>
                 <strong>{{ yuan(part.amount_fen) }}</strong>
                 <ChevronRight :size="13" aria-hidden="true" />
               </button>
