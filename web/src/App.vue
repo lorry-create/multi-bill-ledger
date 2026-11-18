@@ -22,6 +22,11 @@ import { motionPaused, toggleMotion, notice } from "./motion";
 const route = useRoute(),
   router = useRouter();
 const publicPage = computed(() => route.meta.public);
+function loginFor(target: { path: string; fullPath: string }) {
+  return target.path === "/transactions"
+    ? { path: "/login", query: { next: target.fullPath } }
+    : { path: "/login" };
+}
 const sidebarCollapsed = ref(localStorage.getItem("ledger-sidebar-collapsed") === "true");
 const mobileMenuOpen = ref(false);
 function toggleSidebar() {
@@ -36,17 +41,17 @@ const nav = [
 ];
 onMounted(async () => {
   await restoreSession();
-  if (!auth.session && !route.meta.public) router.replace("/login");
+  if (!auth.session && !route.meta.public) router.replace(loginFor(route));
 });
 watch(
   () => auth.session,
   (value) => {
-    if (!value && !auth.loading && !route.meta.public) router.replace("/login");
+    if (!value && !auth.loading && !route.meta.public) router.replace(loginFor(route));
   },
 );
 router.beforeEach((to) => {
   mobileMenuOpen.value = false;
-  if (!auth.loading && !auth.session && !to.meta.public) return "/login";
+  if (!auth.loading && !auth.session && !to.meta.public) return loginFor(to);
   if (auth.session && to.path === "/login") return "/report";
 });
 async function leave() {
@@ -61,7 +66,7 @@ async function leave() {
 <template>
   <div v-if="auth.loading" class="startup">正在打开归账…</div>
   <RouterView v-else-if="publicPage" />
-  <div v-else class="shell" :class="{ 'is-collapsed': sidebarCollapsed }">
+  <div v-else-if="auth.session" class="shell" :class="{ 'is-collapsed': sidebarCollapsed }">
     <div class="workspace-atmosphere"><ParticleField /></div>
     <aside class="sidebar">
       <RouterLink class="brand" to="/report"

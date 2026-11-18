@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref, computed } from "vue";
-import { useRoute } from "vue-router";
+import { onMounted, onUnmounted, reactive, ref, computed, watch } from "vue";
+import {
+  useRoute,
+  useRouter,
+  type LocationQuery,
+  type LocationQueryRaw,
+} from "vue-router";
 import {
   ChevronDown,
   Download,
@@ -11,7 +16,7 @@ import {
   WalletCards,
   X,
 } from "@lucide/vue";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import type {
   Category,
   FlowType,
@@ -35,26 +40,72 @@ import {
 import { errorText, withCsrfRetry } from "../session";
 import PlatformLogo from "../components/PlatformLogo.vue";
 import ParticleField from "../components/ParticleField.vue";
+import TransactionEvidence from "../components/TransactionEvidence.vue";
 import { notify } from "../motion";
 
 const PAGE_SIZE = 50;
 const platforms = ["", "wechat", "alipay"] as const;
 const route = useRoute();
-const filters = reactive<{
+const router = useRouter();
+type Filters = {
   date_from: string;
   date_to: string;
   category: "" | Category;
   source: "" | Source;
   flow_type: "" | FlowType;
   page: number;
-}>({
-  date_from: String(route.query.date_from ?? ""),
-  date_to: String(route.query.date_to ?? ""),
-  category: String(route.query.category ?? "") as "" | Category,
-  source: String(route.query.source ?? "") as "" | Source,
-  flow_type: String(route.query.flow_type ?? "") as "" | FlowType,
+};
+const defaultFilters: Filters = {
+  date_from: "",
+  date_to: "",
+  category: "",
+  source: "",
+  flow_type: "",
   page: 1,
-});
+};
+
+function validDate(value: unknown) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    value.startsWith("0000")
+  )
+    return "";
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+    ? value
+    : "";
+}
+
+function validOption<T extends string>(
+  value: unknown,
+  options: readonly T[],
+): T | "" {
+  return typeof value === "string" && options.includes(value as T)
+    ? (value as T)
+    : "";
+}
+
+function readFilters(query: LocationQuery): Filters {
+  const page =
+    typeof query.page === "string" && /^\d+$/.test(query.page)
+      ? Number(query.page)
+      : 1;
+  return {
+    date_from: validDate(query.date_from),
+    date_to: validDate(query.date_to),
+    category: validOption(
+      query.category,
+      Object.keys(categories) as Category[],
+    ),
+    source: validOption(query.source, platforms),
+    flow_type: validOption(query.flow_type, Object.keys(flows) as FlowType[]),
+    page: Number.isSafeInteger(page) && page > 0 ? page : 1,
+  };
+}
+
+const filters = computed(() => readFilters(route.query));
 const data = ref<TransactionPage | null>(null),
   loading = ref(false),
   exporting = ref(false),
@@ -62,9 +113,11 @@ const data = ref<TransactionPage | null>(null),
   editing = ref<Transaction | null>(null),
   modalError = ref(""),
   conflictLatest = ref<Transaction | null>(null),
+  conflictState = ref<"loading" | "ready" | "missing" | "error" | null>(null),
   saving = ref(false),
   remember = ref(false);
 let listRequest = 0;
+let conflictRequest = 0;
 const edit = reactive({
   occurred_at: "",
   amount: "",
@@ -74,26 +127,26 @@ const edit = reactive({
   flow_type: "expense" as FlowType,
 });
 const query = computed(() => ({
-  date_from: filters.date_from || undefined,
-  date_to: filters.date_to || undefined,
-  category: filters.category || undefined,
-  source: filters.source || undefined,
-  flow_type: filters.flow_type || undefined,
+  date_from: filters.value.date_from || undefined,
+  date_to: filters.value.date_to || undefined,
+  category: filters.value.category || undefined,
+  source: filters.value.source || undefined,
+  flow_type: filters.value.flow_type || undefined,
 }));
 const advancedCount = computed(
   () =>
     [
-      filters.date_from,
-      filters.date_to,
-      filters.category,
-      filters.flow_type,
+      filters.value.date_from,
+      filters.value.date_to,
+      filters.value.category,
+      filters.value.flow_type,
     ].filter(Boolean).length,
 );
 const advancedOpen = ref(
   advancedCount.value > 0 || window.matchMedia("(min-width: 761px)").matches,
 );
 const hasFilters = computed(
-  () => advancedCount.value > 0 || Boolean(filters.source),
+  () => advancedCount.value > 0 || Boolean(filters.value.source),
 );
 const editor = ref<HTMLDialogElement | null>(null);
 const listFailed = ref(false);
@@ -101,18 +154,47 @@ const pageCount = computed(() =>
   Math.ceil((data.value?.total ?? 0) / PAGE_SIZE),
 );
 const numberFormat = new Intl.NumberFormat("zh-CN");
-onMounted(load);
+const viewport = window.visualViewport;
+function resizeEditor() {
+  const dialog = editor.value;
+  if (!dialog?.open || !viewport) return;
+  const keyboardInset = Math.max(
+    0,
+    document.documentElement.clientHeight -
+      viewport.height -
+      viewport.offsetTop,
+  );
+  dialog.style.setProperty(
+    "--ledger-editor-viewport-height",
+    `${viewport.height}px`,
+  );
+  dialog.style.setProperty(
+    "--ledger-editor-keyboard-inset",
+    `${keyboardInset}px`,
+  );
+}
+onMounted(() => {
+  viewport?.addEventListener("resize", resizeEditor);
+  viewport?.addEventListener("scroll", resizeEditor);
+  load();
+});
 onUnmounted(() => {
   listRequest++;
+  conflictRequest++;
+  viewport?.removeEventListener("resize", resizeEditor);
+  viewport?.removeEventListener("scroll", resizeEditor);
 });
+watch(
+  () => route.query,
+  () => {
+    if (route.path === "/transactions") load();
+  },
+);
 async function load() {
   const request = ++listRequest;
+  const { date_from, date_to, page } = filters.value;
   listFailed.value = false;
-  if (
-    filters.date_from &&
-    filters.date_to &&
-    filters.date_from > filters.date_to
-  ) {
+  if (date_from && date_to && date_from > date_to) {
     error.value = "开始日期不能晚于结束日期。";
     data.value = null;
     loading.value = false;
@@ -122,12 +204,18 @@ async function load() {
   error.value = "";
   const requestedQuery = {
     ...query.value,
-    page: filters.page,
+    page,
     page_size: PAGE_SIZE,
   };
   try {
     const result = await api.listTransactions({ query: requestedQuery });
-    if (request === listRequest) data.value = result;
+    if (request !== listRequest || route.path !== "/transactions") return;
+    const lastPage = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+    if (page > lastPage) {
+      await navigateFilters({ ...filters.value, page: lastPage }, true);
+      return;
+    }
+    data.value = result;
   } catch (e) {
     if (request === listRequest) {
       data.value = null;
@@ -138,29 +226,38 @@ async function load() {
     if (request === listRequest) loading.value = false;
   }
 }
+function navigateFilters(next: Filters, replace = false) {
+  const nextQuery: LocationQueryRaw = { ...route.query };
+  for (const key of Object.keys(defaultFilters) as (keyof Filters)[]) {
+    if (next[key] === defaultFilters[key]) delete nextQuery[key];
+    else nextQuery[key] = String(next[key]);
+  }
+  const location = {
+    path: "/transactions",
+    query: nextQuery,
+    hash: route.hash,
+  };
+  return replace ? router.replace(location) : router.push(location);
+}
 function selectPlatform(platform: "" | Source) {
-  if (filters.source === platform && !listFailed.value) return;
-  filters.source = platform;
-  search();
+  if (filters.value.source === platform) {
+    if (listFailed.value) load();
+    return;
+  }
+  navigateFilters({ ...filters.value, source: platform, page: 1 });
 }
 function changePage(offset: number) {
-  filters.page += offset;
-  load();
+  navigateFilters({ ...filters.value, page: filters.value.page + offset });
 }
-function search() {
-  filters.page = 1;
-  load();
+function changeFilter(
+  field: "date_from" | "date_to" | "category" | "flow_type",
+  event: Event,
+) {
+  const value = (event.target as HTMLInputElement | HTMLSelectElement).value;
+  navigateFilters({ ...filters.value, [field]: value, page: 1 });
 }
 function clearFilters() {
-  Object.assign(filters, {
-    date_from: "",
-    date_to: "",
-    category: "",
-    source: "",
-    flow_type: "",
-    page: 1,
-  });
-  load();
+  navigateFilters(defaultFilters);
 }
 function fillEditFrom(t: Transaction) {
   edit.occurred_at = toLocalInput(t.occurred_at);
@@ -175,9 +272,11 @@ function open(t: Transaction) {
   editing.value = t;
   modalError.value = "";
   conflictLatest.value = null;
+  conflictState.value = null;
   fillEditFrom(t);
   remember.value = false;
   editor.value?.showModal();
+  resizeEditor();
 }
 function closeModal(saved = false) {
   if (saving.value && !saved) return;
@@ -185,16 +284,47 @@ function closeModal(saved = false) {
   editing.value = null;
   modalError.value = "";
   conflictLatest.value = null;
+  conflictState.value = null;
+  conflictRequest++;
 }
 function applyLatestConflict() {
   if (!conflictLatest.value) return;
   editing.value = conflictLatest.value;
   fillEditFrom(conflictLatest.value);
   conflictLatest.value = null;
+  conflictState.value = null;
   modalError.value = "";
 }
+async function findLatestConflict() {
+  const previous = editing.value;
+  if (!previous) return;
+  const request = ++conflictRequest;
+  conflictState.value = "loading";
+  conflictLatest.value = null;
+  try {
+    // 现有查询契约按列表分页；平台不可编辑，能缩小查找范围。
+    const pageSize = 100;
+    let lastPage = 1;
+    for (let page = 1; page <= lastPage; page++) {
+      const result = await api.listTransactions({
+        query: { source: previous.source, page, page_size: pageSize },
+      });
+      if (request !== conflictRequest) return;
+      const latest = result.items.find((item) => item.id === previous.id);
+      if (latest) {
+        conflictLatest.value = latest;
+        conflictState.value = "ready";
+        return;
+      }
+      if (page === 1) lastPage = Math.ceil(result.total / pageSize);
+    }
+    conflictState.value = "missing";
+  } catch {
+    if (request === conflictRequest) conflictState.value = "error";
+  }
+}
 async function save() {
-  if (!editing.value) return;
+  if (!editing.value || saving.value || conflictState.value) return;
   const amount = parseYuan(edit.amount);
   if (amount === null || !edit.occurred_at) {
     modalError.value = "请填写有效的交易时间和金额，金额最多两位小数。";
@@ -251,10 +381,13 @@ async function save() {
     await load();
   } catch (e) {
     modalError.value = errorText(e);
-    if ((e as { status?: number }).status === 409) {
-      await load();
-      const latest = data.value?.items.find((x) => x.id === orig.id) ?? null;
-      conflictLatest.value = latest;
+    if (
+      e instanceof ApiError &&
+      e.status === 409 &&
+      e.payload.error.code === "VERSION_CONFLICT"
+    ) {
+      void findLatestConflict();
+      void load();
     }
   } finally {
     saving.value = false;
@@ -263,9 +396,9 @@ async function save() {
 async function exportCsv() {
   if (exporting.value) return;
   if (
-    filters.date_from &&
-    filters.date_to &&
-    filters.date_from > filters.date_to
+    filters.value.date_from &&
+    filters.value.date_to &&
+    filters.value.date_from > filters.value.date_to
   ) {
     error.value = "开始日期不能晚于结束日期。";
     return;
@@ -362,16 +495,19 @@ async function exportCsv() {
         <div class="filters ledger-fields">
           <label
             >开始日期<input
-              v-model="filters.date_from"
+              :value="filters.date_from"
               type="date"
-              @change="search" /></label
+              @change="changeFilter('date_from', $event)" /></label
           ><label
             >结束日期<input
-              v-model="filters.date_to"
+              :value="filters.date_to"
               type="date"
-              @change="search" /></label
+              @change="changeFilter('date_to', $event)" /></label
           ><label
-            >类别<select v-model="filters.category" @change="search">
+            >类别<select
+              :value="filters.category"
+              @change="changeFilter('category', $event)"
+            >
               <option value="">全部类别</option>
               <option
                 v-for="(label, key) in categories"
@@ -382,7 +518,10 @@ async function exportCsv() {
               </option>
             </select></label
           ><label
-            >收支<select v-model="filters.flow_type" @change="search">
+            >收支<select
+              :value="filters.flow_type"
+              @change="changeFilter('flow_type', $event)"
+            >
               <option value="">全部收支</option>
               <option v-for="(label, key) in flows" :key="key" :value="key">
                 {{ label }}
@@ -476,7 +615,7 @@ async function exportCsv() {
                   class="table-action"
                   type="button"
                   :aria-label="`编辑 ${t.merchant || '账单'}`"
-                :aria-disabled="loading"
+                  :aria-disabled="loading"
                   @click="open(t)"
                 >
                   <Pencil :size="16" />
@@ -540,70 +679,91 @@ async function exportCsv() {
       @click.self="closeModal()"
     >
       <div class="ledger-editor-body">
-        <div class="dialog-head">
-          <div>
-            <h2 id="ledger-editor-title">修正账单</h2>
-            <p>保存后，相关月报会按新内容重新计算。</p>
+        <div class="ledger-editor-scroll">
+          <div class="dialog-head">
+            <div>
+              <h2 id="ledger-editor-title">修正账单</h2>
+              <p>保存后，相关月报会按新内容重新计算。</p>
+            </div>
+            <button
+              class="icon-btn"
+              type="button"
+              aria-label="关闭"
+              :disabled="saving"
+              autofocus
+              @click="closeModal()"
+            >
+              <X :size="20" />
+            </button>
           </div>
-          <button
-            class="icon-btn"
-            type="button"
-            aria-label="关闭"
-            :disabled="saving"
-            autofocus
-            @click="closeModal()"
+          <div v-if="modalError" class="alert error" role="alert">
+            {{ modalError }}
+            <p v-if="conflictState === 'loading'">
+              正在查找这笔账单的最新版本…
+            </p>
+            <template v-else-if="conflictLatest">
+              <p>载入后会替换本次未保存的输入。</p>
+              <button type="button" @click="applyLatestConflict">
+                载入最新版本（v{{ conflictLatest.version }}）
+              </button>
+            </template>
+            <template
+              v-else-if="
+                conflictState === 'missing' || conflictState === 'error'
+              "
+            >
+              <p>
+                {{
+                  conflictState === "missing"
+                    ? "未找到这笔账单，可能已不可访问。"
+                    : "未能读取最新版本。"
+                }}当前输入仍保留。
+              </p>
+              <button type="button" @click="findLatestConflict">
+                重试查找
+              </button>
+            </template>
+          </div>
+          <div class="edit-grid">
+            <label class="ledger-editor-time"
+              >交易时间<input
+                v-model="edit.occurred_at"
+                type="datetime-local" /></label
+            ><label
+              >金额（元）<input
+                v-model="edit.amount"
+                inputmode="decimal" /></label
+            ><label>商户<input v-model="edit.merchant" /></label
+            ><label
+              >收支方向<select v-model="edit.flow_type">
+                <option v-for="(label, key) in flows" :key="key" :value="key">
+                  {{ label }}
+                </option>
+              </select></label
+            ><label
+              >类别<select v-model="edit.category">
+                <option
+                  v-for="(label, key) in categories"
+                  :key="key"
+                  :value="key"
+                >
+                  {{ label }}
+                </option>
+              </select></label
+            ><label
+              >说明<input v-model="edit.description" placeholder="可选备注"
+            /></label>
+          </div>
+          <label class="remember-check"
+            ><input
+              v-model="remember"
+              type="checkbox"
+              :disabled="edit.category === 'pending' || !edit.merchant.trim()"
+            />
+            记住该商户的分类，仅用于之后新导入账单（不影响历史记录）</label
           >
-            <X :size="20" />
-          </button>
+          <TransactionEvidence v-if="editing" :transaction="editing" />
         </div>
-        <div v-if="modalError" class="alert error" role="alert">
-          {{ modalError }}
-          <button
-            v-if="conflictLatest"
-            type="button"
-            @click="applyLatestConflict"
-          >
-            载入最新版本（v{{ conflictLatest.version }}）
-          </button>
-        </div>
-        <div class="edit-grid">
-          <label
-            >交易时间<input
-              v-model="edit.occurred_at"
-              type="datetime-local" /></label
-          ><label
-            >金额（元）<input
-              v-model="edit.amount"
-              inputmode="decimal" /></label
-          ><label>商户<input v-model="edit.merchant" /></label
-          ><label
-            >收支方向<select v-model="edit.flow_type">
-              <option v-for="(label, key) in flows" :key="key" :value="key">
-                {{ label }}
-              </option>
-            </select></label
-          ><label
-            >类别<select v-model="edit.category">
-              <option
-                v-for="(label, key) in categories"
-                :key="key"
-                :value="key"
-              >
-                {{ label }}
-              </option>
-            </select></label
-          ><label
-            >说明<input v-model="edit.description" placeholder="可选备注"
-          /></label>
-        </div>
-        <label class="remember-check"
-          ><input
-            v-model="remember"
-            type="checkbox"
-            :disabled="edit.category === 'pending' || !edit.merchant.trim()"
-          />
-          记住该商户的分类，仅用于之后新导入账单（不影响历史记录）</label
-        >
         <div class="dialog-actions">
           <button
             class="secondary-btn"
@@ -612,7 +772,12 @@ async function exportCsv() {
             @click="closeModal()"
           >
             取消</button
-          ><button class="primary-btn" :disabled="saving" @click="save">
+          ><button
+            class="primary-btn"
+            type="button"
+            :disabled="saving || Boolean(conflictState)"
+            @click="save"
+          >
             {{ saving ? "保存中…" : "保存修改" }}
           </button>
         </div>

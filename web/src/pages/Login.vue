@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ArrowRight, ShieldCheck, Eye, EyeOff, Pause, Play } from "@lucide/vue";
 import { errorText, signIn } from "../session";
 import { ApiError, isDemo } from "../api";
@@ -10,6 +10,7 @@ import { motionPaused, toggleMotion } from "../motion";
 const passwordVisible = ref(false);
 
 const router = useRouter(),
+  route = useRoute(),
   username = ref(""),
   password = ref(""),
   busy = ref(false),
@@ -52,7 +53,10 @@ async function submit() {
   error.value = "";
   try {
     await signIn(username.value, password.value);
-    router.push("/report");
+    const next = route.query.next;
+    const target = typeof next === "string" ? router.resolve(next) : null;
+    if (target?.path === "/transactions") router.replace(target.fullPath);
+    else router.push("/report");
   } catch (e) {
     if (e instanceof ApiError && (e.status === 429 || e.payload?.error?.code === "LOGIN_LOCKED")) {
       const wait = e.payload?.error?.details?.retry_after_seconds;
