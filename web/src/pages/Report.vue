@@ -231,20 +231,20 @@ const categoryTotal = computed(
     report.value?.expense_by_category.reduce((n, x) => n + x.amount_fen, 0) ??
     0,
 );
+const categoryColors: Record<Category, string> = {
+  dining: "#326fca",
+  shopping: "#a4c3e7",
+  transport: "#5b98c5",
+  housing: "#365778",
+  entertainment: "#4b6298",
+  health: "#71b1cf",
+  education: "#7e96bd",
+  salary: "#254d88",
+  other: "#647f9e",
+  pending: "#a9b8ca",
+};
 const chartSegments = computed(() => {
   let offset = 0;
-  const colors: Record<Category, string> = {
-    dining: "#326fca",
-    shopping: "#a4c3e7",
-    transport: "#5b98c5",
-    housing: "#365778",
-    entertainment: "#4b6298",
-    health: "#71b1cf",
-    education: "#7e96bd",
-    salary: "#254d88",
-    other: "#647f9e",
-    pending: "#a9b8ca",
-  };
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
     .sort((left, right) => right.amount_fen - left.amount_fen)
@@ -256,7 +256,7 @@ const chartSegments = computed(() => {
         ...x,
         percent,
         offset,
-        color: colors[x.category],
+        color: categoryColors[x.category],
       };
       offset += percent;
       return segment;
@@ -265,6 +265,49 @@ const chartSegments = computed(() => {
 const inspectedCategory = computed(() =>
   chartSegments.value.find((x) => x.category === activeCategory.value),
 );
+const incomePieCenter = 90;
+const incomePieRadius = 80;
+
+function incomePiePoint(share: number) {
+  const angle = share * 2 * Math.PI - Math.PI / 2;
+  const x = incomePieCenter + incomePieRadius * Math.cos(angle);
+  const y = incomePieCenter + incomePieRadius * Math.sin(angle);
+  return `${x} ${y}`;
+}
+
+const incomeSlices = computed(() => {
+  const parts = incomeParts.value.filter((part) => part.amount_fen > 0);
+  const total = parts.reduce((sum, part) => sum + part.amount_fen, 0);
+  let offset = 0;
+  return parts.map((part, index) => {
+    const share = part.amount_fen / total;
+    const start = incomePiePoint(offset);
+    offset += share;
+    const end = incomePiePoint(index === parts.length - 1 ? 1 : offset);
+    // A full circle needs two arcs because a single SVG arc with identical endpoints is empty.
+    const arc = `A ${incomePieRadius} ${incomePieRadius}`;
+    const path =
+      parts.length === 1
+        ? `M ${start} ${arc} 0 0 1 ${incomePiePoint(0.5)} ${arc} 0 0 1 ${start} Z`
+        : `M ${incomePieCenter} ${incomePieCenter} L ${start} ${arc} 0 ${share > 0.5 ? 1 : 0} 1 ${end} Z`;
+    return {
+      ...part,
+      path,
+      percent: share * 100,
+      color: categoryColors[part.category],
+    };
+  });
+});
+
+function showIncomeTooltip(
+  event: PointerEvent,
+  part: (typeof incomeSlices.value)[number],
+) {
+  placeTooltip(event, categories[part.category], part.color, [
+    { label: "收入", value: yuan(part.amount_fen) },
+    { label: "占比", value: `${part.percent.toFixed(1)}%` },
+  ]);
+}
 const budgetByCategory = computed(
   () => new Map(report.value?.budgets.map((item) => [item.category, item])),
 );
@@ -838,26 +881,60 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
               <p>按已确认收入的类别汇总</p>
             </div>
           </div>
-          <div v-if="incomeParts.length" class="income-list">
-            <button
-              v-for="(part, index) in incomeParts"
-              :key="part.category"
-              class="income-row"
-              type="button"
-              @click="goCategory(part.category, 'income')"
-              :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，查看明细`"
+          <div v-if="incomeSlices.length" class="statement-income-breakdown">
+            <svg
+              class="statement-income-pie"
+              viewBox="0 0 180 180"
+              role="group"
+              aria-label="收入构成饼图"
             >
-              <span>{{ categories[part.category] }}</span>
-              <div class="income-track">
-                <i
-                  v-reveal="{ type: 'bar', delay: 120 + index * 70 }"
-                  :style="{
-                    width: `${report.totals.income_fen ? (part.amount_fen / report.totals.income_fen) * 100 : 0}%`,
-                  }"
-                ></i>
-              </div>
-              <strong>{{ yuan(part.amount_fen) }}</strong>
-            </button>
+              <defs>
+                <linearGradient
+                  v-for="part in incomeSlices"
+                  :key="part.category"
+                  :id="`income-pie-${part.category}`"
+                  gradientUnits="userSpaceOnUse"
+                  x1="39"
+                  y1="18"
+                  x2="126"
+                  y2="167"
+                >
+                  <stop offset="0" :stop-color="`color-mix(in srgb, ${part.color}, white 32%)`" />
+                  <stop offset=".63" :stop-color="part.color" />
+                  <stop offset="1" :stop-color="`color-mix(in srgb, ${part.color}, #18314f 22%)`" />
+                </linearGradient>
+              </defs>
+              <path
+                v-for="part in incomeSlices"
+                :key="part.category"
+                class="statement-income-slice"
+                :d="part.path"
+                :fill="`url(#income-pie-${part.category})`"
+                role="button"
+                tabindex="0"
+                :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，占 ${part.percent.toFixed(1)}%，查看明细`"
+                @pointerenter="showIncomeTooltip($event, part)"
+                @pointermove="showIncomeTooltip($event, part)"
+                @pointerleave="hideTooltip"
+                @click="goCategory(part.category, 'income')"
+                @keydown.enter="goCategory(part.category, 'income')"
+                @keydown.space.prevent="goCategory(part.category, 'income')"
+              />
+            </svg>
+            <div class="statement-income-legend" aria-label="收入类别明细">
+              <button
+                v-for="part in incomeSlices"
+                :key="part.category"
+                class="statement-income-item"
+                type="button"
+                @click="goCategory(part.category, 'income')"
+              >
+                <i :style="{ background: part.color }" aria-hidden="true"></i>
+                <span>{{ categories[part.category] }}<small>{{ part.percent.toFixed(1) }}%</small></span>
+                <strong>{{ yuan(part.amount_fen) }}</strong>
+                <ChevronRight :size="13" aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <div v-else class="empty-state">
             <strong>本月没有收入明细</strong

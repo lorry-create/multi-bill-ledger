@@ -139,8 +139,49 @@
 .statement-bottom.budget-only { grid-template-columns: 1fr; }
 .monthly-statement .budget-empty { display: flex; gap: 10px; align-items: center; justify-content: flex-start; min-height: 75px; padding: 10px 0; background: none; color: var(--statement-muted); }
 .monthly-statement .budget-empty strong { font-weight: 500; color: inherit; }
-.monthly-statement .income-list { margin-top: 14px; }
-.monthly-statement .income-row { min-height: 44px; }
+.statement-income-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 15px;
+}
+.statement-income-pie {
+  flex: 0 0 clamp(124px, 11vw, 166px);
+  width: clamp(124px, 11vw, 166px);
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(1px 5px 6px #264d792c);
+}
+.statement-income-slice {
+  cursor: pointer;
+  stroke: #f1f6fc;
+  stroke-width: 1.25px;
+}
+.statement-income-slice:hover { filter: brightness(1.08); }
+.statement-income-slice:focus-visible { outline: none; stroke: #193e6a; stroke-width: 3px; }
+.statement-income-legend { flex: 1 1 164px; min-width: 0; }
+.statement-income-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) minmax(0, auto) 13px;
+  gap: 8px;
+  align-items: center;
+  min-height: 49px;
+  padding: 8px 5px;
+  border: 0;
+  border-bottom: 1px solid var(--statement-line);
+  background: transparent;
+  color: var(--statement-ink);
+  text-align: left;
+  font-size: 13px;
+}
+.statement-income-item:hover { background: #edf5fd; }
+.statement-income-item i { width: 8px; height: 8px; border-radius: 50%; }
+.statement-income-item small { display: block; margin-top: 3px; color: var(--statement-muted); font-size: 11px; }
+.statement-income-item strong { text-align: right; overflow-wrap: anywhere; }
+.statement-income-item svg { color: #728aa6; }
 .statement-budget { border-bottom: 1px solid var(--statement-line); }
 .budget-detail { background: transparent; border: 0; padding: 14px 0; width: 100%; display: grid; align-items: center; gap: 8px 12px; grid-template-columns: 1fr auto; text-align: left; font: inherit; color: var(--statement-ink); }
 .budget-detail:hover { background: #edf5fd; }
