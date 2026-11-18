@@ -170,18 +170,6 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .selected-file span { flex: 1; min-width: 0; }
 .selected-file strong { display: block; color: #345575; font-size: 13px; overflow-wrap: anywhere; }
 .selected-file small { display: block; margin-top: 4px; color: #647e9c; font-size: 11px; }
-.platform-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0 25px 18px; }
-.transaction-panel .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.platform-filter button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 13px; border: 1px solid #e2eaf5; background: #fff; color: #5d7592; border-radius: 11px; font-size: 12px; cursor: pointer; transition: background .2s, border-color .2s; }
-.platform-filter button.active { color: #2c64b2; border-color: #b5cef1; background: #edf5ff; }
-.platform-filter button:hover { border-color: #9bbde9; }
-.platform-filter .clear-filters { margin-left: auto; border-color: transparent; color: #607b9c; }
-.transaction-source { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-.transaction-panel[aria-busy="true"] .table-scroll { opacity: .5; pointer-events: none; }
-.transaction-panel .table-scroll { transition: opacity .15s; }
-.transaction-panel tbody tr:focus-within { background: #f0f6ff; }
-.table-action { border-radius: 10px; transition: background .18s, color .18s, transform .18s; }
-.table-action:hover { transform: scale(1.08); }
 .rule-explainer { margin-bottom: 26px; padding: 28px 32px; border: 1px solid #d2e3f8; border-radius: 22px; overflow: hidden; background: linear-gradient(110deg, #f7fbff, #e8f2ff); }
 .rule-explainer > :not(.particle-field) { position: relative; z-index: 1; }
 .rule-explainer .particle-field { opacity: .35; }
@@ -217,12 +205,8 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   .sidebar-note { display: none; }
   .page-head { gap: 18px; }
   .page-head p { font-size: 13px; }
-  .platform-filter { padding: 0 18px 17px; gap: 6px; }
-  .transaction-panel .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .platform-filter button { min-height: 40px; padding: 0 9px; font-size: 11px; }
-  .primary-btn, .secondary-btn, .month-step, .table-action, .platform-filter button, .chart-switch button, .category-legend button, .mobile-drawer .motion-toggle { min-height: 44px; }
+  .primary-btn, .secondary-btn, .month-step, .table-action, .chart-switch button, .category-legend button, .mobile-drawer .motion-toggle { min-height: 44px; }
   .month-step, .table-scroll .table-action { min-width: 44px; min-height: 44px; }
-  .platform-filter .clear-filters { margin-left: 0; }
   .feedback-toast { bottom: calc(82px + env(safe-area-inset-bottom)); width: max-content; font-size: 12px; padding: 13px 16px; }
   .login-page { display: block; }
   .login-story { padding: 23px 25px 20px; border-right: 0; border-bottom: 1px solid #dce8f7; }

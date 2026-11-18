@@ -1,7 +1,7 @@
 import type { Directive } from "vue";
 import { motionPaused } from "../motion";
 
-type RevealOptions = { type?: "card" | "bar"; delay?: number };
+type RevealOptions = { type?: "card" | "bar" | "row"; delay?: number };
 type RevealState = {
   element: HTMLElement;
   options: RevealOptions;
@@ -40,15 +40,17 @@ function reveal(state: RevealState) {
   }
   state.settled = true;
   const bar = state.options.type === "bar";
+  const row = state.options.type === "row";
   const phone = window.matchMedia("(max-width: 760px)").matches;
+  const distance = row ? 10 : phone ? 16 : 28;
   const frames = bar
     ? [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }]
     : [
-        { opacity: 0.45, transform: `translateX(${phone ? -16 : -28}px)` },
+        { opacity: row ? 0.7 : 0.45, transform: `translateX(-${distance}px)` },
         { opacity: 1, transform: "translateX(0)" },
       ];
   const animation = state.element.animate(frames, {
-    duration: bar ? 820 : phone ? 420 : 560,
+    duration: bar ? 820 : row ? 300 : phone ? 420 : 560,
     delay: Math.min(240, Math.max(0, state.options.delay ?? 0)),
     easing: "cubic-bezier(0.16, 1, 0.3, 1)",
     fill: "backwards",
@@ -56,9 +58,12 @@ function reveal(state: RevealState) {
   state.animation = animation;
   state.element.dataset.revealState = "playing";
   active.add(state);
-  animation.finished.then(() => settle(state), () => {
-    active.delete(state);
-  });
+  animation.finished.then(
+    () => settle(state),
+    () => {
+      active.delete(state);
+    },
+  );
 }
 
 function settleWhenDisabled() {
@@ -71,15 +76,27 @@ reduced.addEventListener("change", settleWhenDisabled);
 document.addEventListener("visibilitychange", settleWhenDisabled);
 
 // 元素默认保持可见；没有动画能力时直接呈现最终内容。
-export const revealDirective: Directive<HTMLElement, RevealOptions | undefined> = {
+export const revealDirective: Directive<
+  HTMLElement,
+  RevealOptions | false | undefined
+> = {
   mounted(element, binding) {
-    if (!canAnimate() || !window.IntersectionObserver || !element.animate) return;
-    observer ??= new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        const state = states.get(entry.target as HTMLElement);
-        if (entry.isIntersecting && state) reveal(state);
-      }
-    }, { rootMargin: "0px 0px -24px 0px", threshold: 0 });
+    if (
+      binding.value === false ||
+      !canAnimate() ||
+      !window.IntersectionObserver ||
+      !element.animate
+    )
+      return;
+    observer ??= new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const state = states.get(entry.target as HTMLElement);
+          if (entry.isIntersecting && state) reveal(state);
+        }
+      },
+      { rootMargin: "0px 0px -24px 0px", threshold: 0 },
+    );
     const state: RevealState = {
       element,
       options: binding.value ?? {},
