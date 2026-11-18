@@ -16,7 +16,17 @@ let transactions = sample<SDK.TransactionPage>(
   "listTransactions_success",
 ).items;
 let rules = sample<SDK.RuleList>("listRules_success").items;
-let report = sample<SDK.MonthlyReport>("getMonthlyReport_success");
+const initialReport = sample<SDK.MonthlyReport>("getMonthlyReport_success");
+const budgetRecords = new Map<string, SDK.Budget>();
+for (const item of initialReport.budgets) {
+  const id = `demo_budget_${initialReport.month}_${item.category}`;
+  budgetRecords.set(id, {
+    id,
+    month: initialReport.month,
+    category: item.category,
+    amount_fen: item.budget_fen,
+  });
+}
 const wait = () => new Promise((resolve) => setTimeout(resolve, 350));
 
 type TransactionFilters = NonNullable<
@@ -80,7 +90,10 @@ export const mock = {
   },
   async getSession() {
     await wait();
-    if (!session && globalThis.sessionStorage?.getItem(demoSessionKey) === "true") {
+    if (
+      !session &&
+      globalThis.sessionStorage?.getItem(demoSessionKey) === "true"
+    ) {
       session = sample<SDK.Session>("login_success");
     }
     if (!session) throw new Error("演示会话尚未建立");
@@ -109,9 +122,7 @@ export const mock = {
     batch = sample<SDK.Batch>("getImport_success");
     return batch;
   },
-  async resolveImportMissing(
-    args: SDK.OperationArgs["resolveImportMissing"],
-  ) {
+  async resolveImportMissing(args: SDK.OperationArgs["resolveImportMissing"]) {
     await wait();
     const current = batch ?? sample<SDK.Batch>("getImport_success");
     const year = args.body.default_year ?? 2026;
@@ -171,7 +182,11 @@ export const mock = {
     const current = transactions[index];
     if (!current) {
       throw new SDK.ApiError(404, {
-        error: { code: "RESOURCE_NOT_FOUND", message: "资源不存在", details: {} },
+        error: {
+          code: "RESOURCE_NOT_FOUND",
+          message: "资源不存在",
+          details: {},
+        },
       });
     }
     if (args.body.expected_version !== current.version) {
@@ -209,42 +224,80 @@ export const mock = {
     rules[i] = { ...rules[i], ...args.body, version: rules[i].version + 1 };
     return rules[i];
   },
-  async getMonthlyReport(args: SDK.OperationArgs["getMonthlyReport"]) {
-    if (args.query.month === report.month) return { ...report };
-    const [year, month] = args.query.month.split("-").map(Number);
-    const days = new Date(year, month, 0).getDate();
+  async getMonthlyReport(
+    args: SDK.OperationArgs["getMonthlyReport"],
+  ): Promise<SDK.MonthlyReport> {
+    const month = args.query.month;
+    const [year, number] = month.split("-").map(Number);
+    const monthLength = new Date(year, number, 0).getDate();
+    const daily_trend = Array.from({ length: monthLength }, (_, index) => ({
+      date: `${month}-${String(index + 1).padStart(2, "0")}`,
+      income_fen: 0,
+      gross_expense_fen: 0,
+      refund_fen: 0,
+      net_expense_fen: 0,
+    }));
+    const totals = {
+      income_fen: 0,
+      gross_expense_fen: 0,
+      refund_fen: 0,
+      net_expense_fen: 0,
+      balance_fen: 0,
+    };
+    const gross = new Map<SDK.Category, number>();
+    const net = new Map<SDK.Category, number>();
+    for (const item of transactions) {
+      const date = shanghaiDate.format(new Date(item.occurred_at));
+      if (date.slice(0, 7) !== month) continue;
+      const day = daily_trend[Number(date.slice(-2)) - 1];
+      const amount = item.amount_fen;
+      if (item.flow_type === "income") {
+        day.income_fen += amount;
+        totals.income_fen += amount;
+      } else if (item.flow_type === "expense") {
+        day.gross_expense_fen += amount;
+        totals.gross_expense_fen += amount;
+        gross.set(item.category, (gross.get(item.category) ?? 0) + amount);
+        net.set(item.category, (net.get(item.category) ?? 0) + amount);
+      } else if (item.flow_type === "refund") {
+        day.refund_fen += amount;
+        totals.refund_fen += amount;
+        net.set(item.category, (net.get(item.category) ?? 0) - amount);
+      }
+      day.net_expense_fen = day.gross_expense_fen - day.refund_fen;
+    }
+    totals.net_expense_fen = totals.gross_expense_fen - totals.refund_fen;
+    totals.balance_fen = totals.income_fen - totals.net_expense_fen;
+    const budgets = [...budgetRecords.values()]
+      .filter((item) => item.month === month)
+      .map((item) => {
+        const spent_fen = net.get(item.category) ?? 0;
+        const remaining_fen = item.amount_fen - spent_fen;
+        return {
+          category: item.category,
+          budget_fen: item.amount_fen,
+          spent_fen,
+          remaining_fen,
+          over_fen: Math.max(0, -remaining_fen),
+        };
+      });
     return {
-      month: args.query.month,
-      totals: {
-        income_fen: 0,
-        gross_expense_fen: 0,
-        refund_fen: 0,
-        net_expense_fen: 0,
-        balance_fen: 0,
-      },
-      expense_by_category: [],
-      daily_trend: Array.from({ length: days }, (_, i) => ({
-        date: `${args.query.month}-${String(i + 1).padStart(2, "0")}`,
-        income_fen: 0,
-        gross_expense_fen: 0,
-        refund_fen: 0,
-        net_expense_fen: 0,
+      month,
+      totals,
+      daily_trend,
+      budgets,
+      expense_by_category: [...gross].map(([category, amount_fen]) => ({
+        category,
+        amount_fen,
       })),
-      budgets: [],
     };
   },
   async putBudget(args: SDK.OperationArgs["putBudget"]) {
-    const b = args.body;
-    report.budgets = report.budgets
-      .filter((x) => x.category !== b.category)
-      .concat({
-        category: b.category,
-        budget_fen: b.amount_fen,
-        spent_fen: 0,
-        remaining_fen: b.amount_fen,
-        over_fen: 0,
-      });
-    return { id: "demo_budget", ...b };
+    const { month, category } = args.body;
+    const id = `demo_budget_${month}_${category}`;
+    const budget = { ...args.body, id };
+    budgetRecords.set(id, budget);
+    return { ...budget };
   },
   async exportTransactions(args: SDK.OperationArgs["exportTransactions"]) {
     const rows = matchingTransactions(args.query ?? {}).map((transaction) =>
@@ -263,7 +316,9 @@ export const mock = {
   async checkImportDuplicates(
     args: SDK.OperationArgs["checkImportDuplicates"],
   ): Promise<SDK.DuplicateCheckResult> {
-    const page = await this.listTransactions({ query: { page: 1, page_size: 100 } });
+    const page = await this.listTransactions({
+      query: { page: 1, page_size: 100 },
+    });
     const existing = page.items;
     return {
       batch_id: args.path.id,
