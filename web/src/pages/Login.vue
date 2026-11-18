@@ -207,6 +207,10 @@ async function submit() {
   </main>
 </template>
 <style scoped>
+.folio-login {
+  --folio-opening-ease: cubic-bezier(0.24, 0.68, 0.3, 1);
+  --folio-form-origin: translateX(22px);
+}
 .folio-login .login-story {
   display: grid;
   align-content: space-between;
@@ -307,11 +311,20 @@ async function submit() {
   margin-top: 21px;
 }
 @media (prefers-reduced-motion: no-preference) {
+  .folio-login .login-form {
+    animation: folio-form-arrive 1.35s 0.2s var(--folio-opening-ease) both;
+  }
   .folio-login .login-welcome::after {
-    animation: folio-header-rule 0.55s 0.12s var(--ease-arrive) both;
+    animation: folio-header-rule 1.1s 0.68s var(--folio-opening-ease) both;
   }
   .folio-spinner {
     animation: folio-wait 0.8s linear infinite;
+  }
+}
+@keyframes folio-form-arrive {
+  from {
+    opacity: 0.68;
+    transform: var(--folio-form-origin);
   }
 }
 @keyframes folio-header-rule {
@@ -326,6 +339,7 @@ async function submit() {
 }
 @media (max-width: 760px) {
   .folio-login {
+    --folio-form-origin: translateY(12px);
     display: flex;
     flex-direction: column;
     background: white;

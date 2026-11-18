@@ -186,13 +186,13 @@ const currentStep = ref(0);
 }
 @media (prefers-reduced-motion: no-preference) {
   .account-cover {
-    animation: folio-arrive 0.72s var(--ease-arrive) both;
+    animation: folio-arrive 1.48s var(--folio-opening-ease) both;
   }
   .account-cover::before {
-    animation: folio-backing 0.85s var(--ease-arrive) both;
+    animation: folio-backing 1.45s 0.22s var(--folio-opening-ease) both;
   }
   .cover-issue::after {
-    animation: folio-rule-glint 0.9s 0.12s var(--ease-arrive) both;
+    animation: folio-rule-glint 1.38s 0.64s var(--folio-opening-ease) both;
   }
   .cover-detail span {
     display: block;
@@ -207,13 +207,13 @@ const currentStep = ref(0);
 }
 @keyframes folio-arrive {
   from {
-    transform: translateX(-15px);
+    transform: translateX(-30px);
     opacity: 0.65;
   }
 }
 @keyframes folio-backing {
   from {
-    transform: translate(9px, -7px) rotate(3deg);
+    transform: translate(13px, -10px) rotate(3.5deg);
   }
   to {
     transform: rotate(1.4deg);
@@ -224,7 +224,7 @@ const currentStep = ref(0);
     transform: translateX(-100%);
     opacity: 0;
   }
-  22% {
+  22%, 60% {
     opacity: 1;
   }
   100% {
