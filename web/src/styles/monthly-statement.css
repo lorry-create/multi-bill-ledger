@@ -3,6 +3,9 @@
   --statement-ink: #163354;
   --statement-muted: #506b86;
   --statement-line: #d6e1ec;
+  --statement-income: #326fca;
+  --statement-expense: #91b7e8;
+  --statement-refund: #5b9dcb;
   color: var(--statement-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -75,10 +78,12 @@
   animation-delay: calc(var(--bar-index) * 24ms);
   background: linear-gradient(162deg, var(--bar-light), var(--bar-mid) 46%, var(--bar-deep));
 }
-.monthly-statement .income-bar { --bar-light: #7ab0ee; --bar-mid: #4885cb; --bar-deep: #315fa8; }
-.monthly-statement .expense-bar { --bar-light: #bdddf6; --bar-mid: #99c3e4; --bar-deep: #769fc8; }
-.monthly-statement .refund-bar { --bar-light: #a2d0c5; --bar-mid: #7aafa4; --bar-deep: #56877f; }
-.monthly-statement .chart-key .refund-key { background: #65958e; }
+.monthly-statement .income-bar { --bar-light: #6ca7ed; --bar-mid: var(--statement-income); --bar-deep: #235595; }
+.monthly-statement .expense-bar { --bar-light: #c5dff9; --bar-mid: var(--statement-expense); --bar-deep: #729fd4; }
+.monthly-statement .refund-bar { --bar-light: #abd5ef; --bar-mid: var(--statement-refund); --bar-deep: #3c77a5; }
+.monthly-statement .chart-key .income-key { background: var(--statement-income); }
+.monthly-statement .chart-key .expense-key { background: var(--statement-expense); }
+.monthly-statement .chart-key .refund-key { background: var(--statement-refund); }
 .monthly-statement .trend-day:focus-visible { outline: 2px solid #407fc4; outline-offset: -2px; }
 .monthly-statement .statement-inspector { min-height: 0; background: none; border: 0; padding: 10px 0 0; margin: 0; border-radius: 0; display: grid; gap: 4px; }
 .monthly-statement .statement-inspector .chart-key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin: 0; }
@@ -129,8 +134,17 @@
 .statement-budget[data-level="near"] .budget-track i { --budget-deep: #a37b3d; --budget-mid: #bf9656; --budget-light: #dec18a; }
 .statement-empty { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 32px 0; gap: 15px; }
 .statement-empty h2 { margin: 0; font-size: 22px; }
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .monthly-statement .trend-day:has(.trend-bars i[data-lit="true"]:hover) .trend-bars i[data-lit="true"]::after {
+@media (prefers-reduced-motion: no-preference) {
+  .monthly-statement .trend-bars i[data-lit="true"][data-flow-visible]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, var(--bar-light), var(--bar-mid) 32%, var(--bar-deep) 57%, var(--bar-mid) 76%, var(--bar-light));
+    background-size: 100% 190%;
+    animation: statement-bar-tint 5.8s ease-in-out infinite alternate;
+  }
+  .monthly-statement .trend-bars i[data-lit="true"][data-flow-visible]::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -142,18 +156,28 @@
       radial-gradient(circle at 52% 32px, #d0e5fac2 0, #acccfac4 .6px, transparent 1.15px) 0 0 / 100% 72px repeat-y;
     animation: statement-particles-rise 4.2s linear infinite, statement-particle-tint 5s ease-in-out infinite alternate;
   }
-  .monthly-statement .donut:has(.donut-segment:hover) .statement-ring-dust { visibility: visible; }
-  .monthly-statement .donut:has(.donut-segment:hover) .statement-ring-dust g {
+  .monthly-statement .donut[data-flow-visible]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: conic-gradient(from 0deg, transparent 5%, #d9edff66 22%, transparent 38%, #2455a13a 64%, transparent 85%);
+    mask-image: radial-gradient(circle closest-side, transparent 63.5%, #000 64.5% 91%, transparent 92%);
+    animation: statement-orbit 14s linear infinite;
+  }
+  .monthly-statement .donut[data-flow-visible] .statement-ring-dust { visibility: visible; }
+  .monthly-statement .donut[data-flow-visible] .statement-ring-dust g {
     animation: statement-orbit 15s linear infinite, statement-ring-tint 4.6s ease-in-out infinite alternate;
   }
-  .monthly-statement .donut:has(.donut-segment:hover) .statement-ring-dust g + g {
+  .monthly-statement .donut[data-flow-visible] .statement-ring-dust g + g {
     animation-duration: 19s, 5.5s;
     animation-delay: -4s, -1.7s;
   }
-  .statement-budget .budget-detail:hover .budget-track i {
+  .statement-budget .budget-track i[data-flow-visible] {
     animation: statement-budget-tint 4.5s ease-in-out infinite alternate;
   }
-  .statement-budget .budget-detail:hover .budget-track i::after {
+  .statement-budget .budget-track i[data-flow-visible]::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -166,6 +190,10 @@
   }
 }
 @keyframes statement-orbit { to { transform: rotate(360deg); } }
+@keyframes statement-bar-tint {
+  from { background-position: 0 12%; }
+  to { background-position: 0 94%; }
+}
 @keyframes statement-particles-rise {
   to { background-position: 0 -38px, 0 -57px, 0 -72px; }
 }
@@ -179,7 +207,9 @@
 }
 @keyframes statement-budget-tint { to { background-position: 100% 0; } }
 @keyframes statement-budget-drift { to { background-position: 47px 0, 69px 0; } }
+.document-hidden .monthly-statement .trend-bars i::before,
 .document-hidden .monthly-statement .trend-bars i::after,
+.document-hidden .monthly-statement .donut::before,
 .document-hidden .monthly-statement .budget-track i::after { animation-play-state: paused !important; }
 @media (max-width: 940px) {
   .statement-spread { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }

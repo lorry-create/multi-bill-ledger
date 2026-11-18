@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import type { ObjectDirective } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowDownRight,
@@ -26,6 +27,16 @@ import { notify } from "../motion";
 
 const router = useRouter();
 const route = useRoute();
+const flowObserver = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    entry.target.toggleAttribute("data-flow-visible", entry.isIntersecting);
+  }
+});
+const vFlowInView: ObjectDirective<HTMLElement> = {
+  mounted(element) { flowObserver.observe(element); },
+  unmounted(element) { flowObserver.unobserve(element); },
+};
+onUnmounted(() => flowObserver.disconnect());
 const currentMonth = new Date()
   .toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" })
   .slice(0, 7);
@@ -144,7 +155,7 @@ function showTrendTooltip(event: PointerEvent, index: number) {
   activeTrendIndex.value = index;
   const item = trendData.value[index];
   if (!item) return;
-  placeTooltip(event, item.range, "#397ed8", [
+  placeTooltip(event, item.range, "#326fca", [
     { label: "收入", value: yuan(item.income_fen) },
     { label: "支出", value: yuan(item.gross_expense_fen) },
     { label: "退款", value: yuan(item.refund_fen) },
@@ -223,16 +234,16 @@ const categoryTotal = computed(
 const chartSegments = computed(() => {
   let offset = 0;
   const colors: Record<Category, string> = {
-    dining: "#2f69bd",
-    shopping: "#5997be",
-    transport: "#6379b1",
-    housing: "#467891",
-    entertainment: "#8c79ab",
-    health: "#438c89",
-    education: "#8196b6",
-    salary: "#456192",
-    other: "#6e8296",
-    pending: "#a6aeb7",
+    dining: "#326fca",
+    shopping: "#a4c3e7",
+    transport: "#5b98c5",
+    housing: "#365778",
+    entertainment: "#4b6298",
+    health: "#71b1cf",
+    education: "#7e96bd",
+    salary: "#254d88",
+    other: "#647f9e",
+    pending: "#a9b8ca",
   };
   return (report.value?.expense_by_category ?? [])
     .filter((x) => x.amount_fen > 0)
@@ -570,6 +581,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   >
                     <span class="trend-bars"
                       ><i
+                        v-flow-in-view
                         class="income-bar"
                         :data-lit="day.income_fen > 0"
                         :style="{
@@ -577,6 +589,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                         }"
                       ></i
                       ><i
+                        v-flow-in-view
                         class="expense-bar"
                         :data-lit="day.gross_expense_fen > 0"
                         :style="{
@@ -584,6 +597,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                         }"
                       ></i
                       ><i
+                        v-flow-in-view
                         class="refund-bar"
                         :data-lit="day.refund_fen > 0"
                         :style="{
@@ -640,7 +654,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
             </button>
           </div>
           <div v-if="categoryTotal" class="category-content">
-            <div class="donut" @pointerleave="leaveCategory">
+            <div v-flow-in-view class="donut" @pointerleave="leaveCategory">
               <svg
                 viewBox="0 0 180 180"
                 role="group"
@@ -808,7 +822,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   >{{ budgetLabel(budget) }}<ChevronRight :size="13"
                 /></span>
                 <span class="budget-track" aria-hidden="true"
-                  ><i v-if="budget.spent_fen > 0" :style="{ width: budgetWidth(budget) + '%' }"></i
+                  ><i v-if="budget.spent_fen > 0" v-flow-in-view :style="{ width: budgetWidth(budget) + '%' }"></i
                 ></span>
                 <small
                   >净支出 {{ yuan(budget.spent_fen) }} · 额度
