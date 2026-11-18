@@ -21,36 +21,43 @@ const currentStep = ref(0);
 <template>
   <div class="account-cover">
     <div class="cover-paper">
-      <div class="cover-issue">
-        <span>月度账本</span><span>{{ issueYear }}</span>
-      </div>
-      <p class="cover-month">{{ issueMonth }}</p>
-      <p class="cover-intro">把两份流水，归成一本账。</p>
-      <div class="cover-sources">
-        <span><PlatformLogo source="wechat" :size="25" />微信支付</span>
-        <span><PlatformLogo source="alipay" :size="25" />支付宝</span>
-      </div>
-      <div class="cover-guide" :style="{ '--cover-step': currentStep }">
-        <div class="cover-steps" role="group" aria-label="了解账单处理流程">
-          <button
-            v-for="(step, index) in steps"
-            :key="step.title"
-            type="button"
-            :aria-pressed="currentStep === index"
-            @click="currentStep = index"
-          >
-            {{ step.title }}
-          </button>
+      <div class="cover-content">
+        <div class="cover-issue">
+          <span>月度账本</span><span>{{ issueYear }}</span>
         </div>
-        <p class="cover-detail" aria-live="polite">
-          <span :key="currentStep">{{ steps[currentStep].detail }}</span>
-        </p>
+        <p class="cover-month">{{ issueMonth }}</p>
+        <p class="cover-intro">把两份流水，归成一本账。</p>
+        <div class="cover-sources">
+          <span><PlatformLogo source="wechat" :size="25" />微信支付</span>
+          <span><PlatformLogo source="alipay" :size="25" />支付宝</span>
+        </div>
+        <div class="cover-guide" :style="{ '--cover-step': currentStep }">
+          <div class="cover-steps" role="group" aria-label="了解账单处理流程">
+            <button
+              v-for="(step, index) in steps"
+              :key="step.title"
+              type="button"
+              :aria-pressed="currentStep === index"
+              @click="currentStep = index"
+            >
+              {{ step.title }}
+            </button>
+          </div>
+          <p class="cover-detail" aria-live="polite">
+            <span :key="currentStep">{{ steps[currentStep].detail }}</span>
+          </p>
+        </div>
       </div>
     </div>
   </div>
 </template>
 <style scoped>
 .account-cover {
+  --folio-front-delay: 0.26s;
+  --folio-front-duration: 1.58s;
+  --folio-content-start: calc(
+    var(--folio-front-delay) + var(--folio-front-duration)
+  );
   width: min(100%, 550px);
   justify-self: center;
   position: relative;
@@ -185,14 +192,20 @@ const currentStep = ref(0);
   line-height: 1.6;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .account-cover {
-    animation: folio-arrive 1.48s var(--folio-opening-ease) both;
-  }
   .account-cover::before {
-    animation: folio-backing 1.45s 0.22s var(--folio-opening-ease) both;
+    animation: folio-backing 1.5s var(--folio-opening-ease) both;
+  }
+  .cover-paper {
+    animation: folio-front var(--folio-front-duration) var(--folio-front-delay)
+      var(--folio-opening-ease) both;
+  }
+  .cover-content {
+    animation: folio-content-in 0.64s var(--folio-content-start)
+      var(--folio-opening-ease) both;
   }
   .cover-issue::after {
-    animation: folio-rule-glint 1.38s 0.64s var(--folio-opening-ease) both;
+    animation: folio-rule-glint 0.95s calc(var(--folio-content-start) + 0.12s)
+      var(--folio-opening-ease) both;
   }
   .cover-detail span {
     display: block;
@@ -205,18 +218,32 @@ const currentStep = ref(0);
     box-shadow: 0 21px 32px -20px #38597a82;
   }
 }
-@keyframes folio-arrive {
+@keyframes folio-front {
   from {
-    transform: translateX(-30px);
-    opacity: 0.65;
+    translate: calc(-100vw - 24px) 0;
+  }
+  to {
+    translate: 0 0;
   }
 }
 @keyframes folio-backing {
   from {
-    transform: translate(13px, -10px) rotate(3.5deg);
+    transform: translateY(calc(-100svh - 100%)) rotate(4deg);
   }
   to {
     transform: rotate(1.4deg);
+  }
+}
+@keyframes folio-content-in {
+  from {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 @keyframes folio-rule-glint {
@@ -224,7 +251,8 @@ const currentStep = ref(0);
     transform: translateX(-100%);
     opacity: 0;
   }
-  22%, 60% {
+  22%,
+  60% {
     opacity: 1;
   }
   100% {
