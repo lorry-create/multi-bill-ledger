@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { ChevronDown, Download } from "@lucide/vue";
 import { api, ApiError, isDemo } from "../api";
 import type { Batch, Transaction, TransactionDraft } from "../api";
@@ -15,13 +15,22 @@ import {
 import { errorText } from "../session";
 import PlatformLogo from "./PlatformLogo.vue";
 
-const { transaction } = defineProps<{ transaction: Transaction }>();
+const { transaction, initiallyOpen = false } = defineProps<{
+  transaction: Transaction;
+  initiallyOpen?: boolean;
+}>();
 const batch = ref<Batch | null>(null);
 const batchLoading = ref(false);
 const batchError = ref("");
 const originalLoading = ref(false);
 const originalError = ref("");
+const fileNameKnown = computed(() =>
+  Boolean(batch.value?.file_name && batch.value.file_name !== "未知文件"),
+);
 let active = true;
+onMounted(() => {
+  if (initiallyOpen) void loadBatch();
+});
 onBeforeUnmount(() => {
   active = false;
 });
@@ -113,7 +122,11 @@ function onToggle(event: Event) {
 </script>
 
 <template>
-  <details class="transaction-evidence" @toggle="onToggle">
+  <details
+    class="transaction-evidence"
+    :open="initiallyOpen"
+    @toggle="onToggle"
+  >
     <summary>
       <PlatformLogo :source="transaction.source" :size="23" />
       <span class="evidence-summary">
@@ -137,7 +150,7 @@ function onToggle(event: Event) {
         <button class="text-btn" type="button" @click="loadBatch">重试</button>
       </div>
       <template v-else-if="batch">
-        <div class="evidence-file">
+        <div v-if="fileNameKnown" class="evidence-file">
           <strong>{{ batch.file_name }}</strong>
           <button
             class="secondary-btn"
@@ -155,28 +168,40 @@ function onToggle(event: Event) {
             }}
           </button>
         </div>
+        <div v-else class="evidence-file">
+          <p>此批次未提供原件名称。</p>
+          <button
+            v-if="!originalError"
+            class="text-btn"
+            type="button"
+            :disabled="originalLoading"
+            @click="downloadOriginal"
+          >
+            {{ originalLoading ? "正在检查…" : "检查原件" }}
+          </button>
+        </div>
         <p v-if="originalError" role="status">{{ originalError }}</p>
         <p>
           {{
             draft
               ? "导入草稿按平台交易号匹配。"
-              : "无法唯一匹配到单笔导入草稿，可下载原件核对。"
+              : "此笔账单没有可对照的导入草稿。"
           }}
         </p>
       </template>
 
-      <table class="evidence-comparison" aria-label="账单核对值">
+      <table v-if="draft" class="evidence-comparison" aria-label="账单核对值">
         <thead>
           <tr>
             <th scope="col">字段</th>
-            <th v-if="draft" scope="col">导入草稿</th>
+            <th scope="col">导入草稿</th>
             <th scope="col">已保存 v{{ transaction.version }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in comparison" :key="row.field">
             <th scope="row">{{ row.field }}</th>
-            <td v-if="draft">{{ row.imported }}</td>
+            <td>{{ row.imported }}</td>
             <td :class="{ 'evidence-changed': row.changed }">
               {{ row.saved }}
               <span v-if="row.changed" class="sr-only">与导入草稿不同</span>
