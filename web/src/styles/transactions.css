@@ -784,6 +784,9 @@
   .ledger-filter-actions .ledger-export {
     margin-inline-start: auto;
   }
+  .ledger-filter-actions .ledger-export + .ledger-export {
+    margin-inline-start: 0;
+  }
 
   .ledger-platforms button,
   .ledger-filter-actions button,

@@ -17,6 +17,7 @@ import {
 import {
   ChevronDown,
   Download,
+  FileSpreadsheet,
   ListFilter,
   Pencil,
   ReceiptText,
@@ -114,7 +115,7 @@ function readFilters(query: LocationQuery): Filters {
 const filters = computed(() => readFilters(route.query));
 const data = ref<TransactionPage | null>(null),
   loading = ref(false),
-  exporting = ref(false),
+  exporting = ref<"csv" | "xlsx" | null>(null),
   error = ref(""),
   editing = ref<Transaction | null>(null),
   editMode = ref(false),
@@ -571,7 +572,7 @@ async function save() {
     saving.value = false;
   }
 }
-async function exportCsv() {
+async function exportLedger(format: "csv" | "xlsx") {
   if (exporting.value) return;
   if (
     filters.value.date_from &&
@@ -581,16 +582,26 @@ async function exportCsv() {
     error.value = "开始日期不能晚于结束日期。";
     return;
   }
-  exporting.value = true;
+  exporting.value = format;
   error.value = "";
+  let receivedCsv = false;
   try {
-    const blob = await api.exportTransactions({ query: query.value });
-    download(blob, "账单导出.csv");
+    const csv = await api.exportTransactions({ query: query.value });
+    receivedCsv = true;
+    let file = csv;
+    if (format === "xlsx") {
+      const { transactionWorkbook } = await import("../transactionWorkbook");
+      file = await transactionWorkbook(csv);
+    }
+    download(file, `账单导出.${format}`);
     notify("当前筛选的全部账单已导出");
   } catch (e) {
-    error.value = errorText(e);
+    error.value =
+      receivedCsv && format === "xlsx"
+        ? "无法生成 Excel 文件。请重试或导出 CSV。"
+        : errorText(e);
   } finally {
-    exporting.value = false;
+    exporting.value = null;
   }
 }
 </script>
@@ -655,11 +666,20 @@ async function exportCsv() {
           <button
             class="secondary-btn ledger-export"
             type="button"
-            :disabled="exporting || loading"
+            :disabled="!!exporting || loading"
             aria-label="导出当前筛选"
-            @click="exportCsv"
+            @click="exportLedger('csv')"
           >
-            <Download :size="16" />{{ exporting ? "导出中…" : "导出 CSV" }}
+            <Download :size="16" />{{ exporting === "csv" ? "导出中…" : "导出 CSV" }}
+          </button>
+          <button
+            class="secondary-btn ledger-export"
+            type="button"
+            :disabled="!!exporting || loading"
+            aria-label="将当前筛选导出为 Excel"
+            @click="exportLedger('xlsx')"
+          >
+            <FileSpreadsheet :size="16" />{{ exporting === "xlsx" ? "导出中…" : "导出 Excel" }}
           </button>
         </div>
       </div>
