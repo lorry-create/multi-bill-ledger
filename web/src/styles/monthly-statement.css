@@ -65,10 +65,19 @@
 .monthly-statement .trend-chart.weekly { gap: 4px; }
 .monthly-statement .trend-bars { bottom: 21px; height: calc(100% - 23px); }
 .monthly-statement .trend-chart.weekly .trend-bars { left: 13%; right: 13%; gap: 3px; justify-content: center; }
-.monthly-statement .trend-bars i { position: relative; flex: 1; width: auto; min-width: 0; max-width: 20px; overflow: hidden; animation-delay: calc(var(--bar-index) * 24ms); }
-.monthly-statement .income-bar { background: linear-gradient(160deg,#5e9be7,#315fa8); }
-.monthly-statement .expense-bar { background: linear-gradient(160deg,#b4d8f6,#779fc8); }
-.monthly-statement .refund-bar { background: linear-gradient(160deg,#90bdb4,#56877f); }
+.monthly-statement .trend-bars i {
+  position: relative;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  max-width: 20px;
+  overflow: hidden;
+  animation-delay: calc(var(--bar-index) * 24ms);
+  background: linear-gradient(162deg, var(--bar-light), var(--bar-mid) 46%, var(--bar-deep));
+}
+.monthly-statement .income-bar { --bar-light: #7ab0ee; --bar-mid: #4885cb; --bar-deep: #315fa8; }
+.monthly-statement .expense-bar { --bar-light: #bdddf6; --bar-mid: #99c3e4; --bar-deep: #769fc8; }
+.monthly-statement .refund-bar { --bar-light: #a2d0c5; --bar-mid: #7aafa4; --bar-deep: #56877f; }
 .monthly-statement .chart-key .refund-key { background: #65958e; }
 .monthly-statement .trend-day:focus-visible { outline: 2px solid #407fc4; outline-offset: -2px; }
 .monthly-statement .statement-inspector { min-height: 0; background: none; border: 0; padding: 10px 0 0; margin: 0; border-radius: 0; display: grid; gap: 4px; }
@@ -81,7 +90,8 @@
 .monthly-statement .donut-hole { border: 0; box-shadow: none; background: transparent; width: 59%; height: 59%; }
 .monthly-statement .donut-hole strong { font-size: clamp(15px,1.8vw,23px); overflow-wrap: anywhere; max-width: 100%; }
 .monthly-statement .donut-hole > span { color: var(--statement-muted); }
-.statement-ring-dust { fill: #fff; opacity: .82; transform-origin: 90px 90px; }
+.statement-ring-dust { visibility: hidden; fill: #f4fbff; pointer-events: none; }
+.statement-ring-dust g { transform-origin: 90px 90px; }
 .monthly-statement .statement-legend { width: 100%; min-width: 0; gap: 0; }
 .monthly-statement .category-panel .statement-legend button { display: grid; grid-template-columns: 8px minmax(0,1fr) auto 48px 14px; gap: 10px; min-height: 51px; border-bottom: 1px solid var(--statement-line); border-radius: 0; }
 .monthly-statement .statement-legend button > span { text-align: left; white-space: normal; }
@@ -100,28 +110,77 @@
 .budget-detail:hover { background: #edf5fd; }
 .budget-detail .budget-track, .budget-detail small { grid-column: 1 / -1; }
 .budget-detail small { font-size: 12px; color: var(--statement-muted); overflow-wrap: anywhere; }
-.budget-detail .budget-track { display: block; height: 5px; border-radius: 5px; background: #e2ebf4; }
-.budget-detail .budget-track i { display: block; height: 100%; border-radius: inherit; background: #6194cf; }
+.budget-detail .budget-track { display: block; height: 9px; border-radius: 999px; overflow: hidden; background: #e2ebf4; }
+.budget-detail .budget-track i {
+  --budget-deep: #477ebd;
+  --budget-mid: #5e98d5;
+  --budget-light: #80b5e8;
+  position: relative;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--budget-deep), var(--budget-mid) 38%, var(--budget-light) 59%, var(--budget-deep));
+  background-size: 200% 100%;
+}
 .budget-status { display: flex; align-items: center; gap: 3px; font-size: 12px; }
 .statement-budget[data-level="over"] .budget-status, .statement-budget[data-level="near"] .budget-status { color: #8b5b1e; }
-.statement-budget[data-level="over"] .budget-track i { background: #b97136; }
-.statement-budget[data-level="near"] .budget-track i { background: #bc965a; }
+.statement-budget[data-level="over"] .budget-track i { --budget-deep: #a55c2c; --budget-mid: #bf783d; --budget-light: #dfaa74; }
+.statement-budget[data-level="near"] .budget-track i { --budget-deep: #a37b3d; --budget-mid: #bf9656; --budget-light: #dec18a; }
 .statement-empty { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 32px 0; gap: 15px; }
 .statement-empty h2 { margin: 0; font-size: 22px; }
-@media (prefers-reduced-motion: no-preference) {
-  .statement-ring-dust { animation: statement-orbit 12s linear 2; }
-  .monthly-statement .donut:is(:hover,:focus-within) .statement-ring-dust { animation-iteration-count: infinite; }
-  .monthly-statement .trend-chart.weekly .trend-bars i[data-lit="true"]::after,
-  .monthly-statement .trend-day:is(:hover,:focus-within) .trend-bars i[data-lit="true"]::after {
-    content: ""; position: absolute; inset: 0; opacity: 0; pointer-events: none;
-    background: radial-gradient(circle at 34% 2px, #fff 0 1.1px, transparent 1.6px), radial-gradient(circle at 72% 7px, #fffd 0 .7px, transparent 1.2px);
-    animation: statement-rise 4s cubic-bezier(.3,.6,.5,1) calc(var(--bar-index) * .27s) 3;
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .monthly-statement .trend-day:has(.trend-bars i[data-lit="true"]:hover) .trend-bars i[data-lit="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: .64;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 29% 9px, #fcfeff 0, #e1f4fcb3 .75px, transparent 1.45px) 0 0 / 100% 38px repeat-y,
+      radial-gradient(circle at 70% 19px, #e8f9ffe6 0, #bcecff99 .85px, transparent 1.45px) 0 0 / 100% 57px repeat-y,
+      radial-gradient(circle at 52% 32px, #d0e5fac2 0, #acccfac4 .6px, transparent 1.15px) 0 0 / 100% 72px repeat-y;
+    animation: statement-particles-rise 4.2s linear infinite, statement-particle-tint 5s ease-in-out infinite alternate;
   }
-  .monthly-statement .trend-day:is(:hover,:focus-within) .trend-bars i[data-lit="true"]::after { animation-iteration-count: infinite; }
+  .monthly-statement .donut:has(.donut-segment:hover) .statement-ring-dust { visibility: visible; }
+  .monthly-statement .donut:has(.donut-segment:hover) .statement-ring-dust g {
+    animation: statement-orbit 15s linear infinite, statement-ring-tint 4.6s ease-in-out infinite alternate;
+  }
+  .monthly-statement .donut:has(.donut-segment:hover) .statement-ring-dust g + g {
+    animation-duration: 19s, 5.5s;
+    animation-delay: -4s, -1.7s;
+  }
+  .statement-budget .budget-detail:hover .budget-track i {
+    animation: statement-budget-tint 4.5s ease-in-out infinite alternate;
+  }
+  .statement-budget .budget-detail:hover .budget-track i::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: .67;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 16px 3px, #ffffffd9 0 .75px, transparent 1.4px) 0 0 / 47px 100% repeat-x,
+      radial-gradient(circle at 39px 6px, #f6fbffb3 0 .65px, transparent 1.3px) 0 0 / 69px 100% repeat-x;
+    animation: statement-budget-drift 4s linear infinite;
+  }
 }
 @keyframes statement-orbit { to { transform: rotate(360deg); } }
-.document-hidden .statement-ring-dust, .document-hidden .monthly-statement .trend-bars i::after { animation-play-state: paused; }
-@keyframes statement-rise { 0% { opacity: 0; transform: translateY(100%); } 15%,70% { opacity: .8; } 90%,100% { opacity: 0; transform: translateY(0); } }
+@keyframes statement-particles-rise {
+  to { background-position: 0 -38px, 0 -57px, 0 -72px; }
+}
+@keyframes statement-particle-tint {
+  from { opacity: .53; }
+  to { opacity: .68; filter: hue-rotate(22deg); }
+}
+@keyframes statement-ring-tint {
+  from { fill: #f4fbff; opacity: .69; }
+  to { fill: #b6e6ff; opacity: .46; }
+}
+@keyframes statement-budget-tint { to { background-position: 100% 0; } }
+@keyframes statement-budget-drift { to { background-position: 47px 0, 69px 0; } }
+.document-hidden .monthly-statement .trend-bars i::after,
+.document-hidden .monthly-statement .budget-track i::after { animation-play-state: paused !important; }
 @media (max-width: 940px) {
   .statement-spread { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
   .statement-balance { padding: 18px; }

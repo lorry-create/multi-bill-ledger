@@ -708,9 +708,18 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   aria-hidden="true"
                   pointer-events="none"
                 >
-                  <circle cx="90" cy="20" r="1.8" />
-                  <circle cx="85" cy="20.2" r="1" />
-                  <circle cx="159" cy="102" r="1.25" />
+                  <g>
+                    <circle cx="90" cy="20" r="1.35" />
+                    <circle cx="124" cy="29" r=".82" />
+                    <circle cx="146" cy="131" r="1.18" />
+                    <circle cx="31" cy="128" r="1.05" />
+                  </g>
+                  <g>
+                    <circle cx="87" cy="25" r=".88" />
+                    <circle cx="102" cy="154" r="1.03" />
+                    <circle cx="155" cy="82" r=".76" />
+                    <circle cx="46" cy="42" r="1.08" />
+                  </g>
                 </g>
               </svg>
               <div class="donut-hole" aria-live="polite">
@@ -799,7 +808,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   >{{ budgetLabel(budget) }}<ChevronRight :size="13"
                 /></span>
                 <span class="budget-track" aria-hidden="true"
-                  ><i :style="{ width: budgetWidth(budget) + '%' }"></i
+                  ><i v-if="budget.spent_fen > 0" :style="{ width: budgetWidth(budget) + '%' }"></i
                 ></span>
                 <small
                   >净支出 {{ yuan(budget.spent_fen) }} · 额度
