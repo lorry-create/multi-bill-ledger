@@ -770,10 +770,77 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     >
                       <stop
                         offset="0"
-                        :stop-color="`color-mix(in srgb, ${item.color}, white 14%)`"
+                        :stop-color="`color-mix(in srgb, ${item.color}, white 22%)`"
                       />
-                      <stop offset="1" :stop-color="item.color" />
+                      <stop offset=".45" :stop-color="item.color" />
+                      <stop
+                        offset="1"
+                        :stop-color="`color-mix(in srgb, ${item.color}, #183d71 25%)`"
+                      />
                     </linearGradient>
+                    <mask
+                      id="expense-surface-mask"
+                      maskUnits="userSpaceOnUse"
+                      x="0"
+                      y="0"
+                      width="180"
+                      height="180"
+                    >
+                      <circle
+                        v-for="item in chartSegments"
+                        :key="item.category"
+                        class="statement-ring-mask"
+                        :class="{ active: activeCategory === item.category }"
+                        cx="90"
+                        cy="90"
+                        r="70"
+                        fill="none"
+                        stroke="white"
+                        stroke-width="22"
+                        pathLength="100"
+                        :stroke-dasharray="`${item.percent - item.gap} ${100 - item.percent + item.gap}`"
+                        :stroke-dashoffset="-item.offset - item.gap / 2"
+                        transform="rotate(-90 90 90)"
+                      />
+                    </mask>
+                    <radialGradient
+                      id="expense-bevel"
+                      cx="90"
+                      cy="90"
+                      r="81"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop offset=".72" stop-color="#16365e" stop-opacity=".27" />
+                      <stop offset=".79" stop-color="#e1f1ff" stop-opacity=".03" />
+                      <stop offset=".9" stop-color="#edf8ff" stop-opacity=".08" />
+                      <stop offset=".97" stop-color="#f5fbff" stop-opacity=".42" />
+                      <stop offset="1" stop-color="#244c7d" stop-opacity=".19" />
+                    </radialGradient>
+                    <linearGradient
+                      id="expense-flow-light"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="180"
+                      gradientUnits="userSpaceOnUse"
+                      spreadMethod="reflect"
+                    >
+                      <stop offset="0" stop-color="#133e79" stop-opacity=".12" />
+                      <stop offset=".32" stop-color="#a8d6ff" stop-opacity=".05" />
+                      <stop offset=".56" stop-color="#f3fbff" stop-opacity=".2" />
+                      <stop offset=".77" stop-color="#7eb5f0" stop-opacity=".04" />
+                      <stop offset="1" stop-color="#163f79" stop-opacity=".1" />
+                    </linearGradient>
+                    <pattern
+                      id="expense-flow-particles"
+                      width="42"
+                      height="52"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <circle cx="9" cy="10" r=".8" fill="#f6fcff" />
+                      <circle cx="28" cy="29" r="1.1" fill="#f0fbff" />
+                      <circle cx="38" cy="44" r=".6" fill="#bfe4ff" />
+                    </pattern>
                   </defs>
                   <circle
                     class="donut-track"
@@ -783,6 +850,27 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     fill="none"
                     stroke-width="22"
                   />
+                  <g
+                    class="statement-chart-depth"
+                    transform="translate(0 3)"
+                    aria-hidden="true"
+                    pointer-events="none"
+                  >
+                    <circle
+                      v-for="item in chartSegments"
+                      :key="item.category"
+                      cx="90"
+                      cy="90"
+                      r="70"
+                      fill="none"
+                      stroke-width="22"
+                      :stroke="`color-mix(in srgb, ${item.color}, #15385e 38%)`"
+                      pathLength="100"
+                      :stroke-dasharray="`${item.percent - item.gap} ${100 - item.percent + item.gap}`"
+                      :stroke-dashoffset="-item.offset - item.gap / 2"
+                      transform="rotate(-90 90 90)"
+                    />
+                  </g>
                   <circle
                     v-for="item in chartSegments"
                     :key="item.category"
@@ -813,22 +901,28 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     @keydown.space.prevent="goCategory(item.category, 'expense')"
                   />
                   <g
-                    class="statement-ring-dust"
+                    class="statement-chart-material"
+                    mask="url(#expense-surface-mask)"
                     aria-hidden="true"
                     pointer-events="none"
                   >
-                    <g>
-                      <circle cx="90" cy="20" r="1.35" />
-                      <circle cx="124" cy="29" r=".82" />
-                      <circle cx="146" cy="131" r="1.18" />
-                      <circle cx="31" cy="128" r="1.05" />
-                    </g>
-                    <g>
-                      <circle cx="87" cy="25" r=".88" />
-                      <circle cx="102" cy="154" r="1.03" />
-                      <circle cx="155" cy="82" r=".76" />
-                      <circle cx="46" cy="42" r="1.08" />
-                    </g>
+                    <rect width="180" height="180" fill="url(#expense-bevel)" />
+                    <rect
+                      class="statement-chart-tint"
+                      x="0"
+                      y="-180"
+                      width="180"
+                      height="540"
+                      fill="url(#expense-flow-light)"
+                    />
+                    <rect
+                      class="statement-chart-particles"
+                      x="0"
+                      y="-52"
+                      width="180"
+                      height="284"
+                      fill="url(#expense-flow-particles)"
+                    />
                   </g>
                 </svg>
                 <div class="donut-hole" aria-live="polite">
@@ -918,11 +1012,82 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     >
                       <stop
                         offset="0"
-                        :stop-color="`color-mix(in srgb, ${part.color}, white 10%)`"
+                        :stop-color="`color-mix(in srgb, ${part.color}, white 22%)`"
                       />
-                      <stop offset="1" :stop-color="part.color" />
+                      <stop offset=".45" :stop-color="part.color" />
+                      <stop
+                        offset="1"
+                        :stop-color="`color-mix(in srgb, ${part.color}, #183d71 25%)`"
+                      />
                     </linearGradient>
+                    <clipPath id="income-surface-clip">
+                      <path
+                        v-for="part in incomeSlices"
+                        :key="part.key"
+                        class="statement-income-clip"
+                        :class="{ active: activeIncome === part.key }"
+                        :style="{
+                          '--slice-x': part.shiftX,
+                          '--slice-y': part.shiftY,
+                        }"
+                        :d="part.path"
+                      />
+                    </clipPath>
+                    <radialGradient
+                      id="income-bevel"
+                      cx="61"
+                      cy="38"
+                      r="137"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop offset="0" stop-color="#f5fbff" stop-opacity=".3" />
+                      <stop offset=".38" stop-color="#edf8ff" stop-opacity=".08" />
+                      <stop offset=".68" stop-color="#edf8ff" stop-opacity="0" />
+                      <stop offset=".93" stop-color="#15365e" stop-opacity=".18" />
+                      <stop offset="1" stop-color="#15365e" stop-opacity=".26" />
+                    </radialGradient>
+                    <linearGradient
+                      id="income-flow-light"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="180"
+                      gradientUnits="userSpaceOnUse"
+                      spreadMethod="reflect"
+                    >
+                      <stop offset="0" stop-color="#133e79" stop-opacity=".12" />
+                      <stop offset=".32" stop-color="#a8d6ff" stop-opacity=".05" />
+                      <stop offset=".56" stop-color="#f3fbff" stop-opacity=".2" />
+                      <stop offset=".77" stop-color="#7eb5f0" stop-opacity=".04" />
+                      <stop offset="1" stop-color="#163f79" stop-opacity=".1" />
+                    </linearGradient>
+                    <pattern
+                      id="income-flow-particles"
+                      width="42"
+                      height="52"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <circle cx="9" cy="10" r=".8" fill="#f6fcff" />
+                      <circle cx="28" cy="29" r="1.1" fill="#f0fbff" />
+                      <circle cx="38" cy="44" r=".6" fill="#bfe4ff" />
+                    </pattern>
                   </defs>
+                  <g
+                    class="statement-chart-depth"
+                    transform="translate(0 3)"
+                    aria-hidden="true"
+                    pointer-events="none"
+                  >
+                    <path
+                      v-for="part in incomeSlices"
+                      :key="part.key"
+                      class="statement-income-depth"
+                      :class="{ active: activeIncome === part.key }"
+                      :style="{ '--slice-x': part.shiftX, '--slice-y': part.shiftY }"
+                      :d="part.path"
+                      :fill="`color-mix(in srgb, ${part.color}, #15385e 38%)`"
+                    />
+                  </g>
                   <path
                     v-for="part in incomeSlices"
                     :key="part.key"
@@ -947,21 +1112,42 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     @keydown.space.prevent="goCategory(part.category, 'income')"
                   />
                   <g
-                    class="statement-pie-dust"
+                    class="statement-chart-material"
+                    clip-path="url(#income-surface-clip)"
                     aria-hidden="true"
                     pointer-events="none"
                   >
-                    <g>
-                      <circle cx="90" cy="22" r="1" />
-                      <circle cx="143" cy="49" r=".75" />
-                      <circle cx="48" cy="142" r="1.1" />
-                      <circle cx="155" cy="108" r=".8" />
-                    </g>
-                    <g>
-                      <circle cx="34" cy="61" r=".8" />
-                      <circle cx="117" cy="151" r="1" />
-                      <circle cx="122" cy="33" r=".65" />
-                    </g>
+                    <rect width="180" height="180" fill="url(#income-bevel)" />
+                    <rect
+                      class="statement-chart-tint"
+                      x="0"
+                      y="-180"
+                      width="180"
+                      height="540"
+                      fill="url(#income-flow-light)"
+                    />
+                    <rect
+                      class="statement-chart-particles"
+                      x="0"
+                      y="-52"
+                      width="180"
+                      height="284"
+                      fill="url(#income-flow-particles)"
+                    />
+                  </g>
+                  <g
+                    class="statement-income-edges"
+                    aria-hidden="true"
+                    pointer-events="none"
+                  >
+                    <path
+                      v-for="part in incomeSlices"
+                      :key="part.key"
+                      class="statement-income-edge"
+                      :class="{ active: activeIncome === part.key }"
+                      :style="{ '--slice-x': part.shiftX, '--slice-y': part.shiftY }"
+                      :d="part.path"
+                    />
                   </g>
                   <g
                     v-if="incomeSlices.length === 1"

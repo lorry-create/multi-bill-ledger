@@ -127,7 +127,12 @@
   filter: none;
 }
 .monthly-statement .donut > svg,
-.statement-income-pie { filter: drop-shadow(0 5px 8px #28568616); }
+.statement-income-pie { filter: drop-shadow(1px 6px 7px #20437725); }
+.statement-chart-depth { opacity: .8; }
+.statement-chart-material { pointer-events: none; }
+.statement-chart-tint, .statement-chart-particles { visibility: hidden; pointer-events: none; }
+.statement-ring-mask { transition: stroke-width .22s ease; }
+.statement-ring-mask.active { stroke-width: 24; }
 .monthly-statement .donut-track { stroke: #e5eef9; }
 .monthly-statement .donut-segment { stroke-width: 22; transition: stroke-width .22s ease, opacity .22s ease; }
 .monthly-statement .donut-segment:is(:hover, .active, :focus-visible) { stroke-width: 24; filter: none; }
@@ -137,8 +142,6 @@
 .monthly-statement .donut-hole strong { color: var(--statement-ink); font-size: clamp(21px, 2.3vw, 29px); font-weight: 630; letter-spacing: -.035em; overflow-wrap: anywhere; max-width: 100%; }
 .monthly-statement .donut-hole > span { color: var(--statement-muted); font-size: 12px; }
 .monthly-statement .donut-hole small { color: #3474db; font-size: 12px; font-weight: 550; }
-.statement-ring-dust { visibility: hidden; fill: #f4fbff; pointer-events: none; }
-.statement-ring-dust g { transform-origin: 90px 90px; }
 .monthly-statement .statement-legend,
 .statement-income-legend { width: 100%; min-width: 0; display: grid; gap: 0; }
 .monthly-statement .category-panel .statement-legend button,
@@ -193,10 +196,18 @@
   stroke-linejoin: round;
   transition: transform .24s cubic-bezier(.16, 1, .3, 1), opacity .2s ease;
 }
+.statement-income-clip,
+.statement-income-depth,
+.statement-income-edge { transition: transform .24s cubic-bezier(.16, 1, .3, 1); }
+.statement-income-edge { fill: none; stroke: #f6f9ff; stroke-width: 2.4px; stroke-linejoin: round; }
 .statement-income-slice.active,
+.statement-income-clip.active,
+.statement-income-depth.active,
+.statement-income-edge.active,
 .statement-income-slice-share.active { transform: translate(var(--slice-x), var(--slice-y)); }
 .statement-income-slice.muted { opacity: .58; }
 .statement-income-slice:focus-visible { outline: none; stroke: #153c77; stroke-width: 2.4px; }
+.statement-income-pie:has(.statement-income-slice:focus-visible) .statement-income-edge.active { stroke: #153c77; }
 .statement-income-labels {
   pointer-events: none;
   text-anchor: middle;
@@ -206,8 +217,6 @@
 .statement-income-center-name { font-size: 15px; font-weight: 400; }
 .statement-income-center-share { font-size: 32px; }
 .statement-income-slice-share { font-size: 13px; transition: transform .24s cubic-bezier(.16, 1, .3, 1); }
-.statement-pie-dust { visibility: hidden; fill: #fff; opacity: .55; }
-.statement-pie-dust g { transform-origin: 90px 90px; }
 .statement-budgets { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 36px; }
 .statement-budget { border-bottom: 1px solid var(--statement-line); }
 .budget-detail { background: transparent; border: 0; padding: 14px 0; width: 100%; display: grid; align-items: center; gap: 8px 12px; grid-template-columns: 1fr auto; text-align: left; font: inherit; color: var(--statement-ink); }
@@ -255,36 +264,14 @@
       radial-gradient(circle at 52% 32px, #d0e5fac2 0, #acccfac4 .6px, transparent 1.15px) 0 0 / 100% 72px repeat-y;
     animation: statement-particles-rise 4.2s linear infinite, statement-particle-tint 5s ease-in-out infinite alternate;
   }
-  .monthly-statement .donut[data-flow-visible]::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: conic-gradient(from 0deg, transparent 5%, #d9edff66 22%, transparent 38%, #2455a13a 64%, transparent 85%);
-    mask-image: radial-gradient(circle closest-side, transparent 63.5%, #000 64.5% 91%, transparent 92%);
-    animation: statement-orbit 14s linear infinite;
+  .monthly-statement [data-flow-visible] .statement-chart-tint {
+    visibility: visible;
+    animation: statement-chart-tint 5.8s ease-in-out infinite alternate;
   }
-  .monthly-statement .donut[data-flow-visible] .statement-ring-dust { visibility: visible; }
-  .monthly-statement .donut[data-flow-visible] .statement-ring-dust g {
-    animation: statement-orbit 15s linear infinite, statement-ring-tint 4.6s ease-in-out infinite alternate;
+  .monthly-statement [data-flow-visible] .statement-chart-particles {
+    visibility: visible;
+    animation: statement-chart-rise 4.2s linear infinite, statement-particle-tint 5s ease-in-out infinite alternate;
   }
-  .monthly-statement .donut[data-flow-visible] .statement-ring-dust g + g {
-    animation-duration: 19s, 5.5s;
-    animation-delay: -4s, -1.7s;
-  }
-  .statement-pie-stage[data-flow-visible]::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: conic-gradient(transparent 15%, #ffffff1f 30%, transparent 45%, #a8d4ff19 75%, transparent 90%);
-    mask-image: radial-gradient(circle closest-side, #000 88%, transparent 89%);
-    animation: statement-orbit 16s linear infinite;
-  }
-  .statement-pie-stage[data-flow-visible] .statement-pie-dust { visibility: visible; }
-  .statement-pie-stage[data-flow-visible] .statement-pie-dust g { animation: statement-orbit 18s linear infinite; }
-  .statement-pie-stage[data-flow-visible] .statement-pie-dust g + g { animation-duration: 24s; animation-delay: -8s; }
   .statement-budget .budget-track i[data-flow-visible] {
     animation: statement-budget-tint 4.5s ease-in-out infinite alternate;
   }
@@ -300,7 +287,11 @@
     animation: statement-budget-drift 4s linear infinite;
   }
 }
-@keyframes statement-orbit { to { transform: rotate(360deg); } }
+@keyframes statement-chart-tint {
+  from { transform: translateY(-60px); }
+  to { transform: translateY(60px); }
+}
+@keyframes statement-chart-rise { to { transform: translateY(-52px); } }
 @keyframes statement-bar-tint {
   from { background-position: 0 0, 0 0, 0 12%; }
   to { background-position: 0 0, 0 0, 0 94%; }
@@ -312,16 +303,12 @@
   from { opacity: .53; }
   to { opacity: .68; filter: hue-rotate(22deg); }
 }
-@keyframes statement-ring-tint {
-  from { fill: #f4fbff; opacity: .69; }
-  to { fill: #b6e6ff; opacity: .46; }
-}
 @keyframes statement-budget-tint { to { background-position: 100% 0; } }
 @keyframes statement-budget-drift { to { background-position: 47px 0, 69px 0; } }
 .document-hidden .monthly-statement .trend-bars i::before,
 .document-hidden .monthly-statement .trend-bars i::after,
-.document-hidden .monthly-statement .donut::before,
-.document-hidden .statement-pie-stage::after,
+.document-hidden .statement-chart-tint,
+.document-hidden .statement-chart-particles,
 .document-hidden .monthly-statement .budget-track i::after { animation-play-state: paused !important; }
 @media (max-width: 940px) {
   .statement-spread { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
@@ -353,6 +340,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .monthly-statement .trend-bars i, .monthly-statement .donut { animation: none; }
-  .statement-ring-dust, .statement-pie-dust { display: none; }
-  .statement-income-slice, .statement-income-slice-share { transform: none; transition: none; }
+  .statement-chart-tint, .statement-chart-particles { display: none; }
+  .statement-ring-mask { transition: none; }
+  .statement-income-slice, .statement-income-slice-share, .statement-income-clip,
+  .statement-income-depth, .statement-income-edge { transform: none; transition: none; }
 }
