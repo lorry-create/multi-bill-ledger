@@ -1,6 +1,6 @@
 // 演示数据仅来自 contracts/examples.json 的独立合成快照；不是实际后端记录。
 import examples from "../../../contracts/examples.json";
-import type * as SDK from "./client.generated";
+import * as SDK from "./client.generated";
 
 type Case = { case_id: string; response: { body?: unknown } };
 const cases = examples.cases as Case[];
@@ -10,6 +10,7 @@ function sample<T>(name: string): T {
   ) as T;
 }
 let session: SDK.Session | null = null;
+const demoSessionKey = "ledger-demo-session";
 let batch: SDK.Batch | null = null;
 let transactions = sample<SDK.TransactionPage>(
   "listTransactions_success",
@@ -18,19 +19,76 @@ let rules = sample<SDK.RuleList>("listRules_success").items;
 let report = sample<SDK.MonthlyReport>("getMonthlyReport_success");
 const wait = () => new Promise((resolve) => setTimeout(resolve, 350));
 
+type TransactionFilters = NonNullable<
+  SDK.OperationArgs["exportTransactions"]["query"]
+>;
+const shanghaiDate = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const csvColumns = [
+  "occurred_at",
+  "source",
+  "flow_type",
+  "category",
+  "amount_fen",
+  "currency",
+  "merchant",
+  "description",
+  "classification_source",
+  "source_transaction_id",
+] as const satisfies readonly (keyof SDK.Transaction)[];
+
+function matchingTransactions(query: TransactionFilters) {
+  return transactions
+    .filter((item) => {
+      if (query.category && item.category !== query.category) return false;
+      if (query.source && item.source !== query.source) return false;
+      if (query.flow_type && item.flow_type !== query.flow_type) return false;
+      if (!query.date_from && !query.date_to) return true;
+      const day = shanghaiDate.format(new Date(item.occurred_at));
+      return (
+        (!query.date_from || day >= query.date_from) &&
+        (!query.date_to || day <= query.date_to)
+      );
+    })
+    .sort((a, b) => {
+      const timeDifference =
+        Date.parse(b.occurred_at) - Date.parse(a.occurred_at);
+      if (timeDifference || a.id === b.id) return timeDifference;
+      return a.id < b.id ? 1 : -1;
+    });
+}
+
+function csvCell(value: string | number | null) {
+  if (typeof value === "number") return String(value);
+  const text = value ?? "";
+  const safeText = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\r\n]/.test(safeText)
+    ? `"${safeText.replaceAll('"', '""')}"`
+    : safeText;
+}
+
 export const mock = {
   async login() {
     await wait();
     session = sample<SDK.Session>("login_success");
+    globalThis.sessionStorage?.setItem(demoSessionKey, "true");
     return session;
   },
   async getSession() {
     await wait();
+    if (!session && globalThis.sessionStorage?.getItem(demoSessionKey) === "true") {
+      session = sample<SDK.Session>("login_success");
+    }
     if (!session) throw new Error("演示会话尚未建立");
     return session;
   },
   async logout() {
     session = null;
+    globalThis.sessionStorage?.removeItem(demoSessionKey);
   },
   async createImport(args: SDK.OperationArgs["createImport"]) {
     await wait();
@@ -98,14 +156,7 @@ export const mock = {
   async listTransactions(args: SDK.OperationArgs["listTransactions"]) {
     await wait();
     const q = args.query ?? {};
-    const filtered = transactions.filter(
-      (x) =>
-        (!q.category || x.category === q.category) &&
-        (!q.source || x.source === q.source) &&
-        (!q.flow_type || x.flow_type === q.flow_type) &&
-        (!q.date_from || x.occurred_at.slice(0, 10) >= q.date_from) &&
-        (!q.date_to || x.occurred_at.slice(0, 10) <= q.date_to),
-    );
+    const filtered = matchingTransactions(q);
     const page = q.page ?? 1,
       size = q.page_size ?? 50;
     return {
@@ -117,10 +168,25 @@ export const mock = {
   },
   async patchTransaction(args: SDK.OperationArgs["patchTransaction"]) {
     const index = transactions.findIndex((x) => x.id === args.path.id);
+    const current = transactions[index];
+    if (!current) {
+      throw new SDK.ApiError(404, {
+        error: { code: "RESOURCE_NOT_FOUND", message: "资源不存在", details: {} },
+      });
+    }
+    if (args.body.expected_version !== current.version) {
+      throw new SDK.ApiError(409, {
+        error: {
+          code: "VERSION_CONFLICT",
+          message: "记录已被其他操作修改",
+          details: { current_version: current.version },
+        },
+      });
+    }
     const item = {
-      ...transactions[index],
+      ...current,
       ...args.body.changes,
-      version: transactions[index].version + 1,
+      version: current.version + 1,
       classification_source: "manual" as const,
     };
     transactions[index] = item;
@@ -180,8 +246,12 @@ export const mock = {
       });
     return { id: "demo_budget", ...b };
   },
-  async exportTransactions() {
-    return new Blob(["日期,商户,金额（分）\n2026-11-08,示例餐馆,2300"], {
+  async exportTransactions(args: SDK.OperationArgs["exportTransactions"]) {
+    const rows = matchingTransactions(args.query ?? {}).map((transaction) =>
+      csvColumns.map((column) => csvCell(transaction[column])).join(","),
+    );
+    const csv = [csvColumns.join(","), ...rows].join("\r\n");
+    return new Blob(["\uFEFF", csv, "\r\n"], {
       type: "text/csv;charset=utf-8",
     });
   },
