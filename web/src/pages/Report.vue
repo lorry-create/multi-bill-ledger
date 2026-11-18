@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowDownRight,
-  ArrowRight,
   ArrowUpRight,
   Download,
   ChevronLeft,
@@ -98,7 +97,6 @@ onUnmounted(() => window.removeEventListener("keydown", onReportKeydown));
 const activeCategory = ref<Category | null>(null);
 const trendMode = ref<"daily" | "weekly">("weekly");
 const activeTrendIndex = ref<number | null>(null);
-const plot = ref<HTMLElement | null>(null);
 type Tooltip = {
   x: number;
   y: number;
@@ -148,7 +146,7 @@ function showTrendTooltip(event: PointerEvent, index: number) {
   if (!item) return;
   placeTooltip(event, item.range, "#397ed8", [
     { label: "收入", value: yuan(item.income_fen) },
-    { label: "毛支出", value: yuan(item.gross_expense_fen) },
+    { label: "支出", value: yuan(item.gross_expense_fen) },
     { label: "退款", value: yuan(item.refund_fen) },
   ]);
 }
@@ -173,14 +171,12 @@ const trendData = computed(() => {
       ...day,
       label: String(Number(day.date.slice(-2))),
       range: day.date,
-      endDate: day.date,
     }));
   const weeks = [];
   for (let i = 0; i < days.length; i += 7) {
     const group = days.slice(i, i + 7);
     weeks.push({
       date: group[0].date,
-      endDate: group[group.length - 1].date,
       label: `${i + 1}–${i + group.length}日`,
       range: `${group[0].date} — ${group[group.length - 1].date}`,
       income_fen: group.reduce((sum, day) => sum + day.income_fen, 0),
@@ -193,17 +189,14 @@ const trendData = computed(() => {
   }
   return weeks;
 });
-const inspectedTrendIndex = computed(() => {
+const inspectedTrend = computed(() => {
   const items = trendData.value;
   const fallback = items.findIndex(
     (item) =>
       item.income_fen > 0 || item.gross_expense_fen > 0 || item.refund_fen > 0,
   );
-  return activeTrendIndex.value ?? Math.max(0, fallback);
+  return items[activeTrendIndex.value ?? (fallback < 0 ? 0 : fallback)];
 });
-const inspectedTrend = computed(
-  () => trendData.value[inspectedTrendIndex.value],
-);
 const trendPeak = computed(() =>
   Math.max(
     0,
@@ -212,34 +205,6 @@ const trendPeak = computed(() =>
     ),
   ),
 );
-const trendMidpoint = computed(() => Math.round(trendPeak.value / 2));
-const trendMidpointPosition = computed(
-  () =>
-    `${trendPeak.value ? (1 - trendMidpoint.value / trendPeak.value) * 100 : 0}%`,
-);
-const trendCursor = computed(() => {
-  const count = trendData.value.length || 1;
-  return {
-    "--period-count": count,
-    "--period-width": `${100 / count}%`,
-    "--cursor-offset": `${inspectedTrendIndex.value * 100}%`,
-    "--midline-position": trendMidpointPosition.value,
-  };
-});
-function navigateTrend(event: KeyboardEvent, index: number) {
-  const last = trendData.value.length - 1;
-  const targets: Record<string, number> = {
-    ArrowLeft: index - 1,
-    ArrowRight: index + 1,
-    Home: 0,
-    End: last,
-  };
-  const target = targets[event.key];
-  if (target === undefined) return;
-  event.preventDefault();
-  const next = Math.max(0, Math.min(last, target));
-  plot.value?.querySelectorAll<HTMLButtonElement>(".trend-day")[next]?.focus();
-}
 const maxTrend = computed(() => trendPeak.value || 1);
 function axisAmount(fen: number) {
   const value = fen / 100;
@@ -291,10 +256,6 @@ const inspectedCategory = computed(() =>
 );
 const budgetByCategory = computed(
   () => new Map(report.value?.budgets.map((item) => [item.category, item])),
-);
-const exceededBudgetCount = computed(
-  () =>
-    report.value?.budgets.filter((budget) => budget.over_fen > 0).length ?? 0,
 );
 function budgetWidth(budget: BudgetStatus) {
   if (budget.budget_fen === 0) return budget.over_fen > 0 ? 100 : 0;
@@ -512,14 +473,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
         重试
       </button>
     </div>
-    <div
-      v-if="loading"
-      class="statement-spread statement-loading"
-      role="status"
-    >
-      <span>正在读取月报…</span>
-      <div aria-hidden="true"></div>
-    </div>
+    <div v-if="loading" class="empty-state" role="status">正在读取月报…</div>
     <template v-else-if="report">
       <div v-if="!confirmedActivity" class="statement-empty">
         <div>
@@ -553,28 +507,14 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
               </div>
             </dl>
             <p>按已确认账单统计，净支出已扣除退款。</p>
-            <a
-              v-if="exceededBudgetCount"
-              class="statement-budget-link"
-              href="#statement-budgets"
-            >
-              <span>{{ exceededBudgetCount }} 个类别超出预算</span>
-              <ArrowRight :size="16" aria-hidden="true" />
-            </a>
           </section>
           <section class="trend-panel statement-trend">
-            <div class="panel-heading statement-trend-heading">
+            <div class="panel-heading">
               <div>
                 <h2>收支走势</h2>
               </div>
-              <div
-                class="chart-switch"
-                :data-mode="trendMode"
-                role="group"
-                aria-label="趋势时间范围"
-              >
+              <div class="chart-switch" role="group" aria-label="趋势时间范围">
                 <button
-                  type="button"
                   :class="{ active: trendMode === 'daily' }"
                   :aria-pressed="trendMode === 'daily'"
                   @click="changeTrendMode('daily')"
@@ -582,7 +522,6 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   按日
                 </button>
                 <button
-                  type="button"
                   :class="{ active: trendMode === 'weekly' }"
                   :aria-pressed="trendMode === 'weekly'"
                   @click="changeTrendMode('weekly')"
@@ -597,41 +536,37 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                 <small
                   v-if="trendPeak >= 2"
                   class="half-tick"
-                  :style="{ top: trendMidpointPosition }"
-                  >{{ axisAmount(trendMidpoint) }}</small
+                  :style="{
+                    top:
+                      (1 - Math.round(trendPeak / 2) / trendPeak) * 100 + '%',
+                  }"
+                  >{{ axisAmount(Math.round(trendPeak / 2)) }}</small
                 >
                 <small class="zero-tick">0 元</small>
               </div>
               <div class="statement-chart-scroll">
                 <div
-                  :key="`${month}-${trendMode}`"
-                  ref="plot"
+                  :key="trendMode"
                   class="trend-chart"
                   :class="{ weekly: trendMode === 'weekly' }"
-                  :style="trendCursor"
-                  role="group"
                   aria-label="收入、毛支出与退款柱状图"
                 >
-                  <span
-                    class="statement-chart-cursor"
-                    aria-hidden="true"
-                  ></span>
-                  <button
+                  <div
                     v-for="(day, index) in trendData"
                     :key="day.date"
-                    type="button"
                     class="trend-day"
-                    :style="{ '--bar-index': Math.min(index, 12) }"
-                    :class="{ selected: inspectedTrendIndex === index }"
-                    :tabindex="inspectedTrendIndex === index ? 0 : -1"
-                    :aria-pressed="inspectedTrendIndex === index"
-                    :aria-label="`${day.range} 收入 ${yuan(day.income_fen)}，毛支出 ${yuan(day.gross_expense_fen)}，退款 ${yuan(day.refund_fen)}`"
+                    :style="{ '--bar-index': index % 7 }"
+                    :class="{ selected: activeTrendIndex === index }"
+                    role="button"
+                    tabindex="0"
+                    :aria-label="`${day.range} 收入 ${yuan(day.income_fen)}，支出 ${yuan(day.gross_expense_fen)}，退款 ${yuan(day.refund_fen)}`"
                     @pointerenter="showTrendTooltip($event, index)"
                     @pointermove="showTrendTooltip($event, index)"
                     @pointerleave="hideTooltip()"
                     @focus="activeTrendIndex = index"
                     @click="activeTrendIndex = index"
-                    @keydown="navigateTrend($event, index)"
+                    @keydown.enter="activeTrendIndex = index"
+                    @keydown.space.prevent="activeTrendIndex = index"
                   >
                     <span class="trend-bars"
                       ><i
@@ -663,51 +598,28 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                       "
                       >{{ day.label }}</small
                     >
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>
             <div
               v-if="inspectedTrend"
               class="trend-inspector statement-inspector"
+              aria-live="polite"
             >
-              <div class="statement-period">
-                <time :datetime="inspectedTrend.date">{{
-                  inspectedTrend.date.slice(5).replace("-", "/")
-                }}</time>
-                <template v-if="inspectedTrend.endDate !== inspectedTrend.date">
-                  <span aria-hidden="true">–</span>
-                  <time :datetime="inspectedTrend.endDate">{{
-                    inspectedTrend.endDate.slice(5).replace("-", "/")
-                  }}</time>
-                </template>
-                <RouterLink
-                  class="statement-period-link"
-                  :to="{
-                    path: '/transactions',
-                    query: {
-                      date_from: inspectedTrend.date,
-                      date_to: inspectedTrend.endDate,
-                    },
-                  }"
+              <strong>{{ inspectedTrend.range }}</strong>
+              <div class="chart-key">
+                <span
+                  ><i class="income-key"></i>收入
+                  {{ yuan(inspectedTrend.income_fen) }}</span
+                ><span
+                  ><i class="expense-key"></i>支出
+                  {{ yuan(inspectedTrend.gross_expense_fen) }}</span
+                ><span
+                  ><i class="refund-key"></i>退款
+                  {{ yuan(inspectedTrend.refund_fen) }}</span
                 >
-                  查看流水 <ArrowRight :size="15" aria-hidden="true" />
-                </RouterLink>
               </div>
-              <dl class="statement-readout" :key="inspectedTrend.date">
-                <div>
-                  <dt><i class="income-key"></i>收入</dt>
-                  <dd>{{ yuan(inspectedTrend.income_fen) }}</dd>
-                </div>
-                <div>
-                  <dt><i class="expense-key"></i>毛支出</dt>
-                  <dd>{{ yuan(inspectedTrend.gross_expense_fen) }}</dd>
-                </div>
-                <div>
-                  <dt><i class="refund-key"></i>退款</dt>
-                  <dd>{{ yuan(inspectedTrend.refund_fen) }}</dd>
-                </div>
-              </dl>
             </div>
           </section>
         </div>
@@ -836,9 +748,10 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                 <i :style="{ background: item.color }"></i
                 ><span
                   >{{ categories[item.category]
-                  }}<em v-if="item.category !== 'pending'">{{
-                    budgetLabel(budgetByCategory.get(item.category))
-                  }}</em></span
+                  }}<em
+                    v-if="item.category !== 'pending'"
+                    >{{ budgetLabel(budgetByCategory.get(item.category)) }}</em
+                  ></span
                 ><strong>{{ yuan(item.amount_fen) }}</strong
                 ><small>{{ item.percent.toFixed(1) }}%</small
                 ><ChevronRight :size="14" aria-hidden="true" />
@@ -855,7 +768,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
         class="statement-bottom"
         :class="{ 'budget-only': !confirmedActivity }"
       >
-        <section id="statement-budgets" class="statement-block budget-panel">
+        <section class="statement-block budget-panel">
           <div class="panel-heading">
             <div>
               <h2>类别预算</h2>

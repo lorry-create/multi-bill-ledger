@@ -32,271 +32,49 @@
 .month-arrows button:hover { background: #eff6ff; }
 .month-arrows button:focus-visible { outline-offset: -3px; }
 .statement-spread {
-  display: grid;
-  grid-template-columns: minmax(0, .74fr) minmax(0, 1.6fr);
-  gap: clamp(22px, 3vw, 48px);
-  padding: clamp(22px, 3vw, 40px) 0;
-  border-bottom: 1px solid var(--statement-line);
+  display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.4fr);
+  padding: clamp(20px, 2.6vw, 36px) 0; border-bottom: 1px solid var(--statement-line);
 }
 .statement-balance {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  justify-content: center;
-  padding-block: 12px;
+  min-width: 0; padding: clamp(19px, 2.4vw, 35px);
+  border-radius: 16px;
+  align-self: stretch; display: flex; flex-direction: column; justify-content: center;
+  background: linear-gradient(128deg, #e7f2ff, #f1f6fc 65%, #eaf2fb);
 }
-.statement-balance h2, .monthly-statement .panel-heading h2 {
-  margin: 0;
-  color: var(--statement-ink);
-  font-size: 19px;
-  line-height: 1.4;
-}
-.statement-balance h2 { font-size: 15px; font-weight: 650; }
-.statement-amount {
-  display: block;
-  margin: 8px 0 28px;
-  font-size: clamp(41px, 5.3vw, 86px);
-  font-weight: 690;
-  line-height: 1.08;
-  letter-spacing: -.04em;
-  color: #13345a;
-  overflow-wrap: anywhere;
-}
+.statement-balance h2, .monthly-statement .panel-heading h2 { font-size: 19px; line-height: 1.4; margin: 0; color: var(--statement-ink); }
+.statement-balance h2 { font-size: 15px; font-weight: 600; }
+.statement-amount { display: block; font-size: clamp(38px, 4.2vw, 68px); font-weight: 670; line-height: 1.13; letter-spacing: -.04em; margin: 8px 0 22px; color: #183e6f; overflow-wrap: anywhere; }
 .statement-amount.compact-amount { font-size: clamp(26px, 2.6vw, 45px); }
-.statement-balance dl { margin: 0; border-top: 1px solid #cbd9e9; }
-.statement-balance dl > div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #dce6f1;
-}
-.statement-balance dt { display: inline-flex; gap: 7px; align-items: center; color: #486789; font-size: 13px; }
-.statement-balance dd { margin: 0; font-size: 18px; font-weight: 650; overflow-wrap: anywhere; }
-.statement-balance p, .monthly-statement .panel-heading p, .statement-empty p {
-  margin: 5px 0 0;
-  color: var(--statement-muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
-.statement-balance p { margin-top: 14px; font-size: 12px; }
-.statement-budget-link {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 10px;
-  margin-top: 20px;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid #eadcca;
-  border-radius: 9px;
-  background: #faf4eb;
-  color: #794f21;
-  font-size: 12px;
-  font-weight: 620;
-}
-.statement-budget-link:hover { background: #f4e9d8; }
-#statement-budgets { scroll-margin-top: 70px; }
-
-.statement-trend {
-  --chart-income: #8be1ff;
-  --chart-expense: #99aeff;
-  --chart-refund: #7ce5cd;
-  --chart-divider: #bddeff36;
-  min-width: 0;
-  padding: clamp(18px, 2.25vw, 32px);
-  border: 1px solid #213e63;
-  border-radius: 20px;
-  background:
-    radial-gradient(ellipse at 72% -18%, #27537e 0%, transparent 59%),
-    linear-gradient(140deg, #152f50, #0d2541 78%);
-  color: #f3f8ff;
-  box-shadow: 0 18px 38px #183d651d, inset 0 1px #c1dfff22;
-}
+.statement-balance dl { margin: 0; border-top: 1px solid #c9d9e8; }
+.statement-balance dl > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-top: 12px; }
+.statement-balance dt { display: inline-flex; gap: 6px; align-items: center; color: #486789; font-size: 13px; }
+.statement-balance dd { margin: 0; font-size: clamp(16px, 1.5vw, 21px); font-weight: 610; overflow-wrap: anywhere; }
+.statement-balance p, .monthly-statement .panel-heading p, .statement-empty p { color: var(--statement-muted); font-size: 13px; line-height: 1.6; margin: 5px 0 0; }
+.statement-balance p { margin-top: 19px; font-size: 12px; }
+.statement-trend { min-width: 0; padding: 0 0 0 clamp(16px, 3vw, 44px); }
 .monthly-statement .panel-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }
-.monthly-statement .statement-trend-heading h2 { color: #f3f8ff; font-size: 20px; letter-spacing: -.015em; }
-.statement-trend .chart-switch {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0;
-  padding: 3px;
-  border: 1px solid #b2d7ff34;
-  background: #091d35a8;
-}
-.statement-trend .chart-switch::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: 3px auto 3px 3px;
-  width: calc((100% - 6px) / 2);
-  border-radius: 7px;
-  background: #d9edff;
-  transition: transform .24s var(--ease-arrive);
-}
-.statement-trend .chart-switch[data-mode="weekly"]::before { transform: translateX(100%); }
-.monthly-statement .statement-trend .chart-switch button { min-height: 34px; background: transparent; box-shadow: none; color: #b7cfe9; }
-.monthly-statement .statement-trend .chart-switch button.active { color: #183a62; }
-.statement-trend :focus-visible { outline-color: #a1e4ff; }
-
-.statement-plot {
-  --plot-height: 194px;
-  --date-rail-height: 36px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 9px;
-  margin-top: 22px;
-}
-.statement-chart-scroll { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #5e82a8 transparent; }
-.statement-scale {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: end;
-  height: var(--plot-height);
-  padding-bottom: 2px;
-  color: #bed5ed;
-}
-.statement-scale small { line-height: 1; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.statement-scale .half-tick { position: absolute; transform: translateY(-50%); }
+.monthly-statement .chart-switch button { min-height: 32px; }
+.statement-chart-scroll { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #acbfd5 transparent; }
+.statement-plot { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: start; column-gap: 8px; }
+.statement-scale { position: relative; display: flex; flex-direction: column; align-items: end; height: 149px; margin-top: 11px; color: var(--statement-muted); }
+.statement-scale small { line-height: 1; font-size: 10px; font-variant-numeric: tabular-nums; }
+.statement-scale .half-tick { position: absolute; top: 50%; transform: translateY(-50%); }
 .statement-scale .zero-tick { margin-top: auto; }
-.monthly-statement .trend-chart {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: repeat(var(--period-count), minmax(0, 1fr));
-  gap: 0;
-  height: calc(var(--plot-height) + var(--date-rail-height));
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-.monthly-statement .trend-chart:not(.weekly) { min-width: 830px; }
-.statement-trend .trend-chart::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 var(--date-rail-height);
-  pointer-events: none;
-  border-block: 1px solid var(--chart-divider);
-  background: linear-gradient(
-    to bottom,
-    transparent calc(var(--midline-position) - .5px),
-    var(--chart-divider) calc(var(--midline-position) - .5px) calc(var(--midline-position) + .5px),
-    transparent calc(var(--midline-position) + .5px)
-  );
-}
-.statement-chart-cursor {
-  position: absolute;
-  inset: 0 auto 3px 0;
-  width: var(--period-width);
-  transform: translateX(var(--cursor-offset));
-  pointer-events: none;
-  border-radius: 9px;
-  border: 1px solid #a6d4ff30;
-  background: linear-gradient(#93c7ff22, #93c7ff0a 66%, #93c7ff1f);
-  transition: transform .28s var(--ease-arrive);
-}
-.statement-chart-cursor::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto calc(var(--date-rail-height) - 4px) 50%;
-  border-left: 1px dashed #b9deff65;
-}
-.monthly-statement .trend-chart .trend-day {
-  position: relative;
-  min-width: 0;
-  appearance: none;
-  border: 0;
-  border-radius: 8px;
-  padding: 0;
-  background: transparent;
-  color: #a9c4dd;
-}
-.monthly-statement .trend-day:focus-visible { outline: 2px solid #a1e4ff; outline-offset: -2px; }
-.monthly-statement .statement-trend .trend-chart .trend-day small {
-  top: auto;
-  bottom: 11px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: inherit;
-  font-size: 11px;
-  white-space: nowrap;
-}
-.monthly-statement .trend-day.selected { color: #e6f6ff; font-weight: 680; }
-.monthly-statement .trend-day.selected::after { content: none; }
-.monthly-statement .trend-chart .trend-bars {
-  inset: auto 14% var(--date-rail-height);
-  height: var(--plot-height);
-  gap: clamp(2px, .5vw, 6px);
-  justify-content: center;
-}
-.monthly-statement .trend-chart:not(.weekly) .trend-bars { inset-inline: 13%; gap: 1px; }
-.monthly-statement .trend-bars i {
-  position: relative;
-  flex: 1;
-  width: auto;
-  min-width: 0;
-  max-width: 23px;
-  overflow: hidden;
-  border-radius: 5px 5px 0 0;
-  box-shadow: none;
-  filter: none;
-  opacity: .8;
-}
-.monthly-statement .trend-day.selected .trend-bars i { opacity: 1; }
-.monthly-statement .income-bar { background: linear-gradient(170deg, #b2efff, #58b3e1 48%, #247cad); }
-.monthly-statement .expense-bar { background: linear-gradient(170deg, #b6c8ff, #809cf2 53%, #526dc1); }
-.monthly-statement .refund-bar { background: linear-gradient(170deg, #a8f2db, #61cdb7 56%, #398b84); }
-
-.monthly-statement .statement-inspector {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  gap: 15px clamp(15px, 2vw, 28px);
-  align-items: center;
-  min-height: 0;
-  margin: 8px 0 0;
-  padding: 14px 0 0;
-  border: 0;
-  border-top: 1px solid var(--chart-divider);
-  border-radius: 0;
-  color: inherit;
-  background: transparent;
-}
-.statement-period { display: flex; flex-wrap: wrap; column-gap: 5px; align-items: center; font-size: 13px; font-weight: 650; }
-.statement-period-link {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  flex-basis: 100%;
-  width: fit-content;
-  min-height: 30px;
-  font-size: 11px;
-  font-weight: 520;
-  color: #b3d7f6;
-}
-.statement-period-link:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
-.statement-readout {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
-  padding-left: 16px;
-  border-left: 1px solid var(--chart-divider);
-}
-.statement-readout dt { display: flex; gap: 6px; align-items: center; color: #bed5ed; font-size: 11px; }
-.statement-readout dd { margin: 5px 0 0; font-size: clamp(14px, 1.3vw, 19px); font-weight: 620; line-height: 1.2; overflow-wrap: anywhere; }
-.statement-readout i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
-.statement-readout .income-key { background: var(--chart-income); }
-.statement-readout .expense-key { background: var(--chart-expense); }
-.statement-readout .refund-key { background: var(--chart-refund); }
-.statement-loading > span { color: var(--statement-muted); font-size: 13px; padding-top: 24px; }
-.statement-loading > div { min-height: 346px; border-radius: 20px; background: #e5edf8; }
-
+.monthly-statement .trend-chart { height: 172px; margin: 9px 0 0; padding: 0; background: repeating-linear-gradient(to top, transparent 0, transparent 35px, #dfe8f2 36px); }
+.monthly-statement .trend-chart:not(.weekly) { min-width: 660px; }
+.monthly-statement .trend-chart.weekly { gap: 4px; }
+.monthly-statement .trend-bars { bottom: 21px; height: calc(100% - 23px); }
+.monthly-statement .trend-chart.weekly .trend-bars { left: 13%; right: 13%; gap: 3px; justify-content: center; }
+.monthly-statement .trend-bars i { position: relative; flex: 1; width: auto; min-width: 0; max-width: 20px; overflow: hidden; animation-delay: calc(var(--bar-index) * 24ms); }
+.monthly-statement .income-bar { background: linear-gradient(160deg,#5e9be7,#315fa8); }
+.monthly-statement .expense-bar { background: linear-gradient(160deg,#b4d8f6,#779fc8); }
+.monthly-statement .refund-bar { background: linear-gradient(160deg,#90bdb4,#56877f); }
+.monthly-statement .chart-key .refund-key { background: #65958e; }
+.monthly-statement .trend-day:focus-visible { outline: 2px solid #407fc4; outline-offset: -2px; }
+.monthly-statement .statement-inspector { min-height: 0; background: none; border: 0; padding: 10px 0 0; margin: 0; border-radius: 0; display: grid; gap: 4px; }
+.monthly-statement .statement-inspector .chart-key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin: 0; }
+.monthly-statement .statement-inspector strong { font-size: 11px; }
+.monthly-statement .chart-key span { white-space: nowrap; }
 .statement-block { padding: clamp(19px, 2.6vw, 34px) 0; min-width: 0; }
 .monthly-statement .category-content { display: grid; align-items: center; grid-template-columns: minmax(180px, .75fr) minmax(220px, 1.4fr); gap: clamp(18px, 4.5vw, 65px); min-height: 0; padding: 15px 0 0; }
 .monthly-statement .category-panel .donut { justify-self: center; width: clamp(175px, 17vw, 238px); height: auto; aspect-ratio: 1; filter: none; }
@@ -331,19 +109,6 @@
 .statement-empty { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 32px 0; gap: 15px; }
 .statement-empty h2 { margin: 0; font-size: 22px; }
 @media (prefers-reduced-motion: no-preference) {
-  .statement-trend .trend-chart::after {
-    content: "";
-    position: absolute;
-    inset: 1px 0 var(--date-rail-height);
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent 82%, #81d5ff14 96%, #a3e4ff94);
-    transform-origin: left;
-    animation: statement-chart-reveal .65s var(--ease-arrive) both;
-  }
-  .monthly-statement .trend-bars i {
-    animation: bar-grow .56s var(--ease-arrive) calc(var(--bar-index) * 18ms + 30ms) both;
-  }
-  .statement-readout { animation: statement-readout-in .22s var(--ease-arrive) both; }
   .statement-ring-dust { animation: statement-orbit 12s linear 2; }
   .monthly-statement .donut:is(:hover,:focus-within) .statement-ring-dust { animation-iteration-count: infinite; }
   .monthly-statement .trend-chart.weekly .trend-bars i[data-lit="true"]::after,
@@ -354,46 +119,28 @@
   }
   .monthly-statement .trend-day:is(:hover,:focus-within) .trend-bars i[data-lit="true"]::after { animation-iteration-count: infinite; }
 }
-@keyframes statement-chart-reveal {
-  from { transform: scaleX(0); opacity: .75; }
-  to { transform: scaleX(1); opacity: 0; }
-}
-@keyframes statement-readout-in {
-  from { transform: translateY(3px); opacity: .6; }
-}
 @keyframes statement-orbit { to { transform: rotate(360deg); } }
 .document-hidden .statement-ring-dust, .document-hidden .monthly-statement .trend-bars i::after { animation-play-state: paused; }
 @keyframes statement-rise { 0% { opacity: 0; transform: translateY(100%); } 15%,70% { opacity: .8; } 90%,100% { opacity: 0; transform: translateY(0); } }
-@media (max-width: 1040px) {
-  .statement-spread { grid-template-columns: minmax(0, .74fr) minmax(0, 1.6fr); gap: 20px; }
-  .statement-amount { font-size: clamp(36px, 4.75vw, 60px); }
-  .monthly-statement .statement-inspector { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .statement-period-link { flex-basis: auto; margin-left: auto; }
-  .statement-readout { border: 0; padding-left: 0; }
-}
-@media (max-width: 880px) {
-  .statement-spread { grid-template-columns: minmax(0, 1fr); }
-  .statement-balance { padding-block: 0; }
-  .statement-balance dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; }
+@media (max-width: 940px) {
+  .statement-spread { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+  .statement-balance { padding: 18px; }
+  .statement-amount { font-size: clamp(34px,4.8vw,45px); }
 }
 @media (max-width: 760px) {
-  .statement-bottom { grid-template-columns: minmax(0, 1fr); }
-  .statement-spread { gap: 18px; }
-  .statement-trend { border-radius: 16px; }
-  .statement-plot { --plot-height: 153px; margin-top: 15px; }
+  .statement-spread, .statement-bottom { grid-template-columns: minmax(0, 1fr); }
+  .statement-trend { padding: 22px 0 0; }
   .monthly-statement .category-content { grid-template-columns: minmax(0,1fr); gap: 14px; }
   .monthly-statement .category-panel .donut { width: 185px; }
   .statement-bottom > section + section { border-top: 1px solid var(--statement-line); }
+  .statement-balance dl { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; }
   .statement-balance dl > div { display: grid; gap: 5px; }
   .statement-balance p { margin-top: 14px; }
-  .statement-budget-link { margin-top: 12px; }
-  .statement-amount { margin-bottom: 16px; }
   .statement-title { gap: 8px; }
   .statement-title > span { border: 0; padding: 0; font-size: 13px; }
   .month-arrows button { width: 44px; min-height: 42px; }
-  .monthly-statement .statement-trend .chart-switch button, .statement-period-link { min-height: 44px; }
-  .monthly-statement .trend-chart:not(.weekly) { min-width: calc(var(--period-count) * 44px); }
-  .monthly-statement .trend-chart.weekly .trend-bars { left: 8%; right: 8%; }
+  .monthly-statement .chart-switch button { min-height: 40px; }
+  .monthly-statement .trend-chart.weekly .trend-bars { left: 6%; right: 6%; }
   .monthly-statement .statement-legend button { column-gap: 7px; }
 }
 @media (max-width: 490px) {
@@ -403,6 +150,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .monthly-statement .trend-bars i, .monthly-statement .donut { animation: none; }
-  .statement-chart-cursor, .statement-trend .chart-switch::before { transition: none; }
   .statement-ring-dust { display: none; }
 }
