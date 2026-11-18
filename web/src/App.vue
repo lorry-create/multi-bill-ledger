@@ -2,43 +2,42 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-  ArrowDownToLine,
   BarChart3,
   BookOpenCheck,
-  ChevronRight,
+  Check,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  Menu,
-  X,
+  Plus,
   WalletCards,
-  Check,
 } from "@lucide/vue";
 import { auth, restoreSession, signOut } from "./session";
 import { isDemo } from "./api";
-import ParticleField from "./components/ParticleField.vue";
 import { notice } from "./motion";
 
-const route = useRoute(),
-  router = useRouter();
+const route = useRoute();
+const router = useRouter();
 const publicPage = computed(() => route.meta.public);
+const username = computed(() => auth.session?.user.username ?? "");
+const sidebarCollapsed = ref(localStorage.getItem("ledger-sidebar-collapsed") === "true");
+const nav = [
+  { to: "/report", label: "月度报告", icon: BarChart3 },
+  { to: "/transactions", label: "全部账单", icon: WalletCards },
+  { to: "/rules", label: "分类规则", icon: BookOpenCheck },
+];
+const importLink = { to: "/import", label: "导入账单", icon: Plus };
+const mobileNav = [nav[0], nav[1], importLink, nav[2]];
+const inImport = computed(() => route.path === "/import" || route.path.startsWith("/import/"));
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem("ledger-sidebar-collapsed", String(sidebarCollapsed.value));
+}
 function loginFor(target: { path: string; fullPath: string }) {
   return target.path === "/transactions"
     ? { path: "/login", query: { next: target.fullPath } }
     : { path: "/login" };
 }
-const sidebarCollapsed = ref(localStorage.getItem("ledger-sidebar-collapsed") === "true");
-const mobileMenuOpen = ref(false);
-function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
-  localStorage.setItem("ledger-sidebar-collapsed", String(sidebarCollapsed.value));
-}
-const nav = [
-  { to: "/report", label: "月度概览", icon: BarChart3 },
-  { to: "/transactions", label: "全部账单", icon: WalletCards },
-  { to: "/import", label: "导入账单", icon: ArrowDownToLine },
-  { to: "/rules", label: "分类规则", icon: BookOpenCheck },
-];
 onMounted(async () => {
   await restoreSession();
   if (!auth.session && !route.meta.public) router.replace(loginFor(route));
@@ -50,7 +49,6 @@ watch(
   },
 );
 router.beforeEach((to) => {
-  mobileMenuOpen.value = false;
   if (!auth.loading && !auth.session && !to.meta.public) return loginFor(to);
   if (auth.session && to.path === "/login") return "/report";
 });
@@ -67,81 +65,55 @@ async function leave() {
   <div v-if="auth.loading" class="startup">正在打开归账…</div>
   <RouterView v-else-if="publicPage" />
   <div v-else-if="auth.session" class="shell" :class="{ 'is-collapsed': sidebarCollapsed }">
-    <div v-if="route.path !== '/transactions'" class="workspace-atmosphere"><ParticleField /></div>
-    <aside class="sidebar">
-      <RouterLink class="brand" to="/report"
-        ><span class="brand-mark"><img src="/brand.svg?v=4" alt="" /></span
-        ><span class="brand-name">归账</span></RouterLink
+    <aside class="sidebar journal-rail">
+      <RouterLink class="brand" to="/report" aria-label="归账，打开月报">
+        <span class="brand-mark"><img src="/brand.svg?v=4" alt="" /></span>
+        <span class="brand-name">归账</span>
+      </RouterLink>
+      <RouterLink
+        class="rail-import"
+        to="/import"
+        title="导入账单"
+        aria-label="导入账单"
+        :aria-current="inImport ? 'page' : undefined"
       >
-      <div class="side-caption">个人账务空间</div>
+        <Plus :size="19" /><span>导入账单</span>
+      </RouterLink>
       <nav aria-label="主导航" class="nav-list">
-        <RouterLink
-          v-for="item in nav"
-          :key="item.to"
-          :to="item.to"
-          class="nav-link"
-          :title="item.label"
-          ><component :is="item.icon" :size="18" :stroke-width="1.8" /><span>{{
-            item.label
-          }}</span
-          ><ChevronRight class="nav-chevron" :size="16"
-        /></RouterLink>
+        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="nav-link"
+          :aria-label="item.label" :title="item.label">
+          <component :is="item.icon" :size="19" :stroke-width="1.75" />
+          <span>{{ item.label }}</span>
+        </RouterLink>
       </nav>
-      <div class="side-bottom">
-        <div class="sidebar-note"><BookOpenCheck :size="19" /><p>每一笔，都有来处。<small>确认、修正，让账本更懂你。</small></p></div>
+      <div class="rail-footer">
+        <button class="rail-toggle" type="button" :aria-expanded="!sidebarCollapsed"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+          :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleSidebar">
+          <component :is="sidebarCollapsed ? PanelLeftOpen : PanelLeftClose" :size="18" />
+          <span>收起侧边栏</span>
+        </button>
         <div class="profile">
-          <span class="avatar">{{
-            auth.session?.user.username.slice(0, 1).toUpperCase()
-          }}</span
-          ><span class="profile-name"
-            ><strong>{{ auth.session?.user.username }}</strong
-            ><small>{{ isDemo ? "合成数据演示" : "我的账本" }}</small></span
-          ><button
-            class="icon-btn logout"
-            type="button"
-            aria-label="退出登录"
-            title="退出登录"
-            @click="leave"
-          >
+          <span class="avatar" aria-hidden="true">{{ username.slice(0, 1).toUpperCase() }}</span>
+          <span class="profile-name">
+            <strong :title="username">{{ username }}</strong>
+            <small v-if="isDemo">合成数据演示</small>
+          </span>
+          <button class="icon-btn logout" type="button" aria-label="退出登录" title="退出登录" @click="leave">
             <LogOut :size="17" />
           </button>
         </div>
       </div>
-      <button class="mobile-menu-toggle" type="button" :aria-expanded="mobileMenuOpen" aria-label="打开菜单" @click="mobileMenuOpen = true"><Menu :size="22" /></button>
     </aside>
-    <div v-if="mobileMenuOpen" class="mobile-drawer-backdrop" @click.self="mobileMenuOpen = false">
-      <section class="mobile-drawer" aria-label="导航菜单">
-        <div class="drawer-heading"><strong>归账</strong><button type="button" class="icon-btn" aria-label="关闭菜单" @click="mobileMenuOpen = false"><X :size="21" /></button></div>
-        <p class="drawer-user">{{ auth.session?.user.username }}</p>
-        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="drawer-link" @click="mobileMenuOpen = false"><component :is="item.icon" :size="19" />{{ item.label }}</RouterLink>
-        <button class="drawer-logout" type="button" @click="leave"><LogOut :size="18" />退出登录</button>
-      </section>
-    </div>
     <nav aria-label="手机主导航" class="mobile-nav">
-      <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="mobile-nav-link">
-        <component :is="item.icon" :size="21" :stroke-width="1.8" />
+      <RouterLink v-for="item in mobileNav" :key="item.to" :to="item.to" class="mobile-nav-link"
+        :class="{ 'mobile-import': item.to === '/import', 'import-open': item.to === '/import' && inImport }"
+        :aria-current="item.to === '/import' && inImport ? 'page' : undefined">
+        <span class="mobile-nav-icon"><component :is="item.icon" :size="21" :stroke-width="1.75" /></span>
         <span>{{ item.label }}</span>
       </RouterLink>
     </nav>
     <main class="main">
-      <header class="topbar">
-        <div class="topbar-leading"><button class="icon-btn sidebar-toggle" type="button" :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" :aria-expanded="!sidebarCollapsed" @click="toggleSidebar"><PanelLeftOpen v-if="sidebarCollapsed" :size="20" /><PanelLeftClose v-else :size="20" /></button><span class="breadcrumb"
-          >归账 <ChevronRight :size="14" />
-          {{
-            route.path.startsWith("/import/")
-              ? "导入确认"
-              : (nav.find((x) => route.path.startsWith(x.to))?.label ?? "导入确认")
-          }}</span></div>
-        <div class="top-actions">
-          <span v-if="isDemo" class="demo-badge">合成数据演示</span
-          ><span class="top-date">{{
-            new Intl.DateTimeFormat("zh-CN", {
-              month: "long",
-              day: "numeric",
-            }).format(new Date())
-          }}</span>
-        </div>
-      </header>
       <div class="page-wrap">
         <RouterView v-slot="{ Component }">
           <Transition name="screen" mode="out-in">
@@ -151,5 +123,9 @@ async function leave() {
       </div>
     </main>
   </div>
-  <Transition name="toast"><div v-if="notice" :key="notice.id" class="feedback-toast" role="status"><Check :size="18" />{{ notice.text }}</div></Transition>
+  <Transition name="toast">
+    <div v-if="notice" :key="notice.id" class="feedback-toast" role="status">
+      <Check :size="18" />{{ notice.text }}
+    </div>
+  </Transition>
 </template>

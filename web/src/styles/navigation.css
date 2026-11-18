@@ -1,0 +1,103 @@
+.journal-rail {
+  width: 202px;
+  height: 100dvh;
+  padding: 30px 15px 18px;
+  background: #f0f5fb;
+  border-color: #dce6f1;
+  backdrop-filter: none;
+}
+.journal-rail .brand {
+  color: #173657;
+  padding-inline: 10px;
+  width: fit-content;
+  min-height: 44px;
+}
+.journal-rail .brand-mark { width: 33px; height: 33px; box-shadow: none; }
+.rail-import, .rail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding-inline: 14px;
+  border-radius: 11px;
+  white-space: nowrap;
+}
+.rail-import {
+  margin-block: 36px 19px;
+  color: white;
+  background: #2c63a9;
+  font-size: 14px;
+  font-weight: 630;
+  transition: background .16s ease, transform .16s ease;
+}
+.rail-import:hover { background: #235797; }
+.rail-import:active { transform: scale(.98); }
+.rail-import svg, .rail-toggle svg, .journal-rail .nav-link svg { flex: none; }
+.journal-rail .nav-list, .is-collapsed .journal-rail .nav-list {
+  margin: 0;
+  gap: 5px;
+}
+.journal-rail .nav-link {
+  color: #47617c;
+  height: 44px;
+  gap: 12px;
+  white-space: nowrap;
+}
+.journal-rail .nav-link:hover, .rail-toggle:hover { background: #e3edf8; }
+.journal-rail .nav-link.router-link-active { background: #dce9fa; color: #1d518b; }
+.journal-rail .nav-link.router-link-active svg { color: inherit; }
+.rail-footer { margin-top: auto; }
+.rail-toggle {
+  width: 100%;
+  border: 0;
+  color: #516b84;
+  background: transparent;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.journal-rail .profile { border-color: #d6e1ec; padding-top: 14px; }
+.journal-rail .avatar { flex: none; background: #dbe8f6; color: #2b5584; }
+.journal-rail .profile-name strong { overflow: hidden; text-overflow: ellipsis; }
+.journal-rail .profile-name small { color: #526984; }
+.journal-rail .logout { flex: none; min-height: 44px; color: #516b84; }
+.journal-rail .logout:hover { background: #e0eaf6; }
+.shell .page-wrap { max-width: 1460px; padding: clamp(28px, 3.1vw, 54px) clamp(24px, 3.5vw, 62px) 64px; }
+
+@media (min-width: 761px) {
+  .shell.is-collapsed .journal-rail { width: 72px; padding-inline: 12px; }
+  .is-collapsed .journal-rail .brand { width: 100%; padding: 0; justify-content: center; }
+  .is-collapsed .rail-import, .is-collapsed .rail-toggle { justify-content: center; padding: 0; }
+  .is-collapsed .rail-import span, .is-collapsed .rail-toggle span,
+  .is-collapsed .journal-rail .avatar { display: none; }
+  .is-collapsed .journal-rail .logout { display: grid; margin: 0; width: 44px; }
+}
+@media (max-width: 760px) {
+  .journal-rail, .shell.is-collapsed .journal-rail {
+    width: 100%;
+    height: 54px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 16px;
+    background: #f7fafff2;
+    backdrop-filter: blur(14px);
+  }
+  .journal-rail .brand, .shell.is-collapsed .journal-rail .brand { padding: 0; gap: 8px; }
+  .journal-rail .brand-mark { width: 28px; height: 28px; }
+  .journal-rail .rail-import, .rail-toggle, .journal-rail .avatar { display: none; }
+  .rail-footer { margin: 0; min-width: 0; }
+  .journal-rail .profile { padding: 0; border: 0; gap: 6px; }
+  .journal-rail .profile-name, .is-collapsed .journal-rail .profile-name {
+    display: grid; text-align: right; max-width: 38vw; color: #47617c;
+  }
+  .journal-rail .logout, .is-collapsed .journal-rail .logout { display: grid; width: 44px; margin: 0; }
+  .shell .page-wrap { padding: 22px 16px calc(92px + env(safe-area-inset-bottom)); }
+  .mobile-nav { background: #f8fbffed; border-color: #dce6f1; }
+  .mobile-nav-link { color: #51637a; }
+  .mobile-nav-icon { display: grid; place-items: center; min-width: 34px; min-height: 25px; }
+  .mobile-import .mobile-nav-icon { color: white; background: #2c63a9; border-radius: 8px; }
+  .mobile-import.import-open { color: #215a9b; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail-import { transition: none; }
+}

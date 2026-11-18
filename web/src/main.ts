@@ -5,6 +5,7 @@ import "./styles/main.css";
 import "./styles/identity.css";
 import "./styles/motion.css";
 import "./styles/product.css";
+import "./styles/navigation.css";
 import { installMotion } from "./motion";
 import { revealDirective } from "./directives/reveal";
 
