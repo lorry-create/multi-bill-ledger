@@ -53,11 +53,7 @@ const currentStep = ref(0);
 </template>
 <style scoped>
 .account-cover {
-  --folio-front-delay: 0.26s;
-  --folio-front-duration: 1.58s;
-  --folio-content-start: calc(
-    var(--folio-front-delay) + var(--folio-front-duration)
-  );
+  --folio-sheet-time: 1.08s;
   width: min(100%, 550px);
   justify-self: center;
   position: relative;
@@ -193,18 +189,17 @@ const currentStep = ref(0);
 }
 @media (prefers-reduced-motion: no-preference) {
   .account-cover::before {
-    animation: folio-backing 1.5s var(--folio-opening-ease) both;
+    animation: folio-backing var(--folio-sheet-time) var(--folio-opening-ease) both;
   }
   .cover-paper {
-    animation: folio-front var(--folio-front-duration) var(--folio-front-delay)
-      var(--folio-opening-ease) both;
+    animation: folio-front var(--folio-sheet-time) var(--folio-opening-ease) both;
   }
   .cover-content {
-    animation: folio-content-in 0.64s var(--folio-content-start)
+    animation: folio-content-in 0.22s var(--folio-sheet-time)
       var(--folio-opening-ease) both;
   }
   .cover-issue::after {
-    animation: folio-rule-glint 0.95s calc(var(--folio-content-start) + 0.12s)
+    animation: folio-rule-glint 0.95s calc(var(--folio-sheet-time) + 0.12s)
       var(--folio-opening-ease) both;
   }
   .cover-detail span {
