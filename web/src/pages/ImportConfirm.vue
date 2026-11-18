@@ -15,6 +15,7 @@ import type {
   Category,
   ConfirmInput,
   FlowType,
+  Source,
   TransactionDraft,
 } from "../api";
 import type {
@@ -32,6 +33,7 @@ import {
   toLocalInput,
 } from "../format";
 import { csrf, errorText, withCsrfRetry } from "../session";
+import ConfirmedRuleFeedback from "../components/ConfirmedRuleFeedback.vue";
 
 type Editable = {
   row: TransactionDraft;
@@ -99,6 +101,14 @@ const route = useRoute(),
 let active = true;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let retryPayload: ConfirmInput | null = null;
+const confirmed = ref<{
+  batchId: string;
+  transactionIds: string[];
+  source: Source;
+  dateFrom: string;
+  dateTo: string;
+  hasCategoryEdits: boolean;
+} | null>(null);
 const ready = computed(() => batch.value?.status === "pending_review");
 const selected = computed(() => rows.value.filter((r) => r.selected));
 const dupBatchMatch = computed<DuplicateBatchMatch | null>(
@@ -268,6 +278,7 @@ watch(
     rows.value = [];
     error.value = "";
     notice.value = "";
+    confirmed.value = null;
     dupCheckNotice.value = "";
     rowErrors.value = {};
     resolveOpen.value = false;
@@ -549,6 +560,7 @@ async function retry() {
 }
 async function confirm(skipPrecheck = false) {
   if (
+    busy.value ||
     !batch.value ||
     !ready.value ||
     !selected.value.length ||
@@ -598,14 +610,34 @@ async function confirm(skipPrecheck = false) {
           },
         })),
       };
-    const result = await withCsrfRetry(() =>
-      api.confirmImport(
-        { path: { id: batch.value!.id }, body: retryPayload! },
-        csrf(),
-      ),
+    const submitted = retryPayload;
+    const { id: batchId, source, rows: drafts } = batch.value;
+    const draftCategories = new Map(
+      drafts.map((row) => [row.row_id, row.category]),
     );
+    const result = await withCsrfRetry(() =>
+      api.confirmImport({ path: { id: batchId }, body: submitted }, csrf()),
+    );
+    if (!active || route.params.id !== batchId) return;
     dupModalOpen.value = false;
     notice.value = `已入账 ${result.created_count} 笔，跳过重复 ${result.duplicate_count} 笔，忽略 ${result.ignored_count} 笔。`;
+    if (result.transaction_ids.length) {
+      const days = submitted.rows
+        .map(({ transaction }) => transaction.occurred_at.slice(0, 10))
+        .sort();
+      confirmed.value = {
+        batchId,
+        transactionIds: result.transaction_ids,
+        source,
+        dateFrom: days[0],
+        dateTo: days[days.length - 1],
+        hasCategoryEdits: submitted.rows.some(
+          ({ row_id, transaction }) =>
+            transaction.category !== "pending" &&
+            transaction.category !== draftCategories.get(row_id),
+        ),
+      };
+    }
     await load(true);
     retryPayload = null;
   } catch (e) {
@@ -799,8 +831,45 @@ async function submitResolveMissing(quickOnly = false) {
   </div>
   <div v-if="error" class="alert error" role="alert">{{ error }}</div>
   <div v-if="notice" class="alert success" role="status">
-    {{ notice }} <button @click="router.push('/transactions')">查看账单</button>
+    {{ notice }}
+    <template v-if="confirmed">
+      <button
+        type="button"
+        @click="
+          router.push({
+            path: '/transactions',
+            query: {
+              source: confirmed.source,
+              date_from: confirmed.dateFrom,
+              date_to: confirmed.dateTo,
+            },
+          })
+        "
+      >
+        查看账单
+      </button>
+      <button
+        v-if="confirmed.dateFrom.slice(0, 7) === confirmed.dateTo.slice(0, 7)"
+        type="button"
+        @click="
+          router.push({
+            path: '/report',
+            query: { month: confirmed.dateFrom.slice(0, 7) },
+          })
+        "
+      >
+        查看月报
+      </button>
+    </template>
   </div>
+  <ConfirmedRuleFeedback
+    v-if="confirmed?.hasCategoryEdits"
+    :batch-id="confirmed.batchId"
+    :transaction-ids="confirmed.transactionIds"
+    :source="confirmed.source"
+    :date-from="confirmed.dateFrom"
+    :date-to="confirmed.dateTo"
+  />
   <div v-if="!batch" class="empty-state">正在读取导入批次…</div>
   <template v-else
     ><div class="batch-strip">
