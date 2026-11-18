@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ArrowRight, ShieldCheck, Eye, EyeOff } from "@lucide/vue";
 import { errorText, signIn } from "../session";
@@ -7,6 +7,12 @@ import { ApiError, isDemo } from "../api";
 import ParticleField from "../components/ParticleField.vue";
 import LedgerJourney from "../components/LedgerJourney.vue";
 const passwordVisible = ref(false);
+const narrowLayout = window.matchMedia("(max-width: 760px)");
+const mobileCover = ref(narrowLayout.matches);
+function updateCoverPosition(event: MediaQueryListEvent) {
+  mobileCover.value = event.matches;
+}
+onMounted(() => narrowLayout.addEventListener("change", updateCoverPosition));
 
 const router = useRouter(),
   route = useRoute(),
@@ -34,6 +40,7 @@ function startLockCountdown(seconds: number) {
   }, 1000);
 }
 onUnmounted(() => {
+  narrowLayout.removeEventListener("change", updateCoverPosition);
   if (lockTimer) clearInterval(lockTimer);
 });
 async function enterDemo() {
@@ -64,7 +71,7 @@ async function submit() {
     }
     const message = errorText(e);
     error.value = showLocalDemo && e instanceof ApiError && e.payload?.error?.code === "AUTH_INVALID"
-      ? `${message} 本地预览请点击上方「进入演示账本」。`
+      ? `${message} 本地预览可选择「进入演示账本」。`
       : message;
   } finally {
     busy.value = false;
@@ -72,25 +79,22 @@ async function submit() {
 }
 </script>
 <template>
-  <div class="login-page">
+  <div class="login-page folio-login">
     <section class="login-story">
       <ParticleField />
       <div class="login-brand">
         <span class="brand-mark"><img src="/brand.svg?v=4" alt="" /></span> 归账
       </div>
-      <div class="login-story-copy">
-        <h1>把每一笔，<br />归于清楚。</h1>
-        <p>微信、支付宝，一处整理。<br />从账单核对到月度分析，看清收支，也看见下一步。</p>
-      </div>
-      <LedgerJourney />
+      <Teleport defer to="#login-cover-slot" :disabled="!mobileCover">
+        <LedgerJourney />
+      </Teleport>
       <div class="login-foot"><ShieldCheck :size="15" /> 账单加密保存，由你确认入账</div>
     </section>
     <section class="login-form-panel">
       <div class="login-form">
         <div class="login-welcome">
-          <span class="welcome-icon"><ShieldCheck :size="23" /></span>
           <h2>登录归账</h2>
-          <p>欢迎回来，继续整理你的个人账本。</p>
+          <p>打开你的个人账本。</p>
         </div>
         <form @submit.prevent="submit">
           <label for="username">账号</label
@@ -128,5 +132,27 @@ async function submit() {
         <p class="login-security">你的账单仅在本人登录后可见</p>
       </div>
     </section>
+    <div id="login-cover-slot"></div>
   </div>
 </template>
+<style scoped>
+.folio-login .login-story {
+  display: grid;
+  align-content: space-between;
+  align-items: start;
+  gap: clamp(26px, 5vh, 56px);
+  background: radial-gradient(ellipse at 18% 10%, #f5f9ff 8%, transparent 68%), #e6effb;
+}
+.folio-login .login-foot { margin: 0; padding-top: 0; }
+#login-cover-slot:empty { display: none; }
+#login-cover-slot { display: contents; }
+.folio-login .login-welcome h2 { font-size: clamp(30px, 3vw, 43px); letter-spacing: -.035em; }
+@media (max-width: 760px) {
+  .folio-login { display: flex; flex-direction: column; background: white; }
+  .folio-login .login-story { display: contents; }
+  .folio-login .login-brand { padding: 22px 25px 0; order: 0; }
+  .folio-login .login-form-panel { order: 1; padding: 38px 25px 32px; }
+  #login-cover-slot :deep(.account-cover) { order: 2; align-self: center; width: min(calc(100% - 50px), 430px); margin: 0 0 32px; }
+  .folio-login .login-story :deep(.particle-field), .folio-login .login-foot { display: none; }
+}
+</style>

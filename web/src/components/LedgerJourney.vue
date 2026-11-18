@@ -1,46 +1,114 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from "vue";
-import { Check, ScanLine, FolderInput, ChartNoAxesCombined, Pause, Play, ChevronDown } from "@lucide/vue";
+import { ref } from "vue";
 import PlatformLogo from "./PlatformLogo.vue";
-const stage = ref(0);
-const paused = ref(false);
-const expanded = ref(false);
-const root = ref<HTMLElement | null>(null);
-const inactive = ref(false);
-let observer: IntersectionObserver | undefined;
-onMounted(() => {
-  observer = new IntersectionObserver(([entry]) => { inactive.value = !entry.isIntersecting; });
-  if (root.value) observer.observe(root.value);
-});
-onBeforeUnmount(() => observer?.disconnect());
+
+const issueDate = new Date();
+const issueMonth = new Intl.DateTimeFormat("zh-CN-u-nu-hanidec", {
+  month: "long",
+  timeZone: "Asia/Shanghai",
+}).format(issueDate);
+const issueYear = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  timeZone: "Asia/Shanghai",
+}).format(issueDate);
 const steps = [
-  { title: "归集账单", detail: "上传微信、支付宝账单文件或交易截图。", icon: FolderInput },
-  { title: "识别与分类", detail: "提取交易信息，标记缺失字段与疑似重复。", icon: ScanLine },
-  { title: "确认后入账", detail: "由你核对每一笔，修正后同步到月度报表。", icon: ChartNoAxesCombined },
+  { title: "归集", detail: "上传微信、支付宝导出的账单文件或交易截图。" },
+  { title: "核对", detail: "对照原件，确认每一笔的时间、金额与分类。" },
+  { title: "月报", detail: "按月查看收支构成、每日走势和预算执行情况。" },
 ];
+const currentStep = ref(0);
 </script>
 <template>
-  <div ref="root" class="ledger-journey" :class="[`journey-stage-${stage}`, { 'journey-paused': paused, 'motion-inactive': inactive, 'journey-expanded': expanded }]">
-    <button class="journey-mobile-toggle" type="button" :aria-expanded="expanded" aria-controls="journey-details" @click="expanded = !expanded">了解账单如何归集<ChevronDown :size="17" /></button>
-    <div id="journey-details" class="journey-details"><div class="journey-details-inner">
-    <div class="journey-scene" aria-label="账单从两个平台归集到个人账本的功能示意">
-      <svg class="journey-routes" viewBox="0 0 560 270" fill="none" aria-hidden="true">
-        <path d="M95 65 C210 65 178 135 280 135 S360 205 470 205" />
-        <path d="M95 205 C210 205 178 135 280 135 S360 65 470 65" />
-        <path class="route-energy" d="M95 65 C210 65 178 135 280 135 S360 205 470 205" />
-        <path class="route-energy second" d="M95 205 C210 205 178 135 280 135 S360 65 470 65" />
-      </svg>
-      <div class="journey-source source-wechat"><PlatformLogo source="wechat" :size="43" /><span>微信支付</span><small>账单与截图</small></div>
-      <div class="journey-source source-alipay"><PlatformLogo source="alipay" :size="43" /><span>支付宝</span><small>账单与截图</small></div>
-      <div class="journey-core"><div class="core-orbit"></div><img src="/brand.svg?v=4" alt="归账" /><span>你的个人账本</span></div>
-      <div class="journey-result result-top"><ScanLine :size="18" /><span>智能解析</span><Check :size="15" /></div>
-      <div class="journey-result result-bottom"><ChartNoAxesCombined :size="18" /><span>月度分析</span><Check :size="15" /></div>
+  <div class="account-cover">
+    <div class="cover-paper">
+      <div class="cover-issue"><span>月度账本</span><span>{{ issueYear }}</span></div>
+      <h1>{{ issueMonth }}</h1>
+      <p class="cover-intro">把两份流水，归成一本账。</p>
+      <div class="cover-sources">
+        <span><PlatformLogo source="wechat" :size="25" />微信支付</span>
+        <span><PlatformLogo source="alipay" :size="25" />支付宝</span>
+      </div>
+      <div class="cover-guide">
+        <div class="cover-steps" role="group" aria-label="了解账单处理流程">
+          <button v-for="(step, index) in steps" :key="step.title" type="button"
+            :aria-pressed="currentStep === index" @click="currentStep = index">
+            {{ step.title }}
+          </button>
+        </div>
+        <p class="cover-detail" aria-live="polite">{{ steps[currentStep].detail }}</p>
+      </div>
     </div>
-    <div class="journey-controls" role="group" aria-label="了解账单处理流程">
-      <button v-for="(step, index) in steps" :key="step.title" type="button" :class="{ active: stage === index }" :aria-pressed="stage === index" @click="stage = index"><component :is="step.icon" :size="17" />{{ step.title }}</button>
-      <button class="journey-pause" type="button" :aria-label="paused ? '播放流程动画' : '暂停流程动画'" :aria-pressed="paused" @click="paused = !paused"><Play v-if="paused" :size="15" /><Pause v-else :size="15" /></button>
-    </div>
-    <div class="journey-caption" aria-live="polite"><Transition name="caption" mode="out-in"><p :key="stage">{{ steps[stage].detail }}</p></Transition></div>
-    </div></div>
   </div>
 </template>
+<style scoped>
+.account-cover {
+  width: min(100%, 550px);
+  justify-self: center;
+  position: relative;
+  isolation: isolate;
+  padding: 9px 7px 0 0;
+}
+.account-cover::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 9px 8px;
+  background: #b9d2ef;
+  border: 1px solid #aac4e1;
+  border-radius: 5px 17px 14px 4px;
+  transform: rotate(1.4deg);
+}
+.cover-paper {
+  position: relative;
+  color: #213e61;
+  padding: clamp(24px, 3vw, 48px) clamp(24px, 3.1vw, 53px);
+  border: 1px solid #d1dfed;
+  border-radius: 4px 13px 13px 4px;
+  background: linear-gradient(90deg, #dce8f5 0, #f3f8ff 2.2%, #fff 6%, #f8fbff 100%);
+  box-shadow: 0 15px 26px -20px #38597a70;
+}
+.cover-issue, .cover-steps, .cover-sources, .cover-sources > span {
+  display: flex;
+  align-items: center;
+}
+.cover-issue {
+  justify-content: space-between;
+  border-bottom: 1px solid #c2d4e6;
+  padding-bottom: 12px;
+  color: #45617e;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cover-paper h1 {
+  margin: clamp(25px, 4vh, 53px) 0 8px;
+  font-family: "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: clamp(51px, 5.8vw, 84px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.03em;
+}
+.cover-intro { color: #425f7c; margin: 0; font-size: clamp(15px, 1.35vw, 20px); }
+.cover-sources { gap: 22px; margin: 28px 0; }
+.cover-sources > span { gap: 7px; color: #41617f; font-size: 12px; }
+.cover-guide { border-top: 1px solid #c2d4e6; }
+.cover-steps { gap: 20px; }
+.cover-steps button {
+  background: transparent;
+  color: #536b81;
+  border: 0;
+  border-top: 2px solid transparent;
+  min-height: 44px;
+  margin-top: -1px;
+  font-size: 13px;
+  padding: 0 2px;
+}
+.cover-steps button[aria-pressed="true"] { color: #215da6; border-color: #3777c4; font-weight: 700; }
+.cover-detail { color: #526b83; font-size: 13px; min-height: 2.8em; margin: 3px 0 0; line-height: 1.6; }
+@media (max-width: 760px) {
+  .cover-paper { padding: 19px 24px; }
+  .cover-paper h1 { margin-top: 16px; font-size: 39px; }
+  .cover-guide { display: none; }
+  .cover-sources { margin: 16px 0 0; }
+}
+</style>

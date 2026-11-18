@@ -70,6 +70,7 @@ const route = useRoute(),
   originalLoadedFor = ref<string | null>(null),
   originalLoading = ref(false),
   originalZoomed = ref(false),
+  reviewView = ref<"draft" | "source">("draft"),
   rowErrors = ref<Record<string, string[]>>({}),
   elapsed = ref(0),
   resolveOpen = ref(false),
@@ -275,6 +276,7 @@ watch(
     promptAutoShownFor.value = "";
     originalZoomed.value = false;
     originalLoadedFor.value = null;
+    reviewView.value = "draft";
     if (originalUrl.value) {
       URL.revokeObjectURL(originalUrl.value);
       originalUrl.value = "";
@@ -886,8 +888,14 @@ async function submitResolveMissing(quickOnly = false) {
         <RefreshCw :size="15" /> 继续等待刷新
       </button>
     </div>
-    <div v-if="ready || batch.status === 'completed'" class="confirm-layout">
-      <aside class="original-panel">
+    <div v-if="ready || batch.status === 'completed'" class="confirm-layout" :data-view="reviewView">
+      <div class="review-views" role="group" aria-label="核对视图">
+        <button type="button" aria-controls="review-draft" :aria-pressed="reviewView === 'draft'" @click="reviewView = 'draft'">识别明细</button>
+        <button type="button" aria-controls="review-source" :aria-pressed="reviewView === 'source'" @click="reviewView = 'source'">
+          原始来源<span v-if="batch.issues.length"> · {{ batch.issues.length }} 项提示</span>
+        </button>
+      </div>
+      <aside id="review-source" class="original-panel">
         <div class="panel-heading">
           <h2>原始来源</h2>
           <button v-if="!isDemo" class="text-btn" @click="original">
@@ -921,8 +929,8 @@ async function submitResolveMissing(quickOnly = false) {
                 : originalLoading
                   ? "正在加载原始截图预览…"
                   : batch.ingestion_method === "file"
-                    ? "点击上方按钮下载原始账单文件，对照右侧逐笔核对。"
-                    : "点击上方查看原始内容，对照右侧逐笔核对。"
+                    ? "下载原始账单文件，与识别明细逐笔核对。"
+                    : "打开原始截图，与识别明细逐笔核对。"
             }}
           </p>
         </div>
@@ -936,7 +944,7 @@ async function submitResolveMissing(quickOnly = false) {
           </p>
         </div>
       </aside>
-      <section class="draft-panel">
+      <section id="review-draft" class="draft-panel">
         <div class="panel-heading">
           <div>
             <h2>识别明细</h2>
@@ -1476,6 +1484,46 @@ async function submitResolveMissing(quickOnly = false) {
   </div>
 </template>
 <style scoped>
+.confirm-layout {
+  grid-template-columns: minmax(205px, .72fr) minmax(0, 1.55fr);
+  gap: clamp(12px, 1.8vw, 27px);
+}
+.confirm-layout > :is(.original-panel, .draft-panel) {
+  min-width: 0;
+  padding: clamp(14px, 1.8vw, 26px);
+  border-color: #d4e1ee;
+  border-radius: 14px;
+}
+.review-views { display: none; }
+.draft-panel { container-type: inline-size; }
+.confirm-layout .draft-row { border-radius: 9px; border-color: #dce7f2; }
+.confirm-layout .original-placeholder {
+  min-height: clamp(165px, 30vh, 320px);
+  background: #f1f6fc;
+  border-color: #cbdced;
+}
+.original-placeholder :is(p, span), .original-caption { color: #536f8c; }
+.confirm-layout .draft-fields label { min-width: 0; color: #506986; }
+.confirm-layout .draft-fields :is(input, select) { width: 100%; min-width: 0; }
+.confirm-layout .draft-panel > .panel-heading { flex-wrap: wrap; gap: 12px; }
+@container (max-width: 610px) {
+  .draft-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .draft-fields label:first-child, .draft-fields label:nth-child(5) { grid-column: 1 / -1; }
+}
+@media (max-width: 960px) {
+  .confirm-layout { grid-template-columns: minmax(0, 1fr); }
+  .review-views { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: #e7eff8; }
+  .review-views button { min-height: 44px; padding: 6px; border: 0; border-radius: 9px; font-size: 13px; background: transparent; color: #43627e; }
+  .review-views button[aria-pressed="true"] { color: #245d9e; background: #fff; font-weight: 650; box-shadow: 0 2px 6px #254c7512; }
+  .confirm-layout[data-view="source"] .draft-panel, .confirm-layout[data-view="draft"] .original-panel { display: none; }
+  .confirm-layout .draft-list { max-height: none; }
+}
+@media (max-width: 550px) {
+  .draft-row { padding: 12px; }
+  .confirm-layout .draft-fields :is(input, select) { font-size: 16px; min-height: 44px; }
+  .batch-strip { gap: 10px; flex-wrap: wrap; }
+  .batch-strip > div { min-width: 0; overflow-wrap: anywhere; flex-wrap: wrap; }
+}
 .original-preview {
   margin-top: 16px;
   display: grid;
