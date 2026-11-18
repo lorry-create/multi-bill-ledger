@@ -56,13 +56,18 @@ function displayFields(value: Transaction | TransactionDraft) {
 const comparison = computed(() => {
   const saved = displayFields(transaction);
   const imported = draft.value ? displayFields(draft.value) : null;
-  return (Object.keys(saved) as (keyof typeof saved)[]).map((field) => ({
-    field,
-    saved: saved[field],
-    imported: imported?.[field],
-    changed: imported !== null && saved[field] !== imported[field],
-  }));
+  return (Object.keys(saved) as (keyof typeof saved)[])
+    .map((field) => ({
+      field,
+      saved: saved[field],
+      imported: imported?.[field],
+      changed: imported !== null && saved[field] !== imported[field],
+    }))
+    .sort((a, b) => Number(b.changed) - Number(a.changed));
 });
+const differenceCount = computed(
+  () => comparison.value.filter((row) => row.changed).length,
+);
 
 async function loadBatch() {
   if (
@@ -181,13 +186,15 @@ function onToggle(event: Event) {
           </button>
         </div>
         <p v-if="originalError" role="status">{{ originalError }}</p>
-        <p>
+        <p v-if="draft">
           {{
-            draft
-              ? "导入草稿按平台交易号匹配。"
-              : "此笔账单没有可对照的导入草稿。"
+            differenceCount
+              ? differenceCount + " 项与导入草稿不同"
+              : "核对字段与导入草稿一致"
           }}
+          · 按平台交易号匹配
         </p>
+        <p v-else>此笔账单没有可对照的导入草稿。</p>
       </template>
 
       <table v-if="draft" class="evidence-comparison" aria-label="账单核对值">
