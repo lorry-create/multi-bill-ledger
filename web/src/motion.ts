@@ -1,14 +1,11 @@
 import { readonly, ref } from "vue";
 
-const motionPaused = ref(localStorage.getItem("ledger-motion-paused") === "true");
-export { motionPaused };
-export function toggleMotion() {
-  motionPaused.value = !motionPaused.value;
-  localStorage.setItem("ledger-motion-paused", String(motionPaused.value));
-  syncMotion();
-}
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const systemMotionPaused = ref(reducedMotion.matches);
+export const motionPaused = readonly(systemMotionPaused);
 function syncMotion() {
-  document.documentElement.classList.toggle("motion-paused", motionPaused.value);
+  systemMotionPaused.value = reducedMotion.matches;
+  document.documentElement.classList.toggle("motion-paused", systemMotionPaused.value);
   window.dispatchEvent(new Event("ledger-motion-change"));
 }
 const message = ref<{ id: number; text: string } | null>(null);
@@ -22,12 +19,12 @@ export function notify(text: string) {
 }
 export function installMotion() {
   syncMotion();
+  reducedMotion.addEventListener("change", syncMotion);
   document.addEventListener("visibilitychange", () => document.documentElement.classList.toggle("document-hidden", document.hidden));
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   let pointerFrame = 0;
   let active: HTMLElement | null = null;
   document.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch" || motionPaused.value || reduced.matches) return;
+    if (event.pointerType === "touch" || motionPaused.value) return;
     if (pointerFrame) cancelAnimationFrame(pointerFrame);
     pointerFrame = requestAnimationFrame(() => {
       const surface = (event.target as Element).closest<HTMLElement>(".content-panel, .upload-main, .upload-aside, .rule-explainer");
@@ -41,7 +38,7 @@ export function installMotion() {
     });
   }, { passive: true });
   document.addEventListener("pointerdown", (event) => {
-    if (motionPaused.value || reduced.matches) return;
+    if (motionPaused.value) return;
     const target = (event.target as Element).closest<HTMLElement>(".primary-btn, .secondary-btn, .source-option, .journey-controls button");
     if (!target || target.matches(":disabled")) return;
     const rect = target.getBoundingClientRect();

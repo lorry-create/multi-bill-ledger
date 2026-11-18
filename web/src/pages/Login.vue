@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ArrowRight, ShieldCheck, Eye, EyeOff, Pause, Play } from "@lucide/vue";
+import { ArrowRight, ShieldCheck, Eye, EyeOff } from "@lucide/vue";
 import { errorText, signIn } from "../session";
 import { ApiError, isDemo } from "../api";
 import ParticleField from "../components/ParticleField.vue";
 import LedgerJourney from "../components/LedgerJourney.vue";
-import { motionPaused, toggleMotion } from "../motion";
 const passwordVisible = ref(false);
 
 const router = useRouter(),
@@ -79,7 +78,6 @@ async function submit() {
       <div class="login-brand">
         <span class="brand-mark"><img src="/brand.svg?v=4" alt="" /></span> 归账
       </div>
-      <button type="button" class="cover-motion" :aria-pressed="motionPaused" @click="toggleMotion"><Play v-if="motionPaused" :size="14" /><Pause v-else :size="14" />{{ motionPaused ? '开启动效' : '暂停动效' }}</button>
       <div class="login-story-copy">
         <h1>把每一笔，<br />归于清楚。</h1>
         <p>微信、支付宝，一处整理。<br />从账单核对到月度分析，看清收支，也看见下一步。</p>

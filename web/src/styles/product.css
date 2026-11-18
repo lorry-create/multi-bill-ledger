@@ -46,8 +46,6 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .sidebar-note p { margin: 0; font-size: 12px; color: #496382; line-height: 1.6; }
 .sidebar-note small { display: block; margin-top: 4px; font-size: 11px; color: #70839c; }
 .shell.is-collapsed .sidebar-note { display: none; }
-.motion-toggle { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 11px; background: #fff9; border: 1px solid #dce7f6; color: #5c779a; border-radius: 10px; cursor: pointer; font-size: 11px; transition: color .18s, background .18s; }
-.motion-toggle:hover { color: #235fb8; background: #e8f2ff; }
 .feedback-toast { position: fixed; z-index: 1500; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 15px 22px; max-width: calc(100% - 32px); border: 1px solid #d6e5f7; border-radius: 16px; background: #fffffff2; backdrop-filter: blur(20px); box-shadow: 0 12px 44px #1d4b832b; font-size: 14px; color: #254e82; }
 .feedback-toast svg { flex-shrink: 0; color: #2a74ce; }
 .toast-enter-active, .toast-leave-active { transition: opacity .2s, transform .3s var(--ease-arrive); }
@@ -59,8 +57,6 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .login-story > .particle-field { opacity: .48; }
 .login-brand { font-size: 26px; color: #173d6a; gap: 12px; }
 .login-brand .brand-mark { width: 42px; height: 42px; }
-.cover-motion { position: absolute; z-index: 3; top: 36px; right: 32px; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 11px; color: #456c9a; background: #ffffff70; border: 1px solid #ffffffbd; border-radius: 11px; cursor: pointer; font-size: 11px; }
-.cover-motion:hover { background: #fff; }
 .login-story-copy { margin-top: clamp(42px, 7vh, 84px); }
 .login-story-copy h1 { color: #173d6a; font-size: clamp(40px, 4.3vw, 64px); font-weight: 650; line-height: 1.18; letter-spacing: -.035em; margin-bottom: 20px; }
 .login-story-copy p { font-size: 15px; color: #526e8e; line-height: 1.85; }
@@ -205,14 +201,13 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   .sidebar-note { display: none; }
   .page-head { gap: 18px; }
   .page-head p { font-size: 13px; }
-  .primary-btn, .secondary-btn, .month-step, .table-action, .chart-switch button, .category-legend button, .mobile-drawer .motion-toggle { min-height: 44px; }
+  .primary-btn, .secondary-btn, .month-step, .table-action, .chart-switch button, .category-legend button { min-height: 44px; }
   .month-step, .table-scroll .table-action { min-width: 44px; min-height: 44px; }
   .feedback-toast { bottom: calc(82px + env(safe-area-inset-bottom)); width: max-content; font-size: 12px; padding: 13px 16px; }
   .login-page { display: block; }
   .login-story { padding: 23px 25px 20px; border-right: 0; border-bottom: 1px solid #dce8f7; }
   .login-brand { font-size: 23px; gap: 9px; }
   .login-brand .brand-mark { width: 35px; height: 35px; }
-  .cover-motion { top: 18px; right: 25px; }
   .login-story-copy { margin-top: 30px; }
   .login-story-copy h1 { font-size: 37px; line-height: 1.22; margin-bottom: 14px; }
   .login-story-copy p { font-size: 12px; line-height: 1.8; }
