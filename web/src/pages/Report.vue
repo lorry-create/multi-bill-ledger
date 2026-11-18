@@ -267,12 +267,17 @@ const inspectedCategory = computed(() =>
 );
 const incomePieCenter = 90;
 const incomePieRadius = 80;
+const incomeShareFormatter = new Intl.NumberFormat("zh-CN", {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
 
-function incomePiePoint(share: number) {
+function incomePiePoint(share: number, radius = incomePieRadius) {
   const angle = share * 2 * Math.PI - Math.PI / 2;
-  const x = incomePieCenter + incomePieRadius * Math.cos(angle);
-  const y = incomePieCenter + incomePieRadius * Math.sin(angle);
-  return `${x} ${y}`;
+  return {
+    x: incomePieCenter + radius * Math.cos(angle),
+    y: incomePieCenter + radius * Math.sin(angle),
+  };
 }
 
 const incomeSlices = computed(() => {
@@ -288,12 +293,16 @@ const incomeSlices = computed(() => {
     const arc = `A ${incomePieRadius} ${incomePieRadius}`;
     const path =
       parts.length === 1
-        ? `M ${start} ${arc} 0 0 1 ${incomePiePoint(0.5)} ${arc} 0 0 1 ${start} Z`
-        : `M ${incomePieCenter} ${incomePieCenter} L ${start} ${arc} 0 ${share > 0.5 ? 1 : 0} 1 ${end} Z`;
+        ? `M ${start.x} ${start.y} ${arc} 0 0 1 ${incomePieCenter} ${incomePieCenter + incomePieRadius} ${arc} 0 0 1 ${start.x} ${start.y} Z`
+        : `M ${incomePieCenter} ${incomePieCenter} L ${start.x} ${start.y} ${arc} 0 ${share > 0.5 ? 1 : 0} 1 ${end.x} ${end.y} Z`;
     return {
       ...part,
       path,
-      percent: share * 100,
+      shareText: incomeShareFormatter.format(share),
+      labelPoint:
+        parts.length > 1 && share >= 0.16
+          ? incomePiePoint(offset - share / 2, 53)
+          : null,
       color: categoryColors[part.category],
     };
   });
@@ -305,7 +314,7 @@ function showIncomeTooltip(
 ) {
   placeTooltip(event, categories[part.category], part.color, [
     { label: "收入", value: yuan(part.amount_fen) },
-    { label: "占比", value: `${part.percent.toFixed(1)}%` },
+    { label: "占比", value: part.shareText },
   ]);
 }
 const budgetByCategory = computed(
@@ -912,7 +921,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                 :fill="`url(#income-pie-${part.category})`"
                 role="button"
                 tabindex="0"
-                :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，占 ${part.percent.toFixed(1)}%，查看明细`"
+                :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，占 ${part.shareText}，查看明细`"
                 @pointerenter="showIncomeTooltip($event, part)"
                 @pointermove="showIncomeTooltip($event, part)"
                 @pointerleave="hideTooltip"
@@ -920,6 +929,25 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                 @keydown.enter="goCategory(part.category, 'income')"
                 @keydown.space.prevent="goCategory(part.category, 'income')"
               />
+              <g v-if="incomeSlices.length === 1" class="statement-income-labels" aria-hidden="true">
+                <text class="statement-income-center-name" x="90" y="74">
+                  {{ categories[incomeSlices[0].category] }}
+                </text>
+                <text class="statement-income-center-share" x="90" y="111">
+                  {{ incomeSlices[0].shareText }}
+                </text>
+              </g>
+              <g v-else class="statement-income-labels" aria-hidden="true">
+                <template v-for="part in incomeSlices" :key="part.category">
+                  <text
+                    v-if="part.labelPoint"
+                    class="statement-income-slice-share"
+                    :x="part.labelPoint.x"
+                    :y="part.labelPoint.y"
+                    dominant-baseline="central"
+                  >{{ part.shareText }}</text>
+                </template>
+              </g>
             </svg>
             <div class="statement-income-legend" aria-label="收入类别明细">
               <button
@@ -930,7 +958,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                 @click="goCategory(part.category, 'income')"
               >
                 <i :style="{ background: part.color }" aria-hidden="true"></i>
-                <span>{{ categories[part.category] }}<small>{{ part.percent.toFixed(1) }}%</small></span>
+                <span>{{ categories[part.category] }}<small>{{ part.shareText }}</small></span>
                 <strong>{{ yuan(part.amount_fen) }}</strong>
                 <ChevronRight :size="13" aria-hidden="true" />
               </button>

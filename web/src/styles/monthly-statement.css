@@ -148,8 +148,8 @@
   margin-top: 15px;
 }
 .statement-income-pie {
-  flex: 0 0 clamp(124px, 11vw, 166px);
-  width: clamp(124px, 11vw, 166px);
+  flex: 0 0 clamp(144px, 12vw, 180px);
+  width: clamp(144px, 12vw, 180px);
   height: auto;
   overflow: visible;
   filter: drop-shadow(1px 5px 6px #264d792c);
@@ -161,6 +161,19 @@
 }
 .statement-income-slice:hover { filter: brightness(1.08); }
 .statement-income-slice:focus-visible { outline: none; stroke: #193e6a; stroke-width: 3px; }
+.statement-income-labels {
+  pointer-events: none;
+  text-anchor: middle;
+  fill: #fff;
+  paint-order: stroke;
+  stroke: #142e51b3;
+  stroke-linejoin: round;
+  stroke-width: 2.5px;
+  font-weight: 700;
+}
+.statement-income-center-name { font-size: 17px; }
+.statement-income-center-share { font-size: 36px; }
+.statement-income-slice-share { font-size: 15px; }
 .statement-income-legend { flex: 1 1 164px; min-width: 0; }
 .statement-income-item {
   width: 100%;
