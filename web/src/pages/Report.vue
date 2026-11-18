@@ -24,6 +24,7 @@ import { categories, download, parseYuan, yuan } from "../format";
 import { csrf, errorText, withCsrfRetry } from "../session";
 import "../styles/monthly-statement.css";
 import AnimatedAmount from "../components/AnimatedAmount.vue";
+import RollingAmount from "../components/RollingAmount.vue";
 import { notify } from "../motion";
 
 const router = useRouter();
@@ -300,6 +301,9 @@ const chartSegments = computed(() => {
 const inspectedCategory = computed(() =>
   chartSegments.value.find((x) => x.category === activeCategory.value),
 );
+const inspectedAmount = computed(() =>
+  inspectedCategory.value?.amount_fen ?? report.value?.totals.gross_expense_fen ?? 0,
+);
 const incomePieCenter = 90;
 const incomePieRadius = 80;
 const incomeShareFormatter = new Intl.NumberFormat("zh-CN", {
@@ -313,18 +317,6 @@ function incomePiePoint(share: number, radius = incomePieRadius) {
     x: incomePieCenter + radius * Math.cos(angle),
     y: incomePieCenter + radius * Math.sin(angle),
   };
-}
-
-function incomeLabelColor(color: string) {
-  const channels = color.match(/[a-f\d]{2}/gi)!.map((value) => {
-    const channel = parseInt(value, 16) / 255;
-    return channel <= 0.04045
-      ? channel / 12.92
-      : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  const luminance =
-    channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  return luminance > 0.179 ? "#163354" : "#ffffff";
 }
 
 const incomeSlices = computed(() => {
@@ -347,7 +339,6 @@ const incomeSlices = computed(() => {
       ...part,
       path,
       shareText: incomeShareFormatter.format(share),
-      labelColor: incomeLabelColor(part.color),
       shiftX: `${shift.x - incomePieCenter}px`,
       shiftY: `${shift.y - incomePieCenter}px`,
       labelPoint:
@@ -925,21 +916,31 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     />
                   </g>
                 </svg>
-                <div class="donut-hole" aria-live="polite">
-                  <span>{{
-                    inspectedCategory
-                      ? categories[inspectedCategory.category]
-                      : "毛支出"
-                  }}</span>
-                  <strong>{{
-                    yuan(
-                      inspectedCategory?.amount_fen ??
-                        report.totals.gross_expense_fen,
-                    )
-                  }}</strong>
-                  <small v-if="inspectedCategory"
-                    >{{ inspectedCategory.percent.toFixed(1) }}%</small
+                <div class="donut-hole" aria-live="polite" aria-atomic="true">
+                  <div class="statement-center-label">
+                    <Transition name="statement-center">
+                      <span :key="inspectedCategory?.category ?? 'total'">{{
+                        inspectedCategory
+                          ? categories[inspectedCategory.category]
+                          : "毛支出"
+                      }}</span>
+                    </Transition>
+                  </div>
+                  <strong
+                    :style="{ '--amount-length': yuan(inspectedAmount).length }"
                   >
+                    <RollingAmount :value="inspectedAmount" />
+                  </strong>
+                  <div class="statement-center-share">
+                    <Transition name="statement-center">
+                      <small
+                        v-if="inspectedCategory"
+                        :key="inspectedCategory.category"
+                      >
+                        {{ inspectedCategory.percent.toFixed(1) }}%
+                      </small>
+                    </Transition>
+                  </div>
                 </div>
               </div>
               <div class="category-legend statement-legend" aria-label="类别支出明细">
@@ -1152,7 +1153,6 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   <g
                     v-if="incomeSlices.length === 1"
                     class="statement-income-labels"
-                    :fill="incomeSlices[0].labelColor"
                     aria-hidden="true"
                   >
                     <text class="statement-income-center-name" x="90" y="74">
@@ -1169,7 +1169,6 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                         class="statement-income-slice-share"
                         :class="{ active: activeIncome === part.key }"
                         :style="{
-                          fill: part.labelColor,
                           '--slice-x': part.shiftX,
                           '--slice-y': part.shiftY,
                         }"
