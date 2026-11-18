@@ -770,12 +770,12 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     >
                       <stop
                         offset="0"
-                        :stop-color="`color-mix(in srgb, ${item.color}, white 22%)`"
+                        :stop-color="`color-mix(in srgb, ${item.color}, white 14%)`"
                       />
                       <stop offset=".45" :stop-color="item.color" />
                       <stop
                         offset="1"
-                        :stop-color="`color-mix(in srgb, ${item.color}, #183d71 25%)`"
+                        :stop-color="`color-mix(in srgb, ${item.color}, #183d71 14%)`"
                       />
                     </linearGradient>
                     <mask
@@ -810,11 +810,11 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                       r="81"
                       gradientUnits="userSpaceOnUse"
                     >
-                      <stop offset=".72" stop-color="#16365e" stop-opacity=".27" />
-                      <stop offset=".79" stop-color="#e1f1ff" stop-opacity=".03" />
-                      <stop offset=".9" stop-color="#edf8ff" stop-opacity=".08" />
-                      <stop offset=".97" stop-color="#f5fbff" stop-opacity=".42" />
-                      <stop offset="1" stop-color="#244c7d" stop-opacity=".19" />
+                      <stop offset=".72" stop-color="#16365e" stop-opacity=".1" />
+                      <stop offset=".8" stop-color="#e1f1ff" stop-opacity="0" />
+                      <stop offset=".91" stop-color="#edf8ff" stop-opacity=".04" />
+                      <stop offset=".97" stop-color="#f5fbff" stop-opacity=".16" />
+                      <stop offset="1" stop-color="#244c7d" stop-opacity=".07" />
                     </radialGradient>
                     <linearGradient
                       id="expense-flow-light"
@@ -825,21 +825,21 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                       gradientUnits="userSpaceOnUse"
                       spreadMethod="reflect"
                     >
-                      <stop offset="0" stop-color="#133e79" stop-opacity=".12" />
-                      <stop offset=".32" stop-color="#a8d6ff" stop-opacity=".05" />
-                      <stop offset=".56" stop-color="#f3fbff" stop-opacity=".2" />
-                      <stop offset=".77" stop-color="#7eb5f0" stop-opacity=".04" />
-                      <stop offset="1" stop-color="#163f79" stop-opacity=".1" />
+                      <stop offset="0" stop-color="#133e79" stop-opacity=".06" />
+                      <stop offset=".32" stop-color="#a8d6ff" stop-opacity=".03" />
+                      <stop offset=".56" stop-color="#f3fbff" stop-opacity=".12" />
+                      <stop offset=".77" stop-color="#7eb5f0" stop-opacity=".02" />
+                      <stop offset="1" stop-color="#163f79" stop-opacity=".05" />
                     </linearGradient>
                     <pattern
                       id="expense-flow-particles"
-                      width="42"
-                      height="52"
+                      width="46"
+                      height="64"
                       patternUnits="userSpaceOnUse"
                     >
-                      <circle cx="9" cy="10" r=".8" fill="#f6fcff" />
-                      <circle cx="28" cy="29" r="1.1" fill="#f0fbff" />
-                      <circle cx="38" cy="44" r=".6" fill="#bfe4ff" />
+                      <circle cx="7" cy="11" r=".6" fill="#f6fcff" />
+                      <circle cx="32" cy="37" r=".8" fill="#f0fbff" />
+                      <circle cx="19" cy="57" r=".45" fill="#bfe4ff" />
                     </pattern>
                   </defs>
                   <circle
@@ -852,7 +852,7 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                   />
                   <g
                     class="statement-chart-depth"
-                    transform="translate(0 3)"
+                    transform="translate(0 1.6)"
                     aria-hidden="true"
                     pointer-events="none"
                   >
@@ -918,9 +918,9 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     <rect
                       class="statement-chart-particles"
                       x="0"
-                      y="-52"
+                      y="-64"
                       width="180"
-                      height="284"
+                      height="308"
                       fill="url(#expense-flow-particles)"
                     />
                   </g>
@@ -1012,12 +1012,12 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     >
                       <stop
                         offset="0"
-                        :stop-color="`color-mix(in srgb, ${part.color}, white 22%)`"
+                        :stop-color="`color-mix(in srgb, ${part.color}, white 14%)`"
                       />
                       <stop offset=".45" :stop-color="part.color" />
                       <stop
                         offset="1"
-                        :stop-color="`color-mix(in srgb, ${part.color}, #183d71 25%)`"
+                        :stop-color="`color-mix(in srgb, ${part.color}, #183d71 14%)`"
                       />
                     </linearGradient>
                     <clipPath id="income-surface-clip">
@@ -1040,11 +1040,11 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                       r="137"
                       gradientUnits="userSpaceOnUse"
                     >
-                      <stop offset="0" stop-color="#f5fbff" stop-opacity=".3" />
-                      <stop offset=".38" stop-color="#edf8ff" stop-opacity=".08" />
+                      <stop offset="0" stop-color="#f5fbff" stop-opacity=".12" />
+                      <stop offset=".38" stop-color="#edf8ff" stop-opacity=".04" />
                       <stop offset=".68" stop-color="#edf8ff" stop-opacity="0" />
-                      <stop offset=".93" stop-color="#15365e" stop-opacity=".18" />
-                      <stop offset="1" stop-color="#15365e" stop-opacity=".26" />
+                      <stop offset=".93" stop-color="#15365e" stop-opacity=".08" />
+                      <stop offset="1" stop-color="#15365e" stop-opacity=".12" />
                     </radialGradient>
                     <linearGradient
                       id="income-flow-light"
@@ -1055,26 +1055,26 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                       gradientUnits="userSpaceOnUse"
                       spreadMethod="reflect"
                     >
-                      <stop offset="0" stop-color="#133e79" stop-opacity=".12" />
-                      <stop offset=".32" stop-color="#a8d6ff" stop-opacity=".05" />
-                      <stop offset=".56" stop-color="#f3fbff" stop-opacity=".2" />
-                      <stop offset=".77" stop-color="#7eb5f0" stop-opacity=".04" />
-                      <stop offset="1" stop-color="#163f79" stop-opacity=".1" />
+                      <stop offset="0" stop-color="#133e79" stop-opacity=".06" />
+                      <stop offset=".32" stop-color="#a8d6ff" stop-opacity=".03" />
+                      <stop offset=".56" stop-color="#f3fbff" stop-opacity=".12" />
+                      <stop offset=".77" stop-color="#7eb5f0" stop-opacity=".02" />
+                      <stop offset="1" stop-color="#163f79" stop-opacity=".05" />
                     </linearGradient>
                     <pattern
                       id="income-flow-particles"
-                      width="42"
-                      height="52"
+                      width="46"
+                      height="64"
                       patternUnits="userSpaceOnUse"
                     >
-                      <circle cx="9" cy="10" r=".8" fill="#f6fcff" />
-                      <circle cx="28" cy="29" r="1.1" fill="#f0fbff" />
-                      <circle cx="38" cy="44" r=".6" fill="#bfe4ff" />
+                      <circle cx="7" cy="11" r=".6" fill="#f6fcff" />
+                      <circle cx="32" cy="37" r=".8" fill="#f0fbff" />
+                      <circle cx="19" cy="57" r=".45" fill="#bfe4ff" />
                     </pattern>
                   </defs>
                   <g
                     class="statement-chart-depth"
-                    transform="translate(0 3)"
+                    transform="translate(0 1.6)"
                     aria-hidden="true"
                     pointer-events="none"
                   >
@@ -1129,9 +1129,9 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     <rect
                       class="statement-chart-particles"
                       x="0"
-                      y="-52"
+                      y="-64"
                       width="180"
-                      height="284"
+                      height="308"
                       fill="url(#income-flow-particles)"
                     />
                   </g>
