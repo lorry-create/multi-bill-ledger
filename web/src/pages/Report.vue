@@ -567,7 +567,6 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                     :key="day.date"
                     class="trend-day"
                     :style="{ '--bar-index': index % 7 }"
-                    :class="{ selected: activeTrendIndex === index }"
                     role="button"
                     tabindex="0"
                     :aria-label="`${day.range} 收入 ${yuan(day.income_fen)}，支出 ${yuan(day.gross_expense_fen)}，退款 ${yuan(day.refund_fen)}`"

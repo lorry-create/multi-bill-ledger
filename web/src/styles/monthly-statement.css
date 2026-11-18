@@ -69,6 +69,9 @@
 .monthly-statement .trend-bars { bottom: 21px; height: calc(100% - 23px); }
 .monthly-statement .trend-chart.weekly .trend-bars { left: 13%; right: 13%; gap: 3px; justify-content: center; }
 .monthly-statement .trend-bars i {
+  --bar-bevel:
+    linear-gradient(90deg, #ffffff52, #ecf7ff2b 18%, transparent 37% 63%, #16335419 77%, #16335442),
+    linear-gradient(180deg, #f4fbff9c, #dceafa56 2px, transparent 6px);
   position: relative;
   flex: 1;
   width: auto;
@@ -76,7 +79,11 @@
   max-width: 20px;
   overflow: hidden;
   animation-delay: calc(var(--bar-index) * 24ms);
-  background: linear-gradient(162deg, var(--bar-light), var(--bar-mid) 46%, var(--bar-deep));
+  background: var(--bar-bevel), linear-gradient(162deg, var(--bar-light), var(--bar-mid) 46%, var(--bar-deep));
+}
+.monthly-statement .trend-bars i[data-lit="true"],
+.monthly-statement .trend-day:hover .trend-bars i[data-lit="true"] {
+  box-shadow: 2px 4px 7px -2px #20437746;
 }
 .monthly-statement .income-bar { --bar-light: #6ca7ed; --bar-mid: var(--statement-income); --bar-deep: #235595; }
 .monthly-statement .expense-bar { --bar-light: #c5dff9; --bar-mid: var(--statement-expense); --bar-deep: #729fd4; }
@@ -84,7 +91,12 @@
 .monthly-statement .chart-key .income-key { background: var(--statement-income); }
 .monthly-statement .chart-key .expense-key { background: var(--statement-expense); }
 .monthly-statement .chart-key .refund-key { background: var(--statement-refund); }
+.monthly-statement .trend-day { transition: none; }
+.monthly-statement .trend-day:is(:hover, :focus-visible) { background: transparent; }
 .monthly-statement .trend-day:focus-visible { outline: 2px solid #407fc4; outline-offset: -2px; }
+@media (hover: hover) {
+  .monthly-statement .trend-chart .trend-day:hover { background: #326fca12; }
+}
 .monthly-statement .statement-inspector { min-height: 0; background: none; border: 0; padding: 10px 0 0; margin: 0; border-radius: 0; display: grid; gap: 4px; }
 .monthly-statement .statement-inspector .chart-key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin: 0; }
 .monthly-statement .statement-inspector strong { font-size: 11px; }
@@ -92,6 +104,25 @@
 .statement-block { padding: clamp(19px, 2.6vw, 34px) 0; min-width: 0; }
 .monthly-statement .category-content { display: grid; align-items: center; grid-template-columns: minmax(180px, .75fr) minmax(220px, 1.4fr); gap: clamp(18px, 4.5vw, 65px); min-height: 0; padding: 15px 0 0; }
 .monthly-statement .category-panel .donut { justify-self: center; width: clamp(175px, 17vw, 238px); height: auto; aspect-ratio: 1; filter: none; }
+.monthly-statement .donut > svg { filter: drop-shadow(1px 5px 5px #264d792c); }
+.monthly-statement .donut::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle closest-side,
+    transparent 62.8%,
+    #18375b40 64%,
+    #18375b24 66%,
+    transparent 72% 82%,
+    #dceeff3b 86%,
+    #f4faff88 90%,
+    #23497345 91.5%,
+    transparent 92.2%
+  );
+}
 .monthly-statement .donut-hole { border: 0; box-shadow: none; background: transparent; width: 59%; height: 59%; }
 .monthly-statement .donut-hole strong { font-size: clamp(15px,1.8vw,23px); overflow-wrap: anywhere; max-width: 100%; }
 .monthly-statement .donut-hole > span { color: var(--statement-muted); }
@@ -140,8 +171,8 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(180deg, var(--bar-light), var(--bar-mid) 32%, var(--bar-deep) 57%, var(--bar-mid) 76%, var(--bar-light));
-    background-size: 100% 190%;
+    background-image: var(--bar-bevel), linear-gradient(180deg, var(--bar-light), var(--bar-mid) 32%, var(--bar-deep) 57%, var(--bar-mid) 76%, var(--bar-light));
+    background-size: 100% 100%, 100% 100%, 100% 190%;
     animation: statement-bar-tint 5.8s ease-in-out infinite alternate;
   }
   .monthly-statement .trend-bars i[data-lit="true"][data-flow-visible]::after {
@@ -191,8 +222,8 @@
 }
 @keyframes statement-orbit { to { transform: rotate(360deg); } }
 @keyframes statement-bar-tint {
-  from { background-position: 0 12%; }
-  to { background-position: 0 94%; }
+  from { background-position: 0 0, 0 0, 0 12%; }
+  to { background-position: 0 0, 0 0, 0 94%; }
 }
 @keyframes statement-particles-rise {
   to { background-position: 0 -38px, 0 -57px, 0 -72px; }
