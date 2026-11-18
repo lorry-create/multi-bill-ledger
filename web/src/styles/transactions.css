@@ -22,7 +22,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ledger-heading .primary-btn,
 .dialog-actions .primary-btn {
   box-shadow: none;
   border-radius: 9px;
@@ -217,6 +216,7 @@
 
 .ledger-table {
   min-width: 0;
+  overflow-x: clip;
   transition: opacity 0.16s ease;
 }
 
@@ -238,16 +238,16 @@
   font-size: 12px;
 }
 
-.ledger-table thead th:nth-child(1) {
-  width: 49%;
+.ledger-table thead .ledger-date-heading {
+  width: clamp(95px, 11vw, 150px);
 }
 
-.ledger-table thead th:nth-child(2) {
-  width: 26%;
+.ledger-table thead th:nth-child(3) {
+  width: 22%;
 }
 
 .ledger-table thead th:last-child {
-  width: 25%;
+  width: 20%;
   text-align: end;
 }
 
@@ -258,6 +258,36 @@
   color: var(--ledger-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.ledger-day {
+  display: none;
+}
+
+.ledger-date-rail {
+  background: #f8fafd;
+  color: var(--ledger-muted);
+  vertical-align: top;
+  border-block-start: 1px solid var(--ledger-line);
+  cursor: default;
+}
+
+.ledger-date-rail time {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-date-rail strong {
+  color: #2b4665;
+  font-size: clamp(18px, 1.65vw, 25px);
+  font-weight: 580;
+  letter-spacing: -0.035em;
+}
+
+.ledger-date-rail small {
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .ledger-table .ledger-row {
@@ -273,7 +303,7 @@
   vertical-align: middle;
 }
 
-.ledger-table .ledger-row td:first-child {
+.ledger-table .ledger-row .ledger-trade {
   min-width: 0;
   white-space: normal;
 }
@@ -356,6 +386,10 @@
   font-weight: 680;
 }
 
+.ledger-table .ledger-row-amount :is(.income, .refund) {
+  color: #255f9c;
+}
+
 @media (hover: hover) {
   .ledger-platforms button:hover,
   .ledger-filter-actions button:hover:not(:disabled) {
@@ -401,10 +435,6 @@
   height: 39px;
   border-radius: 5px;
   background: var(--ledger-tint);
-}
-
-.ledger-inspector {
-  display: none;
 }
 
 .ledger-editor-body {
@@ -585,27 +615,6 @@
   border-top: 1px solid var(--ledger-rule);
 }
 
-.ledger-inspector-empty {
-  display: grid;
-  justify-items: start;
-  align-content: center;
-  gap: 7px;
-  padding: 24px 19px;
-  min-height: 175px;
-  color: var(--ledger-muted);
-  font-size: 13px;
-}
-
-.ledger-inspector-empty :is(h2, p, strong) {
-  margin: 0;
-}
-
-.ledger-inspector-empty h2,
-.ledger-inspector-empty strong {
-  color: var(--ink);
-  font-size: 16px;
-}
-
 .ledger-editor {
   --ledger-editor-height: min(
     calc(var(--ledger-editor-viewport-height, 100dvh) - 8px),
@@ -660,42 +669,81 @@
   }
 }
 
-@media (min-width: 1120px) {
-  .ledger-columns {
+.ledger-table .ledger-voucher-row > td {
+  padding: 0;
+  border-block: 1px solid #d7e4f2;
+  white-space: normal;
+}
+
+.ledger-voucher {
+  background: #f4f8fd;
+}
+
+.ledger-detached:empty {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  .ledger-table .ledger-row td {
+    padding-block: 14px;
+  }
+
+  .ledger-voucher .ledger-inspector-head {
+    align-items: center;
+    padding: 10px 18px;
+  }
+
+  .ledger-voucher .ledger-inspector-head h2 {
+    font-size: 16px;
+  }
+
+  .ledger-voucher .ledger-editor-scroll {
     display: grid;
-    grid-template-columns: minmax(0, 1.66fr) minmax(315px, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-    height: clamp(350px, calc(100dvh - 280px), 680px);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    align-items: start;
+    gap: 16px 26px;
+    overflow: visible;
   }
 
-  .ledger-results {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border-bottom-left-radius: 14px;
+  .ledger-voucher
+    .ledger-editor-scroll
+    > :is(.alert, .ledger-inspector-notice) {
+    grid-column: 1 / -1;
+    margin: 0;
   }
 
-  .ledger-table thead {
-    position: sticky;
-    top: 0;
-    z-index: 1;
+  .ledger-voucher .ledger-editor-scroll > .ledger-editor-form,
+  .ledger-voucher .ledger-editor-scroll > :deep(.transaction-evidence) {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 
-  .ledger-inspector {
-    display: block;
-    min-width: 0;
-    min-height: 0;
-    border-left: 1px solid var(--ledger-line);
-    border-bottom-right-radius: 14px;
-    background: #fbfcfe;
+  .ledger-voucher .ledger-inspector-amount.money {
+    color: var(--ink);
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ledger-arriving .ledger-row > td {
+    animation: ledger-line-in 0.48s cubic-bezier(0.18, 0.78, 0.22, 1)
+      var(--ledger-arrival-delay) backwards;
   }
 
-  .ledger-inspector > .ledger-editor-body {
-    height: 100%;
+  .ledger-voucher:not(:empty) .ledger-editor-body {
+    animation: ledger-sheet-in 0.2s var(--ease-arrive) both;
   }
+}
 
-  .ledger-inspector .ledger-editor-scroll {
-    flex: 1 1 auto;
+@keyframes ledger-line-in {
+  from {
+    opacity: 0.12;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -711,11 +759,6 @@
 
   .ledger-heading p {
     font-size: 12px;
-  }
-
-  .ledger-heading .primary-btn {
-    padding-inline: 10px;
-    gap: 5px;
   }
 
   .ledger-workspace {
@@ -788,6 +831,11 @@
     display: block;
   }
 
+  .ledger-date-heading,
+  .ledger-date-rail {
+    display: none;
+  }
+
   .ledger-table .ledger-day th {
     padding-inline: 12px;
   }
@@ -812,7 +860,7 @@
     border: 0;
   }
 
-  .ledger-table .ledger-row td:first-child {
+  .ledger-table .ledger-row .ledger-trade {
     grid-area: 1 / 1;
   }
 
@@ -871,6 +919,17 @@
   }
 
   .ledger-editor[open] {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .ledger-arriving .ledger-row {
+    animation: ledger-line-in 0.48s cubic-bezier(0.18, 0.78, 0.22, 1)
+      var(--ledger-arrival-delay) backwards;
+  }
+
+  .ledger-arriving .ledger-row > td {
     animation: none;
   }
 }

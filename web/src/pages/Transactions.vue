@@ -18,7 +18,6 @@ import {
   ChevronDown,
   Download,
   ListFilter,
-  Plus,
   Pencil,
   ReceiptText,
   X,
@@ -34,7 +33,6 @@ import type {
 } from "../api";
 import {
   categories,
-  classificationSources,
   dateTime,
   download,
   flows,
@@ -50,8 +48,8 @@ import TransactionEvidence from "../components/TransactionEvidence.vue";
 import { notify } from "../motion";
 
 const PAGE_SIZE = 50;
-const splitViewport = window.matchMedia("(min-width: 1120px)");
-const inlineMode = ref(splitViewport.matches);
+const wideLedger = window.matchMedia("(min-width: 960px)");
+const inlineMode = ref(wideLedger.matches);
 const platforms = ["", "wechat", "alipay"] as const;
 const route = useRoute();
 const router = useRouter();
@@ -176,6 +174,8 @@ const editorTitle = ref<HTMLElement | null>(null);
 const editAction = ref<HTMLButtonElement | null>(null);
 const firstEditField = ref<HTMLInputElement | null>(null);
 const listFailed = ref(false);
+const playEntrance = ref(false);
+let firstResults = true;
 const pageCount = computed(() =>
   Math.ceil((data.value?.total ?? 0) / PAGE_SIZE),
 );
@@ -187,12 +187,22 @@ const dayFormat = new Intl.DateTimeFormat("zh-CN", {
   day: "numeric",
   weekday: "short",
 });
+const weekdayFormat = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  weekday: "short",
+});
 const days = computed(() => {
   const grouped = new Map<
     string,
-    { day: string; label: string; rows: Transaction[] }
+    {
+      day: string;
+      label: string;
+      weekday: string;
+      start: number;
+      rows: Transaction[];
+    }
   >();
-  for (const item of data.value?.items ?? []) {
+  for (const [index, item] of (data.value?.items ?? []).entries()) {
     const day = toLocalInput(item.occurred_at).slice(0, 10);
     const group = grouped.get(day);
     if (group) group.rows.push(item);
@@ -200,17 +210,26 @@ const days = computed(() => {
       grouped.set(day, {
         day,
         label: dayFormat.format(new Date(item.occurred_at)),
+        weekday: weekdayFormat.format(new Date(item.occurred_at)),
+        start: index,
         rows: [item],
       });
   }
   return Array.from(grouped.values());
 });
-const selectedOutsideList = computed(
-  () =>
-    !!editing.value &&
-    !!data.value &&
-    !data.value.items.some((item) => item.id === editing.value?.id),
+const selectedGroup = computed(() =>
+  days.value.find((group) =>
+    group.rows.some((item) => item.id === editing.value?.id),
+  ),
 );
+const panelTarget = computed(() => {
+  if (!inlineMode.value) return "#ledger-sheet";
+  return selectedGroup.value ? "#ledger-active-voucher" : "#ledger-detached";
+});
+function arrivalDelay(index: number) {
+  const count = data.value?.items.length ?? 1;
+  return Math.round(index * Math.min(80, 1000 / count)) + "ms";
+}
 function signedAmount(item: Transaction) {
   const sign =
     item.flow_type === "income" || item.flow_type === "refund"
@@ -240,7 +259,7 @@ function resizeEditor() {
   );
 }
 onMounted(() => {
-  splitViewport.addEventListener("change", onLayoutChange);
+  wideLedger.addEventListener("change", onLayoutChange);
   viewport?.addEventListener("resize", resizeEditor);
   viewport?.addEventListener("scroll", resizeEditor);
   load();
@@ -248,7 +267,7 @@ onMounted(() => {
 onUnmounted(() => {
   listRequest++;
   conflictRequest++;
-  splitViewport.removeEventListener("change", onLayoutChange);
+  wideLedger.removeEventListener("change", onLayoutChange);
   viewport?.removeEventListener("resize", resizeEditor);
   viewport?.removeEventListener("scroll", resizeEditor);
 });
@@ -260,6 +279,7 @@ watch(
 );
 async function load(selectFromResults = false) {
   const request = ++listRequest;
+  playEntrance.value = false;
   const { date_from, date_to, page } = filters.value;
   listFailed.value = false;
   if (date_from && date_to && date_from > date_to) {
@@ -283,14 +303,15 @@ async function load(selectFromResults = false) {
       await navigateFilters({ ...filters.value, page: lastPage }, true);
       return;
     }
+    playEntrance.value = firstResults && result.items.length > 0;
+    firstResults = false;
     data.value = result;
     if (!editMode.value && inlineMode.value) {
       const current = result.items.find(
         (item) => item.id === editing.value?.id,
       );
       if (current) editing.value = current;
-      else if (!editing.value || selectFromResults)
-        setSelected(result.items[0] ?? null);
+      else if (selectFromResults) setSelected(null);
     }
   } catch (e) {
     if (request === listRequest) {
@@ -368,37 +389,48 @@ function onLayoutChange(event: MediaQueryListEvent) {
   inlineMode.value = event.matches;
   if (event.matches) {
     editor.value?.close();
-    if (!editing.value) setSelected(data.value?.items[0] ?? null);
   } else if (editMode.value) {
     void showSheet();
   } else {
     setSelected(null);
   }
 }
-function open(t: Transaction) {
-  if (
-    loading.value ||
-    saving.value ||
-    editor.value?.open ||
-    editing.value?.id === t.id
-  )
+async function open(t: Transaction) {
+  if (loading.value || saving.value || editor.value?.open) return;
+  if (editing.value?.id === t.id) {
+    closeModal();
     return;
+  }
   if (dirty.value) {
     pendingSelection.value = t;
-    if (scrollRegion.value) scrollRegion.value.scrollTop = 0;
+    await nextTick();
+    scrollRegion.value?.querySelector<HTMLElement>(".alert button")?.focus();
     return;
   }
   setSelected(t);
-  if (!inlineMode.value) void showSheet();
+  if (!inlineMode.value) await showSheet();
+  else {
+    await nextTick();
+    document
+      .getElementById("ledger-open-" + t.id)
+      ?.scrollIntoView({ block: "nearest" });
+  }
 }
 function closeModal() {
   if (saving.value) return;
   if (dirty.value) {
     modalError.value = "有未保存的修改。要离开，请先保存或取消修改。";
+    void nextTick(() =>
+      scrollRegion.value
+        ?.querySelector(".alert.error")
+        ?.scrollIntoView({ block: "nearest" }),
+    );
     return;
   }
+  const trigger = document.getElementById("ledger-open-" + editing.value?.id);
   editor.value?.close();
   setSelected(null);
+  void nextTick(() => trigger?.focus({ preventScroll: true }));
 }
 async function startEdit() {
   if (!editing.value) return;
@@ -419,7 +451,7 @@ async function confirmSwitch() {
   if (!pendingSelection.value) return;
   setSelected(pendingSelection.value);
   await nextTick();
-  editorTitle.value?.focus({ preventScroll: true });
+  editorTitle.value?.focus();
 }
 async function continueEdit() {
   pendingSelection.value = null;
@@ -574,9 +606,6 @@ async function exportCsv() {
         >
       </p>
     </div>
-    <RouterLink to="/import" class="primary-btn"
-      ><Plus :size="17" />导入账单</RouterLink
-    >
   </header>
   <div v-if="error" class="alert error" role="alert">{{ error }}</div>
 
@@ -688,17 +717,19 @@ async function exportCsv() {
     </section>
 
     <div class="ledger-columns">
-      <section
-        class="ledger-results"
-        aria-labelledby="ledger-results-title"
-        :tabindex="inlineMode ? 0 : undefined"
-      >
+      <div id="ledger-detached" class="ledger-voucher ledger-detached"></div>
+      <section class="ledger-results" aria-labelledby="ledger-results-title">
         <h2 id="ledger-results-title" class="sr-only">交易明细</h2>
         <div class="ledger-results-content" :aria-busy="loading">
-          <div v-if="days.length" class="ledger-table">
+          <div
+            v-if="days.length"
+            class="ledger-table"
+            :class="{ 'ledger-arriving': playEntrance }"
+          >
             <table role="table" aria-label="按交易日期分组的账单">
               <thead>
                 <tr>
+                  <th scope="col" class="ledger-date-heading">日期</th>
                   <th scope="col">交易</th>
                   <th scope="col">来源与类别</th>
                   <th scope="col" class="ledger-amount-heading">金额</th>
@@ -715,54 +746,95 @@ async function exportCsv() {
                     <time :datetime="group.day">{{ group.label }}</time>
                   </th>
                 </tr>
-                <tr
-                  v-for="t in group.rows"
-                  :key="t.id"
-                  class="ledger-row"
-                  :class="{ 'is-selected': editing?.id === t.id }"
-                  role="row"
-                  @click="open(t)"
-                >
-                  <td role="cell">
-                    <button
-                      class="ledger-row-open"
-                      type="button"
-                      :aria-label="'核对 ' + (t.merchant || '账单')"
-                      :aria-pressed="
-                        inlineMode ? editing?.id === t.id : undefined
+                <template v-for="(t, index) in group.rows" :key="t.id">
+                  <tr
+                    class="ledger-row"
+                    :style="{
+                      '--ledger-arrival-delay': arrivalDelay(
+                        group.start + index,
+                      ),
+                    }"
+                    :class="{ 'is-selected': editing?.id === t.id }"
+                    role="row"
+                    @click="open(t)"
+                  >
+                    <th
+                      v-if="index === 0"
+                      scope="rowgroup"
+                      class="ledger-date-rail"
+                      :rowspan="
+                        group.rows.length +
+                        (inlineMode && selectedGroup?.day === group.day ? 1 : 0)
                       "
-                      :aria-haspopup="inlineMode ? undefined : 'dialog'"
-                      :aria-disabled="loading || saving"
-                      @click.stop="open(t)"
+                      @click.stop
                     >
-                      {{ t.merchant || "未填写商户" }}
-                    </button>
-                    <small class="ledger-row-description"
-                      >{{ flows[t.flow_type]
-                      }}<template v-if="t.description">
-                        · {{ t.description }}</template
-                      ></small
-                    >
-                  </td>
-                  <td class="ledger-row-meta" role="cell">
-                    <span class="transaction-source"
-                      ><PlatformLogo :source="t.source" :size="19" />{{
-                        sources[t.source]
-                      }}</span
-                    >
-                    <span class="ledger-row-category">{{
-                      categories[t.category]
-                    }}</span>
-                  </td>
-                  <td class="ledger-row-amount" role="cell">
-                    <strong class="money" :class="t.flow_type">{{
-                      signedAmount(t)
-                    }}</strong>
-                    <time :datetime="t.occurred_at">{{
-                      toLocalInput(t.occurred_at).slice(11)
-                    }}</time>
-                  </td>
-                </tr>
+                      <time :datetime="group.day" :aria-label="group.label">
+                        <strong
+                          >{{ group.day.slice(5, 7) }}.{{
+                            group.day.slice(8)
+                          }}</strong
+                        >
+                        <small
+                          >{{ group.day.slice(0, 4) }} ·
+                          {{ group.weekday }}</small
+                        >
+                      </time>
+                    </th>
+                    <td role="cell" class="ledger-trade">
+                      <button
+                        :id="'ledger-open-' + t.id"
+                        class="ledger-row-open"
+                        type="button"
+                        :aria-label="'核对 ' + (t.merchant || '账单')"
+                        :aria-expanded="
+                          inlineMode ? editing?.id === t.id : undefined
+                        "
+                        :aria-controls="
+                          inlineMode && editing?.id === t.id
+                            ? 'ledger-active-voucher'
+                            : undefined
+                        "
+                        :aria-haspopup="inlineMode ? undefined : 'dialog'"
+                        :aria-disabled="loading || saving"
+                        @click.stop="open(t)"
+                      >
+                        {{ t.merchant || "未填写商户" }}
+                      </button>
+                      <small class="ledger-row-description"
+                        >{{ flows[t.flow_type]
+                        }}<template v-if="t.description">
+                          · {{ t.description }}</template
+                        ></small
+                      >
+                    </td>
+                    <td class="ledger-row-meta" role="cell">
+                      <span class="transaction-source"
+                        ><PlatformLogo :source="t.source" :size="19" />{{
+                          sources[t.source]
+                        }}</span
+                      >
+                      <span class="ledger-row-category">{{
+                        categories[t.category]
+                      }}</span>
+                    </td>
+                    <td class="ledger-row-amount" role="cell">
+                      <strong class="money" :class="t.flow_type">{{
+                        signedAmount(t)
+                      }}</strong>
+                      <time :datetime="t.occurred_at">{{
+                        toLocalInput(t.occurred_at).slice(11)
+                      }}</time>
+                    </td>
+                  </tr>
+                  <tr
+                    v-if="inlineMode && editing?.id === t.id"
+                    class="ledger-voucher-row"
+                  >
+                    <td colspan="3">
+                      <div id="ledger-active-voucher" class="ledger-voucher" />
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -821,223 +893,215 @@ async function exportCsv() {
       <Teleport to="body">
         <dialog
           ref="editor"
+          id="ledger-sheet"
           class="edit-dialog ledger-editor"
           aria-labelledby="ledger-editor-title"
           @cancel.prevent="closeModal"
           @click.self="closeModal"
         ></dialog>
       </Teleport>
-      <aside class="ledger-inspector" aria-label="账单核对">
-        <div v-if="inlineMode && !editing" class="ledger-inspector-empty">
-          <ReceiptText :size="23" />
-          <h2>账单核对</h2>
-          <p>
-            {{
-              data?.items.length
-                ? "选择一笔账单查看来源和金额。"
-                : "有可核对的交易时，会在这里显示账单明细。"
-            }}
-          </p>
-        </div>
-        <Teleport :to="editor ?? 'body'" :disabled="inlineMode || !editor">
-          <div v-if="editing" class="ledger-editor-body">
-            <div class="ledger-inspector-head">
-              <div>
-                <h2 id="ledger-editor-title" ref="editorTitle" tabindex="-1">
-                  {{ editing.merchant || "未填写商户" }}
-                </h2>
-                <p>{{ editMode ? "修正账单" : "账单核对" }}</p>
-              </div>
-              <button
-                v-if="!inlineMode"
-                class="icon-btn"
-                type="button"
-                aria-label="关闭核对"
-                :disabled="saving"
-                autofocus
-                @click="closeModal"
-              >
-                <X :size="20" />
-              </button>
+      <Teleport
+        v-if="editing"
+        :key="
+          inlineMode ? editing.id + '/' + (selectedGroup?.day ?? '') : 'sheet'
+        "
+        :to="panelTarget"
+        defer
+      >
+        <section class="ledger-editor-body" aria-label="账单核对">
+          <div class="ledger-inspector-head">
+            <div>
+              <h2 id="ledger-editor-title" ref="editorTitle" tabindex="-1">
+                {{ editing.merchant || "未填写商户" }}
+              </h2>
+              <p>{{ editMode ? "修正账单" : "账单核对" }}</p>
             </div>
-            <div ref="scrollRegion" class="ledger-editor-scroll">
-              <div v-if="pendingSelection" class="alert" role="status">
-                <p>这笔账单有未保存的修改。</p>
-                <button class="text-btn" type="button" @click="confirmSwitch">
-                  放弃修改并切换
-                </button>
-                <button class="text-btn" type="button" @click="continueEdit">
-                  继续编辑
-                </button>
-              </div>
-              <div
-                v-if="selectedOutsideList && inlineMode && !loading"
-                class="ledger-inspector-notice"
-              >
-                这笔账单不在当前列表中。
-              </div>
-              <div v-if="!editMode" class="ledger-inspector-summary">
-                <strong
-                  class="ledger-inspector-amount money"
-                  :class="editing.flow_type"
-                  >{{ signedAmount(editing) }}</strong
-                >
-                <dl class="ledger-inspector-meta">
-                  <div>
-                    <dt>交易时间</dt>
-                    <dd>{{ dateTime(editing.occurred_at) }}</dd>
-                  </div>
-                  <div>
-                    <dt>支付平台</dt>
-                    <dd class="transaction-source">
-                      <PlatformLogo :source="editing.source" :size="19" />{{
-                        sources[editing.source]
-                      }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>收支 · 类别</dt>
-                    <dd>
-                      {{ flows[editing.flow_type] }} ·
-                      {{ categories[editing.category] }}
-                    </dd>
-                  </div>
-                </dl>
-                <div
-                  v-if="editing.description"
-                  class="ledger-inspector-description"
-                >
-                  <span>已保存描述</span>
-                  <p>{{ editing.description }}</p>
-                </div>
-              </div>
-
-              <form
-                v-if="editMode"
-                id="ledger-edit-form"
-                class="ledger-editor-form"
-                @submit.prevent="save"
-              >
-                <div v-if="modalError" class="alert error" role="alert">
-                  {{ modalError }}
-                  <p v-if="conflictState === 'loading'">
-                    正在查找这笔账单的最新版本…
-                  </p>
-                  <template v-else-if="conflictLatest">
-                    <p>载入后会替换本次未保存的输入。</p>
-                    <button type="button" @click="applyLatestConflict">
-                      载入最新版本（v{{ conflictLatest.version }}）
-                    </button>
-                  </template>
-                  <template
-                    v-else-if="
-                      conflictState === 'missing' || conflictState === 'error'
-                    "
-                  >
-                    <p>
-                      {{
-                        conflictState === "missing"
-                          ? "未找到这笔账单，可能已不可访问。"
-                          : "未能读取最新版本。"
-                      }}当前输入仍保留。
-                    </p>
-                    <button type="button" @click="findLatestConflict">
-                      重试查找
-                    </button>
-                  </template>
-                </div>
-                <fieldset :disabled="saving">
-                  <div class="edit-grid">
-                    <label class="ledger-editor-time"
-                      >交易时间<input
-                        ref="firstEditField"
-                        v-model="edit.occurred_at"
-                        type="datetime-local"
-                    /></label>
-                    <label
-                      >金额（元）<input
-                        v-model="edit.amount"
-                        inputmode="decimal"
-                    /></label>
-                    <label>商户<input v-model="edit.merchant" /></label>
-                    <label
-                      >收支方向<select v-model="edit.flow_type">
-                        <option
-                          v-for="(label, key) in flows"
-                          :key="key"
-                          :value="key"
-                        >
-                          {{ label }}
-                        </option>
-                      </select></label
-                    >
-                    <label
-                      >类别<select v-model="edit.category">
-                        <option
-                          v-for="(label, key) in categories"
-                          :key="key"
-                          :value="key"
-                        >
-                          {{ label }}
-                        </option>
-                      </select></label
-                    >
-                    <label class="ledger-editor-description"
-                      >说明<input
-                        v-model="edit.description"
-                        placeholder="可选备注"
-                    /></label>
-                  </div>
-                  <label class="remember-check">
-                    <input
-                      v-model="remember"
-                      type="checkbox"
-                      :disabled="
-                        edit.category === 'pending' || !edit.merchant.trim()
-                      "
-                    />
-                    记住该商户的分类，用于之后导入的账单
-                  </label>
-                </fieldset>
-              </form>
-              <TransactionEvidence
-                :key="editing.id"
-                :transaction="editing"
-                :initially-open="inlineMode"
-              />
-            </div>
-            <div class="dialog-actions">
-              <template v-if="editMode">
-                <button
-                  class="secondary-btn"
-                  type="button"
-                  :disabled="saving"
-                  @click="cancelEdit"
-                >
-                  取消修改
-                </button>
-                <button
-                  class="primary-btn"
-                  type="submit"
-                  form="ledger-edit-form"
-                  :disabled="saving || Boolean(conflictState)"
-                >
-                  {{ saving ? "保存中…" : "保存修改" }}
-                </button>
-              </template>
-              <button
-                v-else
-                ref="editAction"
-                class="primary-btn"
-                type="button"
-                @click="startEdit"
-              >
-                <Pencil :size="15" />修正账单
-              </button>
-            </div>
+            <button
+              class="icon-btn"
+              type="button"
+              aria-label="关闭核对"
+              :disabled="saving"
+              :autofocus="!inlineMode"
+              @click="closeModal"
+            >
+              <X :size="20" />
+            </button>
           </div>
-        </Teleport>
-      </aside>
+          <div ref="scrollRegion" class="ledger-editor-scroll">
+            <div v-if="pendingSelection" class="alert" role="status">
+              <p>这笔账单有未保存的修改。</p>
+              <button class="text-btn" type="button" @click="confirmSwitch">
+                放弃修改并切换
+              </button>
+              <button class="text-btn" type="button" @click="continueEdit">
+                继续编辑
+              </button>
+            </div>
+            <div
+              v-if="!selectedGroup && inlineMode && !loading"
+              class="ledger-inspector-notice"
+            >
+              这笔账单不在当前列表中。
+            </div>
+            <div v-if="!editMode" class="ledger-inspector-summary">
+              <strong
+                class="ledger-inspector-amount money"
+                :class="editing.flow_type"
+                >{{ signedAmount(editing) }}</strong
+              >
+              <dl class="ledger-inspector-meta">
+                <div>
+                  <dt>交易时间</dt>
+                  <dd>{{ dateTime(editing.occurred_at) }}</dd>
+                </div>
+                <div>
+                  <dt>支付平台</dt>
+                  <dd class="transaction-source">
+                    <PlatformLogo :source="editing.source" :size="19" />{{
+                      sources[editing.source]
+                    }}
+                  </dd>
+                </div>
+                <div>
+                  <dt>收支 · 类别</dt>
+                  <dd>
+                    {{ flows[editing.flow_type] }} ·
+                    {{ categories[editing.category] }}
+                  </dd>
+                </div>
+              </dl>
+              <div
+                v-if="editing.description"
+                class="ledger-inspector-description"
+              >
+                <span>已保存描述</span>
+                <p>{{ editing.description }}</p>
+              </div>
+            </div>
+
+            <form
+              v-if="editMode"
+              id="ledger-edit-form"
+              class="ledger-editor-form"
+              @submit.prevent="save"
+            >
+              <div v-if="modalError" class="alert error" role="alert">
+                {{ modalError }}
+                <p v-if="conflictState === 'loading'">
+                  正在查找这笔账单的最新版本…
+                </p>
+                <template v-else-if="conflictLatest">
+                  <p>载入后会替换本次未保存的输入。</p>
+                  <button type="button" @click="applyLatestConflict">
+                    载入最新版本（v{{ conflictLatest.version }}）
+                  </button>
+                </template>
+                <template
+                  v-else-if="
+                    conflictState === 'missing' || conflictState === 'error'
+                  "
+                >
+                  <p>
+                    {{
+                      conflictState === "missing"
+                        ? "未找到这笔账单，可能已不可访问。"
+                        : "未能读取最新版本。"
+                    }}当前输入仍保留。
+                  </p>
+                  <button type="button" @click="findLatestConflict">
+                    重试查找
+                  </button>
+                </template>
+              </div>
+              <fieldset :disabled="saving">
+                <div class="edit-grid">
+                  <label class="ledger-editor-time"
+                    >交易时间<input
+                      ref="firstEditField"
+                      v-model="edit.occurred_at"
+                      type="datetime-local"
+                  /></label>
+                  <label
+                    >金额（元）<input v-model="edit.amount" inputmode="decimal"
+                  /></label>
+                  <label>商户<input v-model="edit.merchant" /></label>
+                  <label
+                    >收支方向<select v-model="edit.flow_type">
+                      <option
+                        v-for="(label, key) in flows"
+                        :key="key"
+                        :value="key"
+                      >
+                        {{ label }}
+                      </option>
+                    </select></label
+                  >
+                  <label
+                    >类别<select v-model="edit.category">
+                      <option
+                        v-for="(label, key) in categories"
+                        :key="key"
+                        :value="key"
+                      >
+                        {{ label }}
+                      </option>
+                    </select></label
+                  >
+                  <label class="ledger-editor-description"
+                    >说明<input
+                      v-model="edit.description"
+                      placeholder="可选备注"
+                  /></label>
+                </div>
+                <label class="remember-check">
+                  <input
+                    v-model="remember"
+                    type="checkbox"
+                    :disabled="
+                      edit.category === 'pending' || !edit.merchant.trim()
+                    "
+                  />
+                  记住该商户的分类，用于之后导入的账单
+                </label>
+              </fieldset>
+            </form>
+            <TransactionEvidence
+              :key="editing.id"
+              :transaction="editing"
+              :initially-open="inlineMode"
+            />
+          </div>
+          <div class="dialog-actions">
+            <template v-if="editMode">
+              <button
+                class="secondary-btn"
+                type="button"
+                :disabled="saving"
+                @click="cancelEdit"
+              >
+                取消修改
+              </button>
+              <button
+                class="primary-btn"
+                type="submit"
+                form="ledger-edit-form"
+                :disabled="saving || Boolean(conflictState)"
+              >
+                {{ saving ? "保存中…" : "保存修改" }}
+              </button>
+            </template>
+            <button
+              v-else
+              ref="editAction"
+              class="primary-btn"
+              type="button"
+              @click="startEdit"
+            >
+              <Pencil :size="15" />修正账单
+            </button>
+          </div>
+        </section>
+      </Teleport>
     </div>
   </div>
 </template>
