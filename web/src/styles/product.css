@@ -147,7 +147,7 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .chart-cursor-tooltip { font-size: 13px; border-radius: 15px; }
 .income-row { width: 100%; padding: 15px 7px; border: 0; border-bottom: 1px solid #e9eff7; background: transparent; text-align: left; cursor: pointer; color: #365576; border-radius: 9px; transition: background .2s; }
 .income-row:hover { background: #edf5ff; }
-.income-track i, .budget-track span { transform-origin: left; animation: track-fill .65s var(--ease-arrive) both; }
+.income-track i, .budget-track span { transform-origin: left center; }
 .budget-row:hover .budget-track span { filter: brightness(.9); }
 .budget-track span.over { background: #c98a43; }
 .upload-aside { overflow: hidden; background: linear-gradient(155deg, #f7fbff, #e6f1ff); border: 1px solid #dce8f7; }
@@ -197,7 +197,6 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 @keyframes route-flow { to { stroke-dashoffset: -428; } }
 @keyframes orbit-turn { to { transform: rotate(360deg); } }
 @keyframes choice-in { from { transform: scale(.5); } to { transform: scale(1); } }
-@keyframes track-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes selection-arrive { from { opacity: .5; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes upload-scan { 0%, 100% { transform: scaleX(.2); opacity: .5; } 50% { transform: scaleX(1); opacity: 1; } }
 .journey-paused *, .motion-inactive *, .document-hidden * { animation-play-state: paused !important; }

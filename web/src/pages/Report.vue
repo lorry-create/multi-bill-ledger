@@ -366,7 +366,7 @@ function goCategory(category: string, flow_type?: "income") {
       <div class="hero-decoration" aria-hidden="true"></div>
     </section>
     <div class="report-grid">
-      <section class="content-panel category-panel">
+      <section v-reveal class="content-panel category-panel">
         <div class="panel-heading">
           <div>
             <h2>钱花在了哪里</h2>
@@ -428,7 +428,7 @@ function goCategory(category: string, flow_type?: "income") {
           ><span>确认入账后，这里会显示类别分布。</span>
         </div>
       </section>
-      <section class="content-panel trend-panel" :key="`${month}-${trendMode}`">
+      <section v-reveal="{ delay: 90 }" class="content-panel trend-panel" :key="`${month}-${trendMode}`">
         <div class="panel-heading">
           <div>
             <h2>收支走势</h2>
@@ -486,23 +486,23 @@ function goCategory(category: string, flow_type?: "income") {
     </div>
     <section v-if="topExpense || exceededBudgets.length" class="report-insights" aria-label="消费观察">
       <div class="insight-intro"><span>消费观察</span><strong>从数字里找到下一步</strong></div>
-      <button v-if="topExpense" class="insight-item" @click="goCategory(topExpense.category)">
+      <button v-if="topExpense" v-reveal class="insight-item" @click="goCategory(topExpense.category)">
         <span>本月最大支出类别</span><strong>{{ categories[topExpense.category] }} · {{ yuan(topExpense.amount_fen) }}</strong><span>查看明细 <ChevronRight :size="14" /></span>
       </button>
-      <button v-if="exceededBudgets.length" class="insight-item" @click="goCategory(exceededBudgets[0].category)">
+      <button v-if="exceededBudgets.length" v-reveal="{ delay: 80 }" class="insight-item" @click="goCategory(exceededBudgets[0].category)">
         <span>需要留意</span><strong>{{ categories[exceededBudgets[0].category] }}超出预算 {{ yuan(exceededBudgets[0].over_fen) }}{{ exceededBudgets.length > 1 ? `（另有 ${exceededBudgets.length - 1} 项超支）` : "" }}</strong><span>查看相关账单 <ChevronRight :size="14" /></span>
       </button>
     </section>
-    <div class="report-lower-grid"><section class="content-panel income-panel">
+    <div class="report-lower-grid"><section v-reveal class="content-panel income-panel">
       <div class="panel-heading"><div><h2>收入构成</h2><p>按已确认收入的类别汇总</p></div></div>
       <div v-if="incomeParts.length" class="income-list">
-        <button v-for="part in incomeParts" :key="part.category" class="income-row" type="button" @click="goCategory(part.category, 'income')" :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，查看明细`">
-          <span>{{ categories[part.category] }}</span><div class="income-track"><i :style="{width:`${report.totals.income_fen?part.amount_fen/report.totals.income_fen*100:0}%`}"></i></div><strong>{{ yuan(part.amount_fen) }}</strong>
+        <button v-for="(part, index) in incomeParts" :key="part.category" class="income-row" type="button" @click="goCategory(part.category, 'income')" :aria-label="`${categories[part.category]}收入 ${yuan(part.amount_fen)}，查看明细`">
+          <span>{{ categories[part.category] }}</span><div class="income-track"><i v-reveal="{ type: 'bar', delay: 120 + index * 70 }" :style="{width:`${report.totals.income_fen?part.amount_fen/report.totals.income_fen*100:0}%`}"></i></div><strong>{{ yuan(part.amount_fen) }}</strong>
         </button>
       </div>
       <div v-else class="empty-state"><strong>本月没有收入明细</strong><span>收入账单确认后会在这里展示来源。</span></div>
     </section>
-    <section class="content-panel budget-panel">
+    <section v-reveal="{ delay: 90 }" class="content-panel budget-panel">
       <div class="panel-heading">
         <div>
           <h2>类别预算</h2>
@@ -522,7 +522,7 @@ function goCategory(category: string, flow_type?: "income") {
       </div>
       <div v-else class="budget-list">
         <button
-          v-for="budget in report.budgets"
+          v-for="(budget, index) in report.budgets"
           :key="budget.category"
           class="budget-row"
           @click="goCategory(budget.category)"
@@ -530,6 +530,7 @@ function goCategory(category: string, flow_type?: "income") {
           <span class="budget-name">{{ categories[budget.category] }}</span>
           <div class="budget-track">
             <span
+              v-reveal="{ type: 'bar', delay: 160 + index * 70 }"
               :style="{
                 width: `${budget.budget_fen ? Math.min(100, Math.max(0, (budget.spent_fen / budget.budget_fen) * 100)) : 0}%`,
               }"

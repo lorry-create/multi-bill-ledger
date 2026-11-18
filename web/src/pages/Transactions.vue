@@ -228,7 +228,7 @@ async function exportCsv() {
     >
   </div>
   <div v-if="error" class="alert error" role="alert">{{ error }}</div>
-  <section class="content-panel transaction-panel" :aria-busy="loading">
+  <section v-reveal class="content-panel transaction-panel" :aria-busy="loading">
     <div class="toolbar">
       <div class="toolbar-title">
         <Filter :size="18" /><strong>筛选账单</strong>

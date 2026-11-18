@@ -6,6 +6,7 @@ import "./styles/identity.css";
 import "./styles/motion.css";
 import "./styles/product.css";
 import { installMotion } from "./motion";
+import { revealDirective } from "./directives/reveal";
 
 installMotion();
-createApp(App).use(router).mount("#app");
+createApp(App).directive("reveal", revealDirective).use(router).mount("#app");

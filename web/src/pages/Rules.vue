@@ -62,12 +62,12 @@ async function change(
     </div>
   </div>
   <div v-if="error" class="alert error" role="alert">{{ error }}</div>
-  <section class="rule-explainer">
+  <section v-reveal class="rule-explainer">
     <ParticleField />
     <div><h2>你的选择，会成为下一次的规则。</h2><p>在账单中修正类别，并选择“记住该商户”。同平台的新交易会优先采用你的分类。</p></div>
     <div class="rule-cycle"><span><SlidersHorizontal :size="20" />修正分类</span><ArrowRight :size="16" /><span><BookOpenCheck :size="20" />记住商户</span><ArrowRight :size="16" /><span><Repeat2 :size="20" />下次自动分类</span></div>
   </section>
-  <section class="content-panel rules-panel">
+  <section v-reveal="{ delay: 100 }" class="content-panel rules-panel">
     <div class="panel-heading">
       <div>
         <h2>我的规则</h2>

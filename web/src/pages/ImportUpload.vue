@@ -125,7 +125,7 @@ async function submit() {
     </div>
   </div>
   <div class="upload-layout">
-    <section class="upload-main">
+    <section v-reveal class="upload-main">
       <div class="section-heading">
         <span class="step-dot">1</span>
         <div>
@@ -216,7 +216,7 @@ async function submit() {
         </button>
       </div>
     </section>
-    <aside class="upload-aside">
+    <aside v-reveal="{ delay: 100 }" class="upload-aside">
       <ParticleField />
       <h3>导入后会发生什么？</h3>
       <ol>
