@@ -175,7 +175,10 @@ const editorTitle = ref<HTMLElement | null>(null);
 const editAction = ref<HTMLButtonElement | null>(null);
 const firstEditField = ref<HTMLInputElement | null>(null);
 const listFailed = ref(false);
-const playEntrance = ref(false);
+const ledgerTable = ref<HTMLElement | null>(null);
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let entranceAnimations: Animation[] = [];
+let entranceRequest = 0;
 let firstResults = true;
 const pageCount = computed(() =>
   Math.ceil((data.value?.total ?? 0) / PAGE_SIZE),
@@ -199,11 +202,10 @@ const days = computed(() => {
       day: string;
       label: string;
       weekday: string;
-      start: number;
       rows: Transaction[];
     }
   >();
-  for (const [index, item] of (data.value?.items ?? []).entries()) {
+  for (const item of data.value?.items ?? []) {
     const day = toLocalInput(item.occurred_at).slice(0, 10);
     const group = grouped.get(day);
     if (group) group.rows.push(item);
@@ -212,7 +214,6 @@ const days = computed(() => {
         day,
         label: dayFormat.format(new Date(item.occurred_at)),
         weekday: weekdayFormat.format(new Date(item.occurred_at)),
-        start: index,
         rows: [item],
       });
   }
@@ -227,9 +228,40 @@ const panelTarget = computed(() => {
   if (!inlineMode.value) return "#ledger-sheet";
   return selectedGroup.value ? "#ledger-active-voucher" : "#ledger-detached";
 });
-function arrivalDelay(index: number) {
-  const count = data.value?.items.length ?? 1;
-  return Math.round(index * Math.min(80, 1000 / count)) + "ms";
+function stopEntrance() {
+  entranceRequest++;
+  entranceAnimations.forEach((animation) => animation.cancel());
+  entranceAnimations = [];
+}
+async function replayEntrance() {
+  stopEntrance();
+  const request = entranceRequest;
+  await nextTick();
+  if (
+    request !== entranceRequest ||
+    loading.value ||
+    reducedMotion.matches ||
+    !ledgerTable.value?.animate
+  )
+    return;
+  const rows = ledgerTable.value.querySelectorAll<HTMLElement>(".ledger-row");
+  const step = Math.min(80, 600 / Math.max(1, rows.length - 1));
+  for (const [index, row] of rows.entries()) {
+    entranceAnimations.push(
+      row.animate(
+        [
+          { opacity: 0, transform: "translateX(-48px)" },
+          { opacity: 1, transform: "translateX(0)" },
+        ],
+        {
+          duration: 560,
+          delay: index * step,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "backwards",
+        },
+      ),
+    );
+  }
 }
 function signedAmount(item: Transaction) {
   const sign =
@@ -263,14 +295,17 @@ onMounted(() => {
   wideLedger.addEventListener("change", onLayoutChange);
   viewport?.addEventListener("resize", resizeEditor);
   viewport?.addEventListener("scroll", resizeEditor);
+  reducedMotion.addEventListener("change", stopEntrance);
   load();
 });
 onUnmounted(() => {
   listRequest++;
   conflictRequest++;
+  stopEntrance();
   wideLedger.removeEventListener("change", onLayoutChange);
   viewport?.removeEventListener("resize", resizeEditor);
   viewport?.removeEventListener("scroll", resizeEditor);
+  reducedMotion.removeEventListener("change", stopEntrance);
 });
 watch(
   () => route.query,
@@ -280,7 +315,7 @@ watch(
 );
 async function load(selectFromResults = false) {
   const request = ++listRequest;
-  playEntrance.value = false;
+  stopEntrance();
   const { date_from, date_to, page } = filters.value;
   listFailed.value = false;
   if (date_from && date_to && date_from > date_to) {
@@ -304,7 +339,7 @@ async function load(selectFromResults = false) {
       await navigateFilters({ ...filters.value, page: lastPage }, true);
       return;
     }
-    playEntrance.value = firstResults && result.items.length > 0;
+    const animateResults = firstResults || selectFromResults;
     firstResults = false;
     data.value = result;
     if (!editMode.value && inlineMode.value) {
@@ -314,6 +349,7 @@ async function load(selectFromResults = false) {
       if (current) editing.value = current;
       else if (selectFromResults) setSelected(null);
     }
+    if (animateResults) void replayEntrance();
   } catch (e) {
     if (request === listRequest) {
       data.value = null;
@@ -339,7 +375,8 @@ function navigateFilters(next: Filters, replace = false) {
 }
 function selectPlatform(platform: "" | Source) {
   if (filters.value.source === platform) {
-    if (listFailed.value) load();
+    if (listFailed.value) load(true);
+    else void replayEntrance();
     return;
   }
   navigateFilters({ ...filters.value, source: platform, page: 1 });
@@ -743,8 +780,8 @@ async function exportLedger(format: "csv" | "xlsx") {
         <div class="ledger-results-content" :aria-busy="loading">
           <div
             v-if="days.length"
+            ref="ledgerTable"
             class="ledger-table"
-            :class="{ 'ledger-arriving': playEntrance }"
           >
             <table role="table" aria-label="按交易日期分组的账单">
               <thead>
@@ -769,11 +806,6 @@ async function exportLedger(format: "csv" | "xlsx") {
                 <template v-for="(t, index) in group.rows" :key="t.id">
                   <tr
                     class="ledger-row"
-                    :style="{
-                      '--ledger-arrival-delay': arrivalDelay(
-                        group.start + index,
-                      ),
-                    }"
                     :class="{ 'is-selected': editing?.id === t.id }"
                     role="row"
                     @click="open(t)"

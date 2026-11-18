@@ -726,24 +726,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .ledger-arriving .ledger-row > td {
-    animation: ledger-line-in 0.48s cubic-bezier(0.18, 0.78, 0.22, 1)
-      var(--ledger-arrival-delay) backwards;
-  }
-
   .ledger-voucher:not(:empty) .ledger-editor-body {
     animation: ledger-sheet-in 0.2s var(--ease-arrive) both;
-  }
-}
-
-@keyframes ledger-line-in {
-  from {
-    opacity: 0.12;
-    transform: translateX(-40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
   }
 }
 
@@ -922,17 +906,6 @@
   }
 
   .ledger-editor[open] {
-    animation: none;
-  }
-}
-
-@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
-  .ledger-arriving .ledger-row {
-    animation: ledger-line-in 0.48s cubic-bezier(0.18, 0.78, 0.22, 1)
-      var(--ledger-arrival-delay) backwards;
-  }
-
-  .ledger-arriving .ledger-row > td {
     animation: none;
   }
 }
