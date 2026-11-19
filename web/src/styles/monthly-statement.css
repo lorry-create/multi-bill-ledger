@@ -127,7 +127,7 @@
   filter: none;
 }
 .monthly-statement .donut > svg,
-.statement-income-pie { filter: drop-shadow(0 4px 8px #20437718); }
+.statement-income-pie { filter: drop-shadow(0 4px 7px #2043771f); transform-origin: 50% 50%; }
 .statement-chart-depth { opacity: .55; }
 .statement-chart-material { pointer-events: none; }
 .statement-chart-tint, .statement-chart-particles { visibility: hidden; pointer-events: none; }
@@ -233,7 +233,7 @@
 .budget-detail:hover { background: #edf5fd; }
 .budget-detail .budget-track, .budget-detail small { grid-column: 1 / -1; }
 .budget-detail small { font-size: 12px; color: var(--statement-muted); overflow-wrap: anywhere; }
-.budget-detail .budget-track { display: block; height: 9px; border-radius: 999px; overflow: hidden; background: #e2ebf4; }
+.budget-detail .budget-track { display: block; height: 13px; border-radius: 5px; overflow: hidden; background: #e2ebf4; box-shadow: inset 0 1px 2px #294d7610; }
 .budget-detail .budget-track i {
   --budget-deep: #477ebd;
   --budget-mid: #5e98d5;
@@ -243,8 +243,10 @@
   height: 100%;
   overflow: hidden;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--budget-deep), var(--budget-mid) 38%, var(--budget-light) 59%, var(--budget-deep));
-  background-size: 200% 100%;
+  background:
+    linear-gradient(180deg, #f4fbff66, #edf7ff17 24%, transparent 52%, #173b6824),
+    linear-gradient(90deg, var(--budget-deep), var(--budget-mid) 38%, var(--budget-light) 59%, var(--budget-deep));
+  background-size: 100% 100%, 200% 100%;
 }
 .budget-status { display: flex; align-items: center; gap: 3px; font-size: 12px; }
 .statement-budget[data-level="over"] .budget-status, .statement-budget[data-level="near"] .budget-status { color: #8b5b1e; }
@@ -253,6 +255,16 @@
 .statement-empty { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 32px 0; gap: 15px; }
 .statement-empty h2 { margin: 0; font-size: 22px; }
 @media (prefers-reduced-motion: no-preference) {
+  .monthly-statement .donut[data-flow-entered] > svg,
+  .statement-pie-stage[data-flow-entered] > svg {
+    animation: statement-chart-open .48s cubic-bezier(.16, 1, .3, 1) both;
+  }
+  .monthly-statement .donut[data-flow-entered] .donut-hole {
+    animation: statement-center-open .48s ease-out both;
+  }
+  .statement-budget .budget-track i[data-flow-entered] {
+    animation: statement-budget-open .6s cubic-bezier(.16, 1, .3, 1) both;
+  }
   .monthly-statement .trend-bars i[data-lit="true"][data-flow-visible]::before {
     content: "";
     position: absolute;
@@ -284,7 +296,12 @@
   }
   .statement-pie-stage[data-flow-visible] .statement-chart-tint { animation-delay: -2.8s; }
   .statement-pie-stage[data-flow-visible] .statement-chart-particles { animation-delay: -1.3s, -2s; }
-  .statement-budget .budget-track i[data-flow-visible] {
+  .statement-budget .budget-track i[data-flow-visible]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: inherit;
     animation: statement-budget-tint 4.5s ease-in-out infinite alternate;
   }
   .statement-budget .budget-track i[data-flow-visible]::after {
@@ -294,10 +311,19 @@
     opacity: .67;
     pointer-events: none;
     background:
-      radial-gradient(circle at 16px 3px, #ffffffd9 0 .75px, transparent 1.4px) 0 0 / 47px 100% repeat-x,
-      radial-gradient(circle at 39px 6px, #f6fbffb3 0 .65px, transparent 1.3px) 0 0 / 69px 100% repeat-x;
+      radial-gradient(circle at 16px 4px, #ffffffd9 0 .75px, transparent 1.4px) 0 0 / 47px 100% repeat-x,
+      radial-gradient(circle at 39px 9px, #f6fbffb3 0 .65px, transparent 1.3px) 0 0 / 69px 100% repeat-x;
     animation: statement-budget-drift 4s linear infinite;
   }
+}
+@keyframes statement-chart-open {
+  from { opacity: .15; transform: scale(.955); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes statement-center-open { from { opacity: 0; } to { opacity: 1; } }
+@keyframes statement-budget-open {
+  from { clip-path: inset(0 100% 0 0 round 5px); }
+  to { clip-path: inset(0 0 0 0 round 5px); }
 }
 @keyframes statement-chart-tint {
   from { transform: translateY(-38px); }
@@ -315,12 +341,13 @@
   from { opacity: .53; }
   to { opacity: .68; filter: hue-rotate(22deg); }
 }
-@keyframes statement-budget-tint { to { background-position: 100% 0; } }
+@keyframes statement-budget-tint { to { background-position: 0 0, 100% 0; } }
 @keyframes statement-budget-drift { to { background-position: 47px 0, 69px 0; } }
 .document-hidden .monthly-statement .trend-bars i::before,
 .document-hidden .monthly-statement .trend-bars i::after,
 .document-hidden .statement-chart-tint,
 .document-hidden .statement-chart-particles,
+.document-hidden .monthly-statement .budget-track i::before,
 .document-hidden .monthly-statement .budget-track i::after { animation-play-state: paused !important; }
 @media (max-width: 940px) {
   .statement-spread { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }

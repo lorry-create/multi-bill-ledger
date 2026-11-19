@@ -1,38 +1,78 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   BarChart3,
   BookOpenCheck,
   Check,
   LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronDown,
+  Menu,
+  X,
   Plus,
   WalletCards,
 } from "@lucide/vue";
 import { auth, restoreSession, signOut } from "./session";
 import { isDemo } from "./api";
 import { notice } from "./motion";
+import BrandMark from "./components/BrandMark.vue";
 
 const route = useRoute();
 const router = useRouter();
 const publicPage = computed(() => route.meta.public);
 const username = computed(() => auth.session?.user.username ?? "");
-const sidebarCollapsed = ref(localStorage.getItem("ledger-sidebar-collapsed") === "true");
+const menuOpen = ref(false);
+const accountOpen = ref(false);
+const header = ref<HTMLElement>();
+const menuButton = ref<HTMLButtonElement>();
+const accountButton = ref<HTMLButtonElement>();
+const compactNavigation = window.matchMedia("(max-width: 900px)");
 const nav = [
   { to: "/report", label: "月度报告", icon: BarChart3 },
   { to: "/transactions", label: "全部账单", icon: WalletCards },
   { to: "/rules", label: "分类规则", icon: BookOpenCheck },
 ];
 const importLink = { to: "/import", label: "导入账单", icon: Plus };
-const mobileNav = [nav[0], nav[1], importLink, nav[2]];
-const inImport = computed(() => route.path === "/import" || route.path.startsWith("/import/"));
+const mobileNav = [...nav, importLink];
+const inImport = computed(
+  () => route.path === "/import" || route.path.startsWith("/import/"),
+);
 
-function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
-  localStorage.setItem("ledger-sidebar-collapsed", String(sidebarCollapsed.value));
+function closeOnOutside(event: PointerEvent) {
+  if (header.value?.contains(event.target as Node)) return;
+  menuOpen.value = false;
+  accountOpen.value = false;
 }
+function onNavigationResize(event: MediaQueryListEvent) {
+  if (!event.matches) menuOpen.value = false;
+}
+function onEscape(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  if (accountOpen.value) {
+    accountOpen.value = false;
+    accountButton.value?.focus();
+  } else if (menuOpen.value) {
+    menuOpen.value = false;
+    menuButton.value?.focus();
+  }
+}
+watch(
+  () => route.fullPath,
+  () => {
+    menuOpen.value = false;
+    accountOpen.value = false;
+  },
+);
+onMounted(() => {
+  document.addEventListener("pointerdown", closeOnOutside);
+  document.addEventListener("keydown", onEscape);
+  compactNavigation.addEventListener("change", onNavigationResize);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", closeOnOutside);
+  document.removeEventListener("keydown", onEscape);
+  compactNavigation.removeEventListener("change", onNavigationResize);
+});
 function loginFor(target: { path: string; fullPath: string }) {
   return target.path === "/transactions"
     ? { path: "/login", query: { next: target.fullPath } }
@@ -45,7 +85,8 @@ onMounted(async () => {
 watch(
   () => auth.session,
   (value) => {
-    if (!value && !auth.loading && !route.meta.public) router.replace(loginFor(route));
+    if (!value && !auth.loading && !route.meta.public)
+      router.replace(loginFor(route));
   },
 );
 router.beforeEach((to) => {
@@ -64,60 +105,125 @@ async function leave() {
 <template>
   <div v-if="auth.loading" class="startup">正在打开归账…</div>
   <RouterView v-else-if="publicPage" />
-  <div v-else-if="auth.session" class="shell" :class="{ 'is-collapsed': sidebarCollapsed }">
-    <aside class="sidebar journal-rail">
-      <RouterLink class="brand" to="/report" aria-label="归账，打开月报">
-        <span class="brand-mark"><img src="/brand.svg?v=4" alt="" /></span>
-        <span class="brand-name">归账</span>
-      </RouterLink>
-      <RouterLink
-        class="rail-import"
-        to="/import"
-        title="导入账单"
-        aria-label="导入账单"
-        :aria-current="inImport ? 'page' : undefined"
-      >
-        <Plus :size="19" /><span>导入账单</span>
-      </RouterLink>
-      <nav aria-label="主导航" class="nav-list">
-        <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="nav-link"
-          :aria-label="item.label" :title="item.label">
-          <component :is="item.icon" :size="19" :stroke-width="1.75" />
-          <span>{{ item.label }}</span>
+  <div v-else-if="auth.session" class="shell horizontal-shell">
+    <a class="skip-to-content" href="#workspace-content">跳到主要内容</a>
+    <header ref="header" class="workspace-header">
+      <div class="workspace-header-inner">
+        <RouterLink
+          class="workspace-brand"
+          to="/report"
+          aria-label="归账，打开月报"
+          @click="
+            menuOpen = false;
+            accountOpen = false;
+          "
+        >
+          <BrandMark class="workspace-brand-mark" animated />
+          <span class="workspace-brand-copy"
+            ><strong>归账</strong><small>把每一笔，归于清晰</small></span
+          >
         </RouterLink>
-      </nav>
-      <div class="rail-footer">
-        <button class="rail-toggle" type="button" :aria-expanded="!sidebarCollapsed"
-          :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-          :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleSidebar">
-          <component :is="sidebarCollapsed ? PanelLeftOpen : PanelLeftClose" :size="18" />
-          <span>收起侧边栏</span>
-        </button>
-        <div class="profile">
-          <span class="avatar" aria-hidden="true">{{ username.slice(0, 1).toUpperCase() }}</span>
-          <span class="profile-name">
-            <strong :title="username">{{ username }}</strong>
-            <small v-if="isDemo">合成数据演示</small>
-          </span>
-          <button class="icon-btn logout" type="button" aria-label="退出登录" title="退出登录" @click="leave">
-            <LogOut :size="17" />
+        <nav aria-label="主导航" class="workspace-nav">
+          <RouterLink
+            v-for="item in nav"
+            :key="item.to"
+            :to="item.to"
+            class="workspace-link"
+            @click="accountOpen = false"
+            >{{ item.label }}</RouterLink
+          >
+        </nav>
+        <div class="workspace-actions">
+          <RouterLink
+            to="/import"
+            class="workspace-import"
+            @click="
+              menuOpen = false;
+              accountOpen = false;
+            "
+            :aria-current="inImport ? 'page' : undefined"
+            ><Plus :size="17" /><span>导入账单</span></RouterLink
+          >
+          <div class="workspace-account">
+            <button
+              ref="accountButton"
+              class="workspace-account-toggle"
+              type="button"
+              aria-label="账号菜单"
+              aria-controls="account-panel"
+              :aria-expanded="accountOpen"
+              @click="
+                accountOpen = !accountOpen;
+                menuOpen = false;
+              "
+            >
+              <span class="workspace-avatar" aria-hidden="true">{{
+                username.slice(0, 1).toUpperCase()
+              }}</span>
+              <span class="workspace-username">{{ username }}</span
+              ><ChevronDown :size="14" :class="{ 'is-open': accountOpen }" />
+            </button>
+            <Transition name="nav-panel">
+              <div
+                v-if="accountOpen"
+                id="account-panel"
+                class="workspace-account-panel"
+              >
+                <p>
+                  <strong>{{ username }}</strong
+                  ><small>{{ isDemo ? "合成数据演示" : "个人账本" }}</small>
+                </p>
+                <button type="button" @click="leave">
+                  <LogOut :size="16" />退出登录
+                </button>
+              </div>
+            </Transition>
+          </div>
+          <button
+            ref="menuButton"
+            class="workspace-menu-toggle"
+            type="button"
+            :aria-label="menuOpen ? '收起导航' : '展开导航'"
+            aria-controls="mobile-navigation"
+            :aria-expanded="menuOpen"
+            @click="
+              menuOpen = !menuOpen;
+              accountOpen = false;
+            "
+          >
+            <component :is="menuOpen ? X : Menu" :size="21" />
           </button>
         </div>
       </div>
-    </aside>
-    <nav aria-label="手机主导航" class="mobile-nav">
-      <RouterLink v-for="item in mobileNav" :key="item.to" :to="item.to" class="mobile-nav-link"
-        :class="{ 'mobile-import': item.to === '/import', 'import-open': item.to === '/import' && inImport }"
-        :aria-current="item.to === '/import' && inImport ? 'page' : undefined">
-        <span class="mobile-nav-icon"><component :is="item.icon" :size="21" :stroke-width="1.75" /></span>
-        <span>{{ item.label }}</span>
-      </RouterLink>
-    </nav>
-    <main class="main">
+      <Transition name="nav-panel">
+        <nav
+          v-if="menuOpen"
+          id="mobile-navigation"
+          class="workspace-mobile-nav"
+          aria-label="手机主导航"
+        >
+          <RouterLink
+            v-for="item in mobileNav"
+            :key="item.to"
+            :to="item.to"
+            @click="menuOpen = false"
+            :aria-current="
+              item.to === '/import' && inImport ? 'page' : undefined
+            "
+            ><component :is="item.icon" :size="19" /><span>{{
+              item.label
+            }}</span></RouterLink
+          >
+        </nav>
+      </Transition>
+    </header>
+    <main id="workspace-content" class="main" tabindex="-1">
       <div class="page-wrap">
         <RouterView v-slot="{ Component }">
           <Transition name="screen" mode="out-in">
-            <div :key="route.path" class="page-screen"><component :is="Component" /></div>
+            <div :key="route.path" v-page-entrance class="page-screen">
+              <component :is="Component" />
+            </div>
           </Transition>
         </RouterView>
       </div>

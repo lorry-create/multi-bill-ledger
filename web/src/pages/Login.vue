@@ -13,6 +13,7 @@ import { errorText, signIn } from "../session";
 import { ApiError, isDemo } from "../api";
 import ParticleField from "../components/ParticleField.vue";
 import LedgerJourney from "../components/LedgerJourney.vue";
+import BrandMark from "../components/BrandMark.vue";
 const folioArrow =
   "M5 14.65h10.35l-3.24-2.95a1.28 1.28 0 0 1 1.72-1.89l5.52 5.05a1.54 1.54 0 0 1 0 2.28l-5.52 5.05a1.28 1.28 0 0 1-1.72-1.89l3.24-2.95H5a1.35 1.35 0 0 1 0-2.7Z";
 const passwordVisible = ref(false);
@@ -101,18 +102,7 @@ async function submit() {
     <section class="login-story">
       <ParticleField />
       <div class="login-brand">
-        <span class="folio-brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none">
-            <path
-              class="folio-brand-outline"
-              d="M10.5 10.5V9A3 3 0 0 1 13.5 6h7.75A4.75 4.75 0 0 1 26 10.75V24.5a1.5 1.5 0 0 1-1.5 1.5h-11a3 3 0 0 1-3-3v-1.5"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path class="folio-brand-arrow" :d="folioArrow" />
-          </svg>
-        </span>
+        <BrandMark class="folio-brand-mark" opening />
         <span class="folio-brand-name">归账</span>
       </div>
       <Teleport defer to="#login-cover-slot" :disabled="!mobileCover">
@@ -260,35 +250,8 @@ async function submit() {
   z-index: 2;
 }
 .folio-brand-mark {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
   width: 42px;
   height: 42px;
-  overflow: hidden;
-  border: 1px solid #b5cdec;
-  border-radius: 12px;
-  background: #f0f6ff;
-  box-shadow: 0 4px 12px #2c5f9a16;
-}
-.folio-brand-mark::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(145deg, #579bf3, #235ac0);
-  opacity: 0;
-}
-.folio-brand-mark svg {
-  position: relative;
-  width: 30px;
-  height: 30px;
-}
-.folio-brand-outline {
-  stroke: #254f86;
-}
-.folio-brand-arrow {
-  fill: #2f6eb9;
 }
 #login-cover-slot:empty {
   display: none;
@@ -380,15 +343,6 @@ async function submit() {
   margin-top: 21px;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .folio-brand-mark::before {
-    animation: folio-brand-wash 1.05s var(--folio-opening-ease) both;
-  }
-  .folio-brand-outline {
-    animation: folio-logo-outline 1.05s var(--folio-opening-ease) both;
-  }
-  .folio-brand-arrow {
-    animation: folio-logo-arrow 1.1s 0.28s var(--folio-opening-ease) both;
-  }
   .folio-brand-name {
     animation: folio-brand-name-in 0.75s 0.15s var(--folio-opening-ease) both;
   }
@@ -427,27 +381,6 @@ async function submit() {
   }
   .folio-spinner {
     animation: folio-wait 0.8s linear infinite;
-  }
-}
-@keyframes folio-brand-wash {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-@keyframes folio-logo-outline {
-  from {
-    stroke: #fff;
-  }
-}
-@keyframes folio-logo-arrow {
-  from {
-    transform: translateX(-26px);
-  }
-  to {
-    transform: translateX(0);
   }
 }
 @keyframes folio-brand-name-in {
@@ -490,10 +423,6 @@ async function submit() {
     width: 35px;
     height: 35px;
     border-radius: 10px;
-  }
-  .folio-brand-mark svg {
-    width: 25px;
-    height: 25px;
   }
   .folio-login .login-form-panel {
     order: 1;

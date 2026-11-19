@@ -6,8 +6,14 @@ import "./styles/identity.css";
 import "./styles/motion.css";
 import "./styles/product.css";
 import "./styles/navigation.css";
+import "./styles/page-entrance.css";
 import { installMotion } from "./motion";
 import { revealDirective } from "./directives/reveal";
+import { pageEntranceDirective } from "./directives/pageEntrance";
 
 installMotion();
-createApp(App).directive("reveal", revealDirective).use(router).mount("#app");
+createApp(App)
+  .directive("reveal", revealDirective)
+  .directive("page-entrance", pageEntranceDirective)
+  .use(router)
+  .mount("#app");

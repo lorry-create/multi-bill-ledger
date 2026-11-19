@@ -32,6 +32,7 @@ const route = useRoute();
 const flowObserver = new IntersectionObserver((entries) => {
   for (const entry of entries) {
     entry.target.toggleAttribute("data-flow-visible", entry.isIntersecting);
+    if (entry.isIntersecting) entry.target.setAttribute("data-flow-entered", "");
   }
 });
 const vFlowInView: ObjectDirective<HTMLElement> = {
@@ -794,19 +795,19 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                         transform="rotate(-90 90 90)"
                       />
                     </mask>
-                    <radialGradient
+                    <linearGradient
                       id="expense-bevel"
-                      cx="90"
-                      cy="90"
-                      r="81"
+                      x1="24"
+                      y1="12"
+                      x2="145"
+                      y2="165"
                       gradientUnits="userSpaceOnUse"
                     >
-                      <stop offset=".72" stop-color="#16365e" stop-opacity=".1" />
-                      <stop offset=".8" stop-color="#e1f1ff" stop-opacity="0" />
-                      <stop offset=".91" stop-color="#edf8ff" stop-opacity=".04" />
-                      <stop offset=".97" stop-color="#f5fbff" stop-opacity=".16" />
-                      <stop offset="1" stop-color="#244c7d" stop-opacity=".07" />
-                    </radialGradient>
+                      <stop offset="0" stop-color="#f4fbff" stop-opacity=".2" />
+                      <stop offset=".27" stop-color="#edf8ff" stop-opacity=".06" />
+                      <stop offset=".58" stop-color="#edf8ff" stop-opacity="0" />
+                      <stop offset="1" stop-color="#163354" stop-opacity=".08" />
+                    </linearGradient>
                     <linearGradient
                       id="expense-flow-light"
                       x1="0"
@@ -1034,19 +1035,19 @@ function goCategory(category: Category, flow_type?: "income" | "expense") {
                         :d="part.path"
                       />
                     </clipPath>
-                    <radialGradient
+                    <linearGradient
                       id="income-bevel"
-                      cx="61"
-                      cy="38"
-                      r="137"
+                      x1="24"
+                      y1="12"
+                      x2="145"
+                      y2="165"
                       gradientUnits="userSpaceOnUse"
                     >
-                      <stop offset="0" stop-color="#f5fbff" stop-opacity=".12" />
-                      <stop offset=".38" stop-color="#edf8ff" stop-opacity=".04" />
-                      <stop offset=".68" stop-color="#edf8ff" stop-opacity="0" />
-                      <stop offset=".93" stop-color="#15365e" stop-opacity=".08" />
-                      <stop offset="1" stop-color="#15365e" stop-opacity=".12" />
-                    </radialGradient>
+                      <stop offset="0" stop-color="#f4fbff" stop-opacity=".2" />
+                      <stop offset=".27" stop-color="#edf8ff" stop-opacity=".06" />
+                      <stop offset=".58" stop-color="#edf8ff" stop-opacity="0" />
+                      <stop offset="1" stop-color="#163354" stop-opacity=".08" />
+                    </linearGradient>
                     <linearGradient
                       id="income-flow-light"
                       x1="0"

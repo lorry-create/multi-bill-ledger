@@ -1,0 +1,21 @@
+/* Regions own their arrival; the route wrapper only softens departure. */
+.page-screen.screen-enter-active {
+  transition: none;
+}
+.page-screen.screen-enter-from {
+  opacity: 1;
+  transform: none;
+}
+.page-screen.screen-leave-active {
+  transition: opacity 0.12s ease;
+}
+.page-screen.screen-leave-to {
+  opacity: 0;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-screen.screen-leave-active {
+    transition: none;
+  }
+}
