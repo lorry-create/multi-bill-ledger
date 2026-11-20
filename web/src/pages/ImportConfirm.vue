@@ -572,7 +572,8 @@ async function confirm(skipPrecheck = false) {
   dupCheckNotice.value = "";
   rowErrors.value = {};
   try {
-    if (!skipPrecheck) {
+    // 原请求可能已经入账，重试时直接交给确认接口按 request_id 重放。
+    if (!skipPrecheck && !retryPayload) {
       const check = await runDuplicatePrecheck();
       if (check && check.blockingSelected.size > 0) {
         retryPayload = null;
