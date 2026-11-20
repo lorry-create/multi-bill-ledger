@@ -455,6 +455,44 @@
       ]
     },
     {
+      "name": "POST /api/classification-rules [createRule]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/classification-rules",
+        "description": "按平台与标准化商户新增或更新个人分类规则；同平台同标准化商户已存在时更新类别与启停状态并递增版本。不影响历史已入账交易。\n请求中的版本、row_id和字段必须按实际返回核对。",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source\": \"wechat\",\n  \"merchant\": \"示例餐馆\",\n  \"category\": \"dining\",\n  \"enabled\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"成功HTTP状态\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "PATCH /api/classification-rules/{id} [patchRule]",
       "request": {
         "method": "PATCH",

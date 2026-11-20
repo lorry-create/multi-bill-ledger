@@ -35,7 +35,9 @@ os.environ.setdefault("DATA_ENCRYPTION_KEY", "test-data-key-not-for-production")
 os.environ.setdefault("COOKIE_SECURE", "0")
 
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 from app import models  # noqa: E402
 from app.crypto import encrypt_json  # noqa: E402
@@ -44,6 +46,7 @@ from app.main import app  # noqa: E402
 from app.security import hash_password  # noqa: E402
 from app.services import exporting  # noqa: E402
 from app.services.dedupe import month_index  # noqa: E402
+from app.services.rules import upsert_rule  # noqa: E402
 
 PASSWORD = "rules-pass-2026"
 
@@ -223,6 +226,13 @@ class _Base(unittest.TestCase):
             headers={"X-CSRF-Token": self.csrf if csrf is None else csrf},
         )
 
+    def _create_rule(self, body: dict, csrf: str | None = None):
+        return self.client.post(
+            "/api/classification-rules",
+            json=body,
+            headers={"X-CSRF-Token": self.csrf if csrf is None else csrf},
+        )
+
     # 导入链路
 
     def _upload(self, data: bytes, csrf: str | None = None):
@@ -268,6 +278,39 @@ class _Base(unittest.TestCase):
         )
         self.assertEqual(200, response.status_code, response.text)
         return response.json()
+
+
+class RuleConcurrencyTest(unittest.TestCase):
+    def test_same_merchant_saves_serialize_before_lookup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "rules.db").as_posix()
+            engine = create_engine(f"sqlite+pysqlite:///{path}", connect_args={"timeout": 0})
+            try:
+                Base.metadata.create_all(engine)
+                with Session(engine) as seed:
+                    seed.add(models.User(id="owner", username="owner", password_hash="unused"))
+                    seed.commit()
+
+                args = {"user_id": "owner", "source": "wechat", "merchant": "SteamShop"}
+                with Session(engine) as first, Session(engine) as second:
+                    original = upsert_rule(first, _key(), category="shopping", **args)
+                    self.assertIsNotNone(original)
+                    rule_id = original.id
+
+                    # 用零等待超时确认第二个连接确实被锁挡住，避免依赖线程调度。
+                    with self.assertRaisesRegex(OperationalError, "database is locked"):
+                        upsert_rule(second, _key(), category="entertainment", **args)
+                    second.rollback()
+                    first.commit()
+
+                    saved = upsert_rule(second, _key(), category="entertainment", **args)
+                    self.assertIsNotNone(saved)
+                    self.assertEqual(rule_id, saved.id)
+                    self.assertEqual(2, saved.version)
+                    second.commit()
+                    self.assertEqual(1, len(second.scalars(select(models.ClassificationRule)).all()))
+            finally:
+                engine.dispose()
 
 
 class RulesApiTest(_Base):
@@ -368,6 +411,63 @@ class RulesApiTest(_Base):
         # 别人的规则一律 404：403 会泄露"这个 ID 存在"
         self.assertEqual(404, response.status_code, response.text)
         self.assertEqual("RESOURCE_NOT_FOUND", response.json()["error"]["code"])
+
+    def test_create_rule_and_applies_to_next_import(self) -> None:
+        created = self._create_rule(
+            {"source": "wechat", "merchant": "  星野小馆（南山） ", "category": "dining"}
+        )
+        self.assertEqual(200, created.status_code, created.text)
+        body = created.json()
+        self.assertEqual(1, body["version"])
+        self.assertEqual("wechat", body["source"])
+        self.assertEqual("星野小馆(南山)", body["merchant_normalized"])
+        self.assertEqual("dining", body["category"])
+        self.assertTrue(body["enabled"])
+
+        # 下一次导入同平台同商户账单应优先命中刚新增的个人规则
+        batch = self._pending_batch(
+            _wechat_csv([("2026-11-12 12:00:00", "星野小馆(南山)", "CREATE-RULE-01")])
+        )
+        self.assertEqual("pending_review", batch["status"])
+        row = batch["rows"][0]
+        self.assertEqual("dining", row["category"])
+        self.assertEqual("user_rule", row["classification_source"])
+
+    def test_create_rule_upserts_existing_and_validates(self) -> None:
+        first = self._create_rule(
+            {"source": "alipay", "merchant": "SteamShop", "category": "shopping", "enabled": False}
+        )
+        self.assertEqual(200, first.status_code, first.text)
+        self.assertFalse(first.json()["enabled"])
+        self.assertEqual("steamshop", first.json()["merchant_normalized"])
+
+        second = self._create_rule(
+            {"source": "alipay", "merchant": "steamshop", "category": "entertainment"}
+        )
+        self.assertEqual(200, second.status_code, second.text)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(2, second.json()["version"])
+        self.assertEqual("entertainment", second.json()["category"])
+        self.assertTrue(second.json()["enabled"])
+        self.assertEqual(1, len(self._rules()))
+
+        # 空白商户、pending 类别、缺 CSRF 均拒绝
+        blank = self._create_rule(
+            {"source": "wechat", "merchant": "   ", "category": "dining"}
+        )
+        self.assertEqual(422, blank.status_code, blank.text)
+        self.assertEqual("RULE_MERCHANT_EMPTY", blank.json()["error"]["details"]["fields"][0]["code"])
+
+        pending = self._create_rule(
+            {"source": "wechat", "merchant": "星野小馆", "category": "pending"}
+        )
+        self.assertEqual(422, pending.status_code, pending.text)
+
+        bad_csrf = self._create_rule(
+            {"source": "wechat", "merchant": "星野小馆", "category": "dining"},
+            csrf="wrong-csrf",
+        )
+        self.assertEqual(403, bad_csrf.status_code, bad_csrf.text)
 
     def test_patch_rule_requires_csrf(self) -> None:
         rule_id = self._insert_rule(merchant="某商户", category="dining")

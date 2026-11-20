@@ -33,7 +33,7 @@ def ddl_statements(dialect) -> list[str]:  # noqa: ANN001
     statements: list[str] = []
     for table in Base.metadata.sorted_tables:
         statements.append(str(CreateTable(table).compile(dialect=dialect)).strip())
-        for index in sorted(table.indexes, key=lambda item: item.name or ""):
+        for index in sorted(table.indexes, key=lambda  item: item.name or ""):
             statements.append(str(CreateIndex(index).compile(dialect=dialect)).strip())
     return statements
 

@@ -540,6 +540,39 @@
       }
     },
     {
+      "case_id": "createRule_success",
+      "operation_id": "createRule",
+      "method": "POST",
+      "path_template": "/api/classification-rules",
+      "request": {
+        "headers": {
+          "X-CSRF-Token": "synthetic-csrf-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "wechat",
+          "merchant": "示例餐馆",
+          "category": "dining",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "X-Contract-Version": "0.2.0",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "rule_demo_01",
+          "version": 1,
+          "source": "wechat",
+          "merchant_normalized": "示例餐馆",
+          "category": "dining",
+          "enabled": true
+        }
+      }
+    },
+    {
       "case_id": "patchRule_success",
       "operation_id": "patchRule",
       "method": "PATCH",

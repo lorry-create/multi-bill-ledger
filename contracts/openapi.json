@@ -2356,6 +2356,140 @@
             "AUTH_REQUIRED"
           ]
         }
+      },
+      "post": {
+        "operationId": "createRule",
+        "summary": "新增或更新个人分类规则",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationRule"
+                },
+                "example": {
+                  "id": "rule_demo_01",
+                  "version": 1,
+                  "source": "wechat",
+                  "merchant_normalized": "示例餐馆",
+                  "category": "dining",
+                  "enabled": true
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Contract-Version": {
+                "description": "当前协作契约版本",
+                "schema": {
+                  "type": "string",
+                  "const": "0.2.0"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleInput"
+              },
+              "example": {
+                "source": "wechat",
+                "merchant": "示例餐馆",
+                "category": "dining",
+                "enabled": true
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [],
+            "csrfAuth": []
+          }
+        ],
+        "description": "按平台与标准化商户新增或更新个人分类规则；同平台同标准化商户已存在时更新类别与启停状态并递增版本。不影响历史已入账交易。",
+        "tags": [
+          "个人规则页"
+        ],
+        "x-page": "个人规则页",
+        "x-task": "T05/T07",
+        "x-action": "新增或更新规则",
+        "x-frontend-function": "createRule",
+        "x-business-rules": [
+          "按平台与标准化商户新增或更新个人分类规则；同平台同标准化商户已存在时更新类别与启停状态并递增版本。不影响历史已入账交易。"
+        ],
+        "x-error-codes": {
+          "401": [
+            "AUTH_REQUIRED"
+          ],
+          "403": [
+            "CSRF_INVALID"
+          ],
+          "422": [
+            "VALIDATION_ERROR"
+          ]
+        }
       }
     },
     "/api/classification-rules/{id}": {
@@ -4465,6 +4599,35 @@
           }
         ],
         "description": "共享模型 RulePatch；HTTP请求与响应均遵守本定义。"
+      },
+      "RuleInput": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/Source",
+            "description": "账单所属支付平台，与采集方式分开。"
+          },
+          "merchant": {
+            "type": "string",
+            "minLength": 1,
+            "description": "商户名称，保存前按本项目规则做标准化归一化匹配。"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ResolvedCategory",
+            "description": "明确的类别代码，不接受pending。"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "个人规则是否启用，不传时默认启用；停用仅影响后续自动分类。"
+          }
+        },
+        "required": [
+          "source",
+          "merchant",
+          "category"
+        ],
+        "additionalProperties": false,
+        "description": "共享模型 RuleInput；HTTP请求与响应均遵守本定义。"
       },
       "BudgetInput": {
         "type": "object",

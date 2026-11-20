@@ -34,6 +34,7 @@ export type TransactionPage = { "items": Array<Transaction>; "total": number; "p
 export type ClassificationRule = { "id": string; "version": number; "source": Source; "merchant_normalized": string; "category": ResolvedCategory; "enabled": boolean };
 export type RuleList = { "items": Array<ClassificationRule> };
 export type RulePatch = { "expected_version": number; "enabled"?: boolean; "category"?: ResolvedCategory };
+export type RuleInput = { "source": Source; "merchant": string; "category": ResolvedCategory; "enabled"?: boolean };
 export type BudgetInput = { "month": string; "category": ResolvedCategory; "amount_fen": number };
 export type Budget = { "id": string; "month": string; "category": ResolvedCategory; "amount_fen": number };
 export type BudgetStatus = { "category": ResolvedCategory; "budget_fen": number; "spent_fen": number; "remaining_fen": number; "over_fen": number };
@@ -59,6 +60,7 @@ export type OperationArgs = {
 "listTransactions": { query?: { "date_from"?: string; "date_to"?: string; "category"?: Category; "source"?: Source; "flow_type"?: FlowType; "page"?: number; "page_size"?: number } };
 "patchTransaction": { path: { "id": string }; body: TransactionPatch };
 "listRules": {  };
+"createRule": { body: RuleInput };
 "patchRule": { path: { "id": string }; body: RulePatch };
 "getMonthlyReport": { query: { "month": string } };
 "putBudget": { body: BudgetInput };
@@ -80,6 +82,7 @@ export type OperationResults = {
 "listTransactions": TransactionPage;
 "patchTransaction": Transaction;
 "listRules": RuleList;
+"createRule": ClassificationRule;
 "patchRule": ClassificationRule;
 "getMonthlyReport": MonthlyReport;
 "putBudget": Budget;
@@ -200,6 +203,14 @@ const OPERATIONS = {
     "binary": false,
     "csrf": false
   },
+  "createRule": {
+    "path": "/api/classification-rules",
+    "method": "POST",
+    "media": "application/json",
+    "status": 200,
+    "binary": false,
+    "csrf": true
+  },
   "patchRule": {
     "path": "/api/classification-rules/{id}",
     "method": "PATCH",
@@ -292,6 +303,7 @@ export function checkImportDuplicates(args: OperationArgs["checkImportDuplicates
 export function listTransactions(args: OperationArgs["listTransactions"], csrfToken?: string): Promise<OperationResults["listTransactions"]> { return callApi("listTransactions", args, csrfToken); }
 export function patchTransaction(args: OperationArgs["patchTransaction"], csrfToken?: string): Promise<OperationResults["patchTransaction"]> { return callApi("patchTransaction", args, csrfToken); }
 export function listRules(args: OperationArgs["listRules"], csrfToken?: string): Promise<OperationResults["listRules"]> { return callApi("listRules", args, csrfToken); }
+export function createRule(args: OperationArgs["createRule"], csrfToken?: string): Promise<OperationResults["createRule"]> { return callApi("createRule", args, csrfToken); }
 export function patchRule(args: OperationArgs["patchRule"], csrfToken?: string): Promise<OperationResults["patchRule"]> { return callApi("patchRule", args, csrfToken); }
 export function getMonthlyReport(args: OperationArgs["getMonthlyReport"], csrfToken?: string): Promise<OperationResults["getMonthlyReport"]> { return callApi("getMonthlyReport", args, csrfToken); }
 export function putBudget(args: OperationArgs["putBudget"], csrfToken?: string): Promise<OperationResults["putBudget"]> { return callApi("putBudget", args, csrfToken); }

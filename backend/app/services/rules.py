@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -30,6 +30,7 @@ from ..contracts import (
     ClassificationRule,
     ErrorDetails,
     FieldError,
+    RuleInput,
     RuleList,
     RulePatch,
     Source,
@@ -37,6 +38,7 @@ from ..contracts import (
 from ..crypto import CryptoError, decrypt_json, encrypt_json
 from ..db import utcnow
 from ..errors import ApiError
+from ..intelligence.normalize import normalize_merchant
 
 logger = logging.getLogger("app.services.rules")
 
@@ -108,6 +110,104 @@ def load_owned(db: Session, user_id: str, rule_id: str) -> models.Classification
     return record
 
 
+def upsert_rule(
+    db: Session,
+    key: str,
+    *,
+    user_id: str,
+    source: str,
+    merchant: str,
+    category: str,
+    enabled: bool = True,
+) -> models.ClassificationRule | None:
+    """按（本人 + 平台 + 标准化商户）建立或更新个人规则，返回 ORM 行对象。
+
+    规则表没有明文商户列（匹配条件本身是敏感信息，见 docs/13），所以只能
+    先取本人该平台的全部规则再解密比对。个人规则通常几十条，可以接受。
+    """
+    normalized = normalize_merchant(merchant)
+    if not normalized:
+        return None
+
+    # 锁住一定存在的账号行，再查询规则。首次保存时没有规则行可锁，
+    # 此空更新在 PostgreSQL 持有账号行锁，在 SQLite 获取写锁，直到事务结束。
+    db.execute(
+        update(models.User)
+        .where(models.User.id == user_id)
+        .values(is_active=models.User.is_active)
+        .execution_options(synchronize_session=False)
+    )
+
+    existing: models.ClassificationRule | None = None
+    for rule in db.scalars(
+        select(models.ClassificationRule).where(
+            models.ClassificationRule.user_id == user_id,
+            models.ClassificationRule.source == source,
+        )
+    ).all():
+        try:
+            rule_payload = decrypt_json(key, rule.encrypted_payload)
+        except CryptoError:
+            continue
+        if rule_payload.get("merchant_normalized") == normalized:
+            existing = rule
+            break
+
+    encoded = encrypt_json(
+        key,
+        {
+            "merchant_normalized": normalized,
+            "category": category,
+            "enabled": enabled,
+        },
+    )
+    if existing is not None:
+        existing.encrypted_payload = encoded
+        existing.enabled = enabled
+        existing.version += 1
+        existing.updated_at = utcnow()
+        return existing
+
+    rule = models.ClassificationRule(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        source=source,
+        version=1,
+        enabled=enabled,
+        encrypted_payload=encoded,
+    )
+    db.add(rule)
+    return rule
+
+
+def create_rule(
+    db: Session,
+    key: str,
+    *,
+    user_id: str,
+    payload: RuleInput,
+) -> ClassificationRule:
+    """在规则页直接新增或覆盖本人分类规则，不重写历史已入账交易。"""
+    enabled_value = True if payload.enabled is None else payload.enabled
+    record = upsert_rule(
+        db,
+        key,
+        user_id=user_id,
+        source=payload.source.value,
+        merchant=payload.merchant,
+        category=payload.category.value,
+        enabled=enabled_value,
+    )
+    if record is None:
+        raise _unprocessable("merchant", "RULE_MERCHANT_EMPTY", "商户名称不能为空")
+
+    item = _to_contract(record, decrypt_json(key, record.encrypted_payload))
+    if item is None:  # pragma: no cover - 刚写入的值不可能非法
+        raise _unprocessable("category", "RULE_CATEGORY_INVALID", "类别代码不合法")
+    db.commit()
+    return item
+
+
 def patch_rule(
     db: Session,
     key: str,
@@ -176,4 +276,4 @@ def patch_rule(
     return item
 
 
-__all__ = ["list_rules", "load_owned", "patch_rule"]
+__all__ = ["create_rule", "list_rules", "load_owned", "patch_rule", "upsert_rule"]

@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from ..contracts import ClassificationRule, Error, RuleList, RulePatch
+from ..contracts import ClassificationRule, Error, RuleInput, RuleList, RulePatch
 from ..deps import AuthContext, get_db, require_csrf, require_session
 from ..services import rules as rule_service
 
@@ -27,6 +27,25 @@ def list_rules(
 ) -> RuleList:
     return rule_service.list_rules(
         db, auth.user.id, request.app.state.settings.data_encryption_key
+    )
+
+
+@router.post(
+    "",
+    response_model=ClassificationRule,
+    responses={401: _ERR, 403: _ERR, 422: _ERR},
+)
+def create_rule(
+    payload: RuleInput,
+    request: Request,
+    auth: AuthContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> ClassificationRule:
+    return rule_service.create_rule(
+        db,
+        request.app.state.settings.data_encryption_key,
+        user_id=auth.user.id,
+        payload=payload,
     )
 
 

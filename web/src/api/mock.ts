@@ -219,6 +219,37 @@ export const mock = {
   async listRules() {
     return { items: [...rules] };
   },
+  async createRule(args: SDK.OperationArgs["createRule"]) {
+    const normalized = args.body.merchant.trim().toLowerCase();
+    const enabled = args.body.enabled ?? true;
+    const idx = rules.findIndex(
+      (x) =>
+        x.source === args.body.source && x.merchant_normalized === normalized,
+    );
+    if (idx >= 0) {
+      rules[idx] = {
+        ...rules[idx],
+        category: args.body.category,
+        enabled,
+        version: rules[idx].version + 1,
+      };
+      return rules[idx];
+    }
+    const created: SDK.ClassificationRule = {
+      id: `rule_mock_${Date.now()}`,
+      version: 1,
+      source: args.body.source,
+      merchant_normalized: normalized,
+      category: args.body.category,
+      enabled,
+    };
+    rules = [...rules, created].sort((a, b) =>
+      `${a.source}:${a.merchant_normalized}`.localeCompare(
+        `${b.source}:${b.merchant_normalized}`,
+      ),
+    );
+    return created;
+  },
   async patchRule(args: SDK.OperationArgs["patchRule"]) {
     const i = rules.findIndex((x) => x.id === args.path.id);
     rules[i] = { ...rules[i], ...args.body, version: rules[i].version + 1 };

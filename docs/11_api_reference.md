@@ -30,11 +30,12 @@
 | API12 | `GET /api/transactions` | `listTransactions` | 账单页：列表初始化和筛选翻页 | T02/T03 |
 | API13 | `PATCH /api/transactions/{id}` | `patchTransaction` | 账单编辑弹窗：保存修改或记住分类 | T05/T07 |
 | API14 | `GET /api/classification-rules` | `listRules` | 个人规则页：读取本人规则 | T05/T07 |
-| API15 | `PATCH /api/classification-rules/{id}` | `patchRule` | 个人规则页：修改类别或停用 | T05/T07 |
-| API16 | `GET /api/reports/monthly` | `getMonthlyReport` | 月报页：选月份、修改后刷新 | T08/T09 |
-| API17 | `PUT /api/budgets` | `putBudget` | 预算弹窗：保存分类月预算 | T08/T09 |
-| API18 | `GET /api/exports/transactions.csv` | `exportTransactions` | 账单页：导出当前筛选结果 | T08/T09 |
-| API19 | `GET /api/exports/monthly.pdf` | `exportMonthlyPdf` | 月报页：导出当前月报 | T08/T09 |
+| API15 | `POST /api/classification-rules` | `createRule` | 个人规则页：新增或更新规则 | T05/T07 |
+| API16 | `PATCH /api/classification-rules/{id}` | `patchRule` | 个人规则页：修改类别或停用 | T05/T07 |
+| API17 | `GET /api/reports/monthly` | `getMonthlyReport` | 月报页：选月份、修改后刷新 | T08/T09 |
+| API18 | `PUT /api/budgets` | `putBudget` | 预算弹窗：保存分类月预算 | T08/T09 |
+| API19 | `GET /api/exports/transactions.csv` | `exportTransactions` | 账单页：导出当前筛选结果 | T08/T09 |
+| API20 | `GET /api/exports/monthly.pdf` | `exportMonthlyPdf` | 月报页：导出当前月报 | T08/T09 |
 
 ## API01 必要依赖健康检查
 
@@ -1208,7 +1209,79 @@ Content-Type: application/json
 | --- | --- | --- |
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 
-## API15 修改或停用规则，不改写历史账单
+## API15 新增或更新个人分类规则
+
+`POST /api/classification-rules`
+
+按平台与标准化商户新增或更新个人分类规则；同平台同标准化商户已存在时更新类别与启停状态并递增版本。不影响历史已入账交易。
+
+前端导出函数：`createRule`。后端负责人H；智能处理由D模块提供，前端负责人F。对应任务：T05/T07。
+
+认证：本人会话Cookie。写请求必须CSRF。
+
+### 请求体
+
+媒体类型：`application/json`。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `source` | `Source` | 是 | 账单所属支付平台，与采集方式分开。 |
+| `merchant` | `string` | 是 | minLength=1。商户名称，保存前按本项目规则做标准化归一化匹配。 |
+| `category` | `ResolvedCategory` | 是 | 明确的类别代码，不接受pending。 |
+| `enabled` | `boolean` | 否 | 个人规则是否启用，不传时默认启用；停用仅影响后续自动分类。 |
+
+### 请求示例
+
+```http
+POST /api/classification-rules HTTP/1.1
+Host: 127.0.0.1:8000
+Cookie: bill_session=<浏览器自动携带的会话>
+X-CSRF-Token: synthetic-csrf-token
+Content-Type: application/json
+```
+
+JSON请求正文：
+
+```json
+{
+  "source": "wechat",
+  "merchant": "示例餐馆",
+  "category": "dining",
+  "enabled": true
+}
+```
+
+### 成功响应
+
+HTTP状态：`200`。
+
+```http
+X-Contract-Version: 0.2.0
+Content-Type: application/json
+```
+
+```json
+{
+  "id": "rule_demo_01",
+  "version": 1,
+  "source": "wechat",
+  "merchant_normalized": "示例餐馆",
+  "category": "dining",
+  "enabled": true
+}
+```
+
+响应模型：`ClassificationRule`。逐字段见文末共享模型。
+
+### 失败和前端处理
+
+| HTTP | 错误代码或含义 | 前端动作 |
+| --- | --- | --- |
+| 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
+| 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
+| 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
+
+## API16 修改或停用规则，不改写历史账单
 
 `PATCH /api/classification-rules/{id}`
 
@@ -1285,7 +1358,7 @@ Content-Type: application/json
 | 409 | VERSION_CONFLICT | 按error.code区分版本、幂等或状态冲突；重新读取后由用户确认。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API16 按上海时区汇总月份并返回预算情况
+## API17 按上海时区汇总月份并返回预算情况
 
 `GET /api/reports/monthly`
 
@@ -1580,7 +1653,7 @@ Content-Type: application/json
 | 401 | AUTH_REQUIRED | 回登录或展示登录失败，不循环重试。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API17 按本人月份类别设置或更新预算
+## API18 按本人月份类别设置或更新预算
 
 `PUT /api/budgets`
 
@@ -1648,7 +1721,7 @@ Content-Type: application/json
 | 403 | CSRF_INVALID | 刷新会话/CSRF或提示拒绝，不自动重放修改。 |
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 
-## API18 导出与筛选范围一致的本人账单CSV
+## API19 导出与筛选范围一致的本人账单CSV
 
 `GET /api/exports/transactions.csv`
 
@@ -1705,7 +1778,7 @@ wechat,2300,expense,dining
 | 422 | VALIDATION_ERROR | 映射details.fields至对应字段，修正后提交。 |
 | 503 | SERVICE_UNAVAILABLE | 保留用户输入并提示稍后手动重试。 |
 
-## API19 导出与月报同口径的中文PDF
+## API20 导出与月报同口径的中文PDF
 
 `GET /api/exports/monthly.pdf`
 
@@ -2142,6 +2215,18 @@ Content-Disposition: attachment; filename="ledger-2026-11.pdf"
 | `expected_version` | `integer` | 是 | minimum=1。提交编辑前最后读取的资源版本，冲突返回409和最新版本。 |
 | `enabled` | `boolean` | 否 | 个人规则是否启用，停用仅影响后续自动分类。 |
 | `category` | `ResolvedCategory` | 否 | 明确的类别代码，不接受pending。 |
+
+
+### RuleInput
+
+共享模型 RuleInput；HTTP请求与响应均遵守本定义。
+
+| 字段 | 类型 | 必填 | 约束和含义 |
+| --- | --- | --- | --- |
+| `source` | `Source` | 是 | 账单所属支付平台，与采集方式分开。 |
+| `merchant` | `string` | 是 | minLength=1。商户名称，保存前按本项目规则做标准化归一化匹配。 |
+| `category` | `ResolvedCategory` | 是 | 明确的类别代码，不接受pending。 |
+| `enabled` | `boolean` | 否 | 个人规则是否启用，不传时默认启用；停用仅影响后续自动分类。 |
 
 
 ### BudgetInput

@@ -40,7 +40,7 @@ from ..contracts import (
 from ..crypto import CryptoError, decrypt_json, encrypt_json
 from ..db import utcnow
 from ..errors import ApiError
-from ..intelligence.normalize import normalize_merchant
+from . import rules as rule_service
 from .dedupe import day_key, flow_value, month_index
 
 logger = logging.getLogger("app.services.transactions")
@@ -285,58 +285,17 @@ def _upsert_rule(
     merchant: str,
     category: str,
 ) -> str | None:
-    """按（本人 + 平台 + 标准化商户）建立或更新个人规则，返回规则 ID。
-
-    规则表没有明文商户列（匹配条件本身是敏感信息，见 docs/13），所以只能
-    先取本人该平台的全部规则再解密比对。个人规则通常几十条，可以接受。
-    """
-    normalized = normalize_merchant(merchant)
-    if not normalized:
-        return None
-
-    existing: models.ClassificationRule | None = None
-    for rule in db.scalars(
-        select(models.ClassificationRule).where(
-            models.ClassificationRule.user_id == user_id,
-            models.ClassificationRule.source == source,
-        )
-    ).all():
-        try:
-            rule_payload = decrypt_json(key, rule.encrypted_payload)
-        except CryptoError:
-            continue
-        if rule_payload.get("merchant_normalized") == normalized:
-            existing = rule
-            break
-
-    if existing is not None:
-        existing.encrypted_payload = encrypt_json(
-            key,
-            {
-                "merchant_normalized": normalized,
-                "category": category,
-                # 停用的规则被用户重新"记住"时应当重新生效
-                "enabled": True,
-            },
-        )
-        existing.enabled = True
-        existing.version += 1
-        existing.updated_at = utcnow()
-        return existing.id
-
-    rule = models.ClassificationRule(
-        id=str(uuid.uuid4()),
+    """按（本人 + 平台 + 标准化商户）建立或更新个人规则，返回规则 ID。"""
+    record = rule_service.upsert_rule(
+        db,
+        key,
         user_id=user_id,
         source=source,
-        version=1,
+        merchant=merchant,
+        category=category,
         enabled=True,
-        encrypted_payload=encrypt_json(
-            key,
-            {"merchant_normalized": normalized, "category": category, "enabled": True},
-        ),
     )
-    db.add(rule)
-    return rule.id
+    return record.id if record is not None else None
 
 
 def patch_transaction(

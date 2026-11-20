@@ -53,6 +53,7 @@ __all__ = [
     "ClassificationRule",
     "RuleList",
     "RulePatch",
+    "RuleInput",
     "BudgetInput",
     "Budget",
     "BudgetStatus",
@@ -425,6 +426,15 @@ class RulePatch(BaseModel):
     enabled: Optional[bool] = Field(default=None, description="个人规则是否启用，停用仅影响后续自动分类。")
     category: Optional[ResolvedCategory] = Field(default=None, description="明确的类别代码，不接受pending。")
 
+class RuleInput(BaseModel):
+    """共享模型 RuleInput；HTTP请求与响应均遵守本定义。"""
+    model_config = ConfigDict(extra="forbid")
+
+    source: Source = Field(..., description="账单所属支付平台，与采集方式分开。")
+    merchant: str = Field(..., min_length=1, description="商户名称，保存前按本项目规则做标准化归一化匹配。")
+    category: ResolvedCategory = Field(..., description="明确的类别代码，不接受pending。")
+    enabled: Optional[bool] = Field(default=None, description="个人规则是否启用，不传时默认启用；停用仅影响后续自动分类。")
+
 class BudgetInput(BaseModel):
     """共享模型 BudgetInput；HTTP请求与响应均遵守本定义。"""
     model_config = ConfigDict(extra="forbid")
@@ -520,6 +530,7 @@ _MODELS = (
     ClassificationRule,
     RuleList,
     RulePatch,
+    RuleInput,
     BudgetInput,
     Budget,
     BudgetStatus,
